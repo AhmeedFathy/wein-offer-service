@@ -66,15 +66,6 @@ def health():
     return jsonify({"status": "ok"})
 
 
-@app.route("/debug", methods=["GET"])
-def debug():
-    return jsonify({
-        "sys_executable": sys.executable,
-        "sys_prefix": sys.prefix,
-        "python_executable_used": PYTHON_EXECUTABLE,
-    })
-
-
 @app.route("/generate-offer-files", methods=["POST"])
 def generate_offer_files():
     payload = request.get_json(force=True, silent=True) or {}
