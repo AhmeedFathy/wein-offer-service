@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 # ─── PATHS ───────────────────────────────────────────────────────────────────
-TEMPLATES_DIR = Path(r"D:\Fady\outputs\_Templates")
+TEMPLATES_DIR = Path(__file__).resolve().parent
 TEMPLATE_FILLED   = TEMPLATES_DIR / "Template - Filled Offer Template.xlsx"
 TEMPLATE_PROVIDER = TEMPLATES_DIR / "Template - Provider Negotiation Offers.xlsx"
 
