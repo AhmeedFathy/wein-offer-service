@@ -25,6 +25,12 @@ from flask import Flask, jsonify, request
 
 TEMPLATES_DIR = Path(__file__).resolve().parent
 
+PYTHON_EXECUTABLE = sys.executable
+if not Path(PYTHON_EXECUTABLE).name.startswith("python"):
+    candidate = Path(sys.prefix) / "bin" / "python"
+    if candidate.exists():
+        PYTHON_EXECUTABLE = str(candidate)
+
 MIME_TYPES = {
     ".pdf": "application/pdf",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -47,7 +53,7 @@ def run_generation_scripts(provider: str, vertical: str, output_dir: Path, json_
         ("build_offer_files.py", [provider, vertical, str(output_dir), str(json_path), "full"]),
         ("build_pdfs.py", [str(json_path), str(output_dir), "both"]),
     ):
-        cmd = [sys.executable, str(TEMPLATES_DIR / script)] + args
+        cmd = [PYTHON_EXECUTABLE, str(TEMPLATES_DIR / script)] + args
         proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(TEMPLATES_DIR))
         if proc.returncode != 0:
             raise RuntimeError(
