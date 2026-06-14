@@ -354,7 +354,10 @@ def build_filled_template(wb_out, data):
 
         for j, v in enumerate(vals):
             cell = ws3.cell(row=i, column=j+2)
-            cell.value = v
+            if isinstance(v, list):
+                cell.value = ', '.join(str(item) for item in v)
+            else:
+                cell.value = v
             cell.font = Font(size=9)
             cell.alignment = wrap()
             cell.border = thin_border()
@@ -529,7 +532,10 @@ def build_provider_xlsx(wb_out, data):
 
         for j, (col, v) in enumerate(zip(col_letters, vals)):
             cell = ws[f"{col}{i}"]
-            cell.value = v
+            if isinstance(v, list):
+                cell.value = ', '.join(str(item) for item in v)
+            else:
+                cell.value = v
             cell.font = Font(size=9)
             cell.alignment = wrap()
             cell.border = thin_border()
