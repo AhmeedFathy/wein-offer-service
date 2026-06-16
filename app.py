@@ -84,39 +84,55 @@ def extract_menu():
     mime_type = f.content_type or "application/pdf"
     b64 = base64.b64encode(file_bytes).decode("utf-8")
 
-    try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[{"parts": [
-                {"inline_data": {"mime_type": mime_type, "data": b64}},
-                {"text": (
-                    "Extract every single menu item from this menu document. "
-                    "For each item return: name (exact name as shown), category "
-                    "(e.g. Appetizer, Main Course, Dessert, Drink, Shisha, etc.), "
-                    "price as a number in EGP (use 0 if price not shown), "
-                    "currency (always EGP). "
-                    "Be thorough — extract ALL items including drinks, desserts, "
-                    "sides, and any items with Arabic names (transliterate them). "
-                    "Return ONLY a valid JSON array. No markdown fences, no "
-                    "explanation, no preamble. Start with [ and end with ]."
-                )}
-            ]}]
-        )
+    prompt = (
+        "Extract every single menu item from this menu document. "
+        "For each item return: name (exact name as shown), category "
+        "(e.g. Appetizer, Main Course, Dessert, Drink, Shisha, etc.), "
+        "price as a number in EGP (use 0 if price not shown), "
+        "currency (always EGP). "
+        "Be thorough — extract ALL items including drinks, desserts, "
+        "sides, and any items with Arabic names (transliterate them). "
+        "Return ONLY a valid JSON array. No markdown fences, no "
+        "explanation, no preamble. Start with [ and end with ]."
+    )
+    contents = [{"parts": [
+        {"inline_data": {"mime_type": mime_type, "data": b64}},
+        {"text": prompt}
+    ]}]
 
-        text = response.text.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.strip()
-        items = json.loads(text)
-        if not isinstance(items, list):
-            raise ValueError("Response is not a JSON array")
-    except json.JSONDecodeError as e:
-        return jsonify({"error": str(e), "raw": response.text[:500]}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    import time
+    client = genai.Client(api_key=api_key)
+    # Try lite first (less congested), fall back to flash
+    model_order = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+    last_error = None
+    for attempt in range(3):
+        model = model_order[min(attempt, len(model_order) - 1)]
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=contents,
+            )
+            text = response.text.strip()
+            if "```" in text:
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            items = json.loads(text)
+            if not isinstance(items, list):
+                raise ValueError("Response is not a JSON array")
+            return jsonify({"items": items, "count": len(items), "source": "gemini-vision"})
+        except json.JSONDecodeError as e:
+            return jsonify({"error": str(e), "raw": response.text[:500]}), 502
+        except Exception as e:
+            last_error = str(e)
+            if "503" in last_error or "UNAVAILABLE" in last_error:
+                if attempt < 2:
+                    time.sleep(10 * (attempt + 1))
+                    continue
+            return jsonify({"error": last_error}), 502
+
+    return jsonify({"error": f"Gemini unavailable after 3 retries: {last_error}"}), 503
 
     return jsonify({"items": items, "count": len(items), "source": "gemini-vision"})
 
