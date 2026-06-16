@@ -67,7 +67,10 @@ def health():
 
 @app.route("/extract-menu", methods=["POST"])
 def extract_menu():
-    import google.genai as genai
+    try:
+        import google.genai as genai
+    except ImportError as e:
+        return jsonify({"error": f"google-genai not installed: {e}", "hint": "pip install google-genai in the correct virtualenv"}), 500
 
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
