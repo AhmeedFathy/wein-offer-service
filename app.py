@@ -4,23 +4,24 @@ HTTP service for the WeIN offer pipeline.
 POST /generate-offer-files
 Body: { "provider": "...", "vertical": "...", "offer_data": {...} }
 
-Steps:
-1. Save offer_data.json to a temp working directory
-2. Run build_offer_files.py and build_pdfs.py (full mode) to produce the 4 deliverable files
-3. Return the 4 files as base64-encoded content in the JSON response, so n8n's
-   HTTP Request node can pass them straight to Google Drive nodes.
+POST /extract-menu
+Body: multipart/form-data with field "menu_file" (PDF or image)
+   OR JSON {"file_base64": "...", "mime_type": "..."}
+Returns: {"items": [...], "count": N, "source": "claude-vision"}
 
-Run with: python offer_file_service.py
+Run with: python app.py
 """
 
 import base64
 import json
+import os
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+import anthropic
 from flask import Flask, jsonify, request
 
 TEMPLATES_DIR = Path(__file__).resolve().parent
@@ -61,9 +62,102 @@ def run_generation_scripts(provider: str, vertical: str, output_dir: Path, json_
             )
 
 
+EXTRACT_PROMPT = (
+    "Extract every menu item from this file. "
+    "For each item return: name, category (e.g. Appetizer, Main, Dessert), "
+    "price (numeric only), currency (default EGP unless stated otherwise). "
+    "Return ONLY a valid JSON array — no markdown, no explanation, no other text. "
+    'Example: [{"name":"Hummus","category":"Appetizer","price":45,"currency":"EGP"}]'
+)
+
+IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def _build_claude_content(file_bytes: bytes, mime_type: str) -> list:
+    b64 = base64.standard_b64encode(file_bytes).decode("ascii")
+    if mime_type == "application/pdf":
+        return [
+            {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}},
+            {"type": "text", "text": EXTRACT_PROMPT},
+        ]
+    if mime_type in IMAGE_MIME_TYPES:
+        return [
+            {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}},
+            {"type": "text", "text": EXTRACT_PROMPT},
+        ]
+    return [{"type": "text", "text": f"[unsupported mime type: {mime_type}]"}]
+
+
+def _detect_mime(filename: str, provided: str | None) -> str:
+    if provided:
+        return provided
+    ext = Path(filename).suffix.lower()
+    return {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(ext, "application/octet-stream")
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/extract-menu", methods=["POST"])
+def extract_menu():
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
+
+    # Accept multipart upload or JSON base64
+    if request.content_type and "multipart" in request.content_type:
+        f = request.files.get("menu_file")
+        if not f:
+            return jsonify({"error": "No 'menu_file' field in multipart body"}), 400
+        file_bytes = f.read()
+        mime_type = _detect_mime(f.filename or "", f.content_type)
+    else:
+        payload = request.get_json(force=True, silent=True) or {}
+        b64 = payload.get("file_base64")
+        mime_type = payload.get("mime_type", "application/pdf")
+        if not b64:
+            return jsonify({"error": "JSON body must include 'file_base64'"}), 400
+        try:
+            file_bytes = base64.b64decode(b64)
+        except Exception:
+            return jsonify({"error": "Invalid base64 in 'file_base64'"}), 400
+
+    if mime_type == "application/octet-stream":
+        return jsonify({"error": f"Unsupported or undetected file type"}), 400
+
+    content = _build_claude_content(file_bytes, mime_type)
+    if content[0].get("type") == "text" and "unsupported" in content[0]["text"]:
+        return jsonify({"error": content[0]["text"]}), 400
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": content}],
+        )
+        raw = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+        items = json.loads(raw)
+        if not isinstance(items, list):
+            raise ValueError("Response is not a JSON array")
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Claude returned non-JSON: {e}", "raw": raw[:500]}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+    return jsonify({"items": items, "count": len(items), "source": "claude-vision"})
 
 
 @app.route("/generate-offer-files", methods=["POST"])
