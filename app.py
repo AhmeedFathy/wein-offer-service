@@ -67,7 +67,7 @@ def health():
 
 @app.route("/extract-menu", methods=["POST"])
 def extract_menu():
-    import google.generativeai as genai
+    import google.genai as genai
 
     api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
@@ -81,29 +81,32 @@ def extract_menu():
     mime_type = f.content_type or "application/pdf"
     b64 = base64.b64encode(file_bytes).decode("utf-8")
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-
     try:
-        response = model.generate_content([
-            {
-                "inline_data": {
-                    "mime_type": mime_type,
-                    "data": b64,
-                }
-            },
-            (
-                "Extract every menu item from this menu. For each item return: "
-                "name, category (e.g. Appetizer, Main, Dessert, Drink), price as "
-                "a number in EGP (0 if not shown), currency (EGP). "
-                "Return ONLY a valid JSON array. No markdown, no explanation, "
-                "just the raw JSON array starting with [ and ending with ]."
-            ),
-        ])
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[{"parts": [
+                {"inline_data": {"mime_type": mime_type, "data": b64}},
+                {"text": (
+                    "Extract every single menu item from this menu document. "
+                    "For each item return: name (exact name as shown), category "
+                    "(e.g. Appetizer, Main Course, Dessert, Drink, Shisha, etc.), "
+                    "price as a number in EGP (use 0 if price not shown), "
+                    "currency (always EGP). "
+                    "Be thorough — extract ALL items including drinks, desserts, "
+                    "sides, and any items with Arabic names (transliterate them). "
+                    "Return ONLY a valid JSON array. No markdown fences, no "
+                    "explanation, no preamble. Start with [ and end with ]."
+                )}
+            ]}]
+        )
 
         text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
         items = json.loads(text)
         if not isinstance(items, list):
             raise ValueError("Response is not a JSON array")
