@@ -50,6 +50,30 @@ def split_top_level(text):
         parts.append(cur.strip())
     return parts
 
+def _contents(o):
+    """Bundle contents — derived from items[] (current node-8 schema), falling
+    back to a legacy 'contents' string if present."""
+    items = o.get("items")
+    if items:
+        return " + ".join(item.get("name", "") for item in items)
+    return o.get("contents", "")
+
+def _party_size(o):
+    """Party size — current schema has no party_size field; derive from
+    keywords in the title/hook, defaulting to '—' if unclear."""
+    if o.get("party_size"):
+        return o["party_size"]
+    text = (o.get("title", "") + " " + o.get("hook", "")).lower()
+    if "family" in text:
+        return "Family"
+    if "group" in text:
+        return "Group"
+    if "couple" in text:
+        return "Couple"
+    if "solo" in text:
+        return "Solo"
+    return "—"
+
 def wrap_text(c_obj, text, x, y, max_width, font, size, color, line_height=14):
     c_obj.setFont(font, size)
     c_obj.setFillColor(color)
@@ -167,8 +191,10 @@ def build_provider_pdf(data, output_path):
         # Strip redundant discount suffix (badge already shows it)
         title     = re.sub(r'\s*·?\s*\d+%\s*off(?:\s*@[^·]+)?$', '', title_raw, flags=re.IGNORECASE).strip()
         bundle    = offer.get("bundle_type", offer.get("offer_type", "Bundle"))
-        contents  = offer.get("contents", "")
+        contents  = _contents(offer)
         terms     = offer.get("terms", "")
+        if isinstance(terms, list):
+            terms = ", ".join(str(t) for t in terms)
 
         page_header(c, provider, idx + 1)
 
@@ -282,6 +308,8 @@ def build_provider_pdf(data, output_path):
                     content_items.append(("sub", wrapped_sub, SUB_LINE_H))
 
         terms_items = []  # list of [wrapped lines] per term part
+        if isinstance(terms, list):
+            terms = " · ".join(str(t) for t in terms)
         for part in terms.replace("·", "\n").split("\n"):
             part = part.strip()
             if not part: continue
@@ -365,7 +393,7 @@ def build_comparison_pdf(data, output_path):
             ("Selected Offers", str(len(selected))),
             ("Avg Gap vs Market", avg_gap),
             ("Max Discount", f"{int(max((o.get('discount_pct',0) for o in selected),default=0)*100)}%"),
-            ("Couple Formats", str(data.get("couple_formats", len([o for o in selected if o.get('party_size','')=='Couple'])))),
+            ("Couple Formats", str(data.get("couple_formats", len([o for o in selected if _party_size(o)=='Couple'])))),
             ("At Target", f"{len(selected)}/{len(selected)}"),
             ("Category", data.get("category_short", "Dessert Cafe")),
         ]
