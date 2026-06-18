@@ -454,14 +454,13 @@ def _derive_comparisons(data, selected):
             "gap":           gap_label,
             "our_title":     title,
             "our_disc":      f"{our_disc_pct:.0f}%",
-            # OUR side: show our promo (WeIN deal price) as the headline price
-            "our_reg":       f"EGP {promo:,.0f}" if promo else "",
-            "our_promo_str": "",
+            "our_reg":       f"EGP {reg:,.0f}"    if reg   else "",
+            "our_promo_str": f"EGP {promo:,.0f}"  if promo else "",
             "our_items":     items,
-            # COMPETITOR side: their deal price at their (lower) discount
             "comp_disc":     f"{cdp:.0f}%",
-            "comp_reg":      f"EGP {comp_deal:,.0f}" if comp_deal else "",
-            "comp_promo_str":"",
+            # Competitor regular = same item at same base price; promo = their deal
+            "comp_reg":      f"EGP {reg:,.0f}"      if reg      else "",
+            "comp_promo_str":f"EGP {comp_deal:,.0f}" if comp_deal else "",
             "comp_items":    [],
             "comp_label":    comp_label,
             "why_win":       why_win,
