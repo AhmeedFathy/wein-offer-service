@@ -378,11 +378,110 @@ def build_provider_pdf(data, output_path):
 # ─────────────────────────────────────────────────────────────────
 # FILE 2 — COMPARISON PDF
 # ─────────────────────────────────────────────────────────────────
+VERTICAL_FLOORS = {
+    "dining":              35,
+    "food & beverage":     35,
+    "food":                35,
+    "restaurant":          35,
+    "fun & activities":    35,
+    "activities":          35,
+    "entertainment":       35,
+    "health & beauty":     25,
+    "beauty":              25,
+    "wellness":            25,
+    "hotels":              20,
+    "hotel":               20,
+    "aqua park":           20,
+    "aquapark":            20,
+}
+
+def _parse_waf_max(waffarha_adj):
+    """Extract max waffarha discount % from the waffarha_adj string."""
+    if not waffarha_adj:
+        return None
+    m = re.search(r'max\s+discount\s+([\d.]+)%', str(waffarha_adj), re.IGNORECASE)
+    if m:
+        return float(m.group(1))
+    m = re.search(r'([\d.]+)%\s*[→\-]', str(waffarha_adj))
+    if m:
+        return float(m.group(1))
+    return None
+
+def _competitor_floor(data):
+    """Return competitor discount % from waffarha_benchmark, waffarha_adj, or vertical floor."""
+    # 1. Structured benchmark field (preferred)
+    bench = data.get("waffarha_benchmark") or {}
+    if isinstance(bench, dict):
+        v = bench.get("competitor_max_discount")
+        if v:
+            v = float(v)
+            return v if v > 1 else v * 100
+    # 2. Parse from waffarha_adj string
+    waf_max = _parse_waf_max(data.get("waffarha_adj", ""))
+    if waf_max is not None:
+        return waf_max
+    # 3. Vertical floor fallback
+    vertical = (data.get("vertical") or "").lower().strip()
+    for key, floor in VERTICAL_FLOORS.items():
+        if key in vertical:
+            return floor
+    return 30  # safe default
+
+def _derive_comparisons(data, selected):
+    """Build comparison rows from offer fields when no 'comparisons' key exists."""
+    cdp = _competitor_floor(data)   # competitor discount %
+    comp_label = "WAFFARHA" if (data.get("waffarha_benchmark") or data.get("waffarha_adj")) else "COMPETITOR"
+    rows = []
+    for o in selected:
+        our_disc_raw = o.get("discount_pct", 0)
+        our_disc_pct = our_disc_raw if our_disc_raw > 1 else our_disc_raw * 100
+        reg   = o.get("regular_egp") or o.get("price_original_egp", 0)
+        promo = o.get("promo_egp")   or o.get("price_discounted_egp", 0)
+        # competitor's deal price = same regular price at their (lower) discount
+        comp_deal = round(reg * (1 - cdp / 100)) if reg else 0
+        title = re.sub(r'\s*·?\s*\d+%\s*off(?:\s*@[^·]+)?$', '',
+                       o.get("title", ""), flags=re.IGNORECASE).strip()
+        items = [item.get("name","") for item in (o.get("items") or [])[:3] if item.get("name")]
+        party = o.get("party_size") or _party_size(o)
+        tier  = o.get("tier", "")
+        section = f"{party} — {tier}" if tier else party
+        gap = our_disc_pct - cdp
+        gap_label = f"+{gap:.0f}% vs {comp_label.title()}"
+        why_win   = (f"WeIN at {our_disc_pct:.0f}% vs {comp_label.title()} {cdp:.0f}% — "
+                     f"{gap:.0f}% stronger deal with curated bundle")
+        rows.append({
+            "section":       section,
+            "gap":           gap_label,
+            "our_title":     title,
+            "our_disc":      f"{our_disc_pct:.0f}%",
+            # OUR side: show our promo (WeIN deal price) as the headline price
+            "our_reg":       f"EGP {promo:,.0f}" if promo else "",
+            "our_promo_str": "",
+            "our_items":     items,
+            # COMPETITOR side: their deal price at their (lower) discount
+            "comp_disc":     f"{cdp:.0f}%",
+            "comp_reg":      f"EGP {comp_deal:,.0f}" if comp_deal else "",
+            "comp_promo_str":"",
+            "comp_items":    [],
+            "comp_label":    comp_label,
+            "why_win":       why_win,
+        })
+    return rows
+
 def build_comparison_pdf(data, output_path):
     provider   = data["provider"]
     selected   = [o for o in data["offers"] if o.get("status","Selected") == "Selected"][:15]
-    comps      = data.get("comparisons", [])
-    avg_gap    = data.get("avg_gap", "+5%")
+    comps      = data.get("comparisons") or []
+    if not comps:
+        comps = _derive_comparisons(data, selected)
+    if comps and not data.get("avg_gap"):
+        gap_vals = []
+        for c in comps:
+            try: gap_vals.append(float(re.search(r'[+-]?\d+', c.get("gap","")).group()))
+            except: pass
+        avg_gap = f"+{sum(gap_vals)/len(gap_vals):.0f}%" if gap_vals else "+6%"
+    else:
+        avg_gap = data.get("avg_gap", "+6%")
 
     c = canvas.Canvas(str(output_path), pagesize=A4)
     page_num   = 1
@@ -392,10 +491,10 @@ def build_comparison_pdf(data, output_path):
         kpis = [
             ("Selected Offers", str(len(selected))),
             ("Avg Gap vs Market", avg_gap),
-            ("Max Discount", f"{int(max((o.get('discount_pct',0) for o in selected),default=0)*100)}%"),
+            ("Max Discount", f"{max((o.get('discount_pct',0) if o.get('discount_pct',0)>1 else o.get('discount_pct',0)*100 for o in selected),default=0):.0f}%"),
             ("Couple Formats", str(data.get("couple_formats", len([o for o in selected if _party_size(o)=='Couple'])))),
             ("At Target", f"{len(selected)}/{len(selected)}"),
-            ("Category", data.get("category_short", "Dessert Cafe")),
+            ("Category", data.get("category_short") or data.get("vertical") or "—"),
         ]
         cw = (W - 40*mm) / 6
         for i, (label, val) in enumerate(kpis):
