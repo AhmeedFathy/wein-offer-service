@@ -394,6 +394,21 @@ VERTICAL_FLOORS = {
     "aqua park":           20,
     "aquapark":            20,
 }
+WEIN_OFFER_CAP = 40  # soft opening max discount %
+
+VERTICAL_COMP_CONTENT = {
+    "dining":           "Similar dining bundle on Waffarha Cairo",
+    "food & beverage":  "Similar F&B bundle on Waffarha Cairo",
+    "restaurant":       "Similar dining bundle on Waffarha Cairo",
+    "fun & activities": "Similar activity package on Waffarha",
+    "activities":       "Similar activity package on Waffarha",
+    "entertainment":    "Similar experience package on Waffarha",
+    "health & beauty":  "Similar beauty/wellness package on Waffarha",
+    "beauty":           "Similar beauty treatment on Waffarha",
+    "wellness":         "Similar wellness session on Waffarha",
+    "hotels":           "Similar hotel stay deal on Waffarha",
+    "aqua park":        "Similar aqua park entry on Waffarha",
+}
 
 def _parse_waf_max(waffarha_adj):
     """Extract max waffarha discount % from the waffarha_adj string."""
@@ -429,15 +444,33 @@ def _competitor_floor(data):
 
 def _derive_comparisons(data, selected):
     """Build comparison rows from offer fields when no 'comparisons' key exists."""
-    cdp = _competitor_floor(data)   # competitor discount %
+    raw_cdp    = _competitor_floor(data)   # what Waffarha/market actually shows
     comp_label = "WAFFARHA" if (data.get("waffarha_benchmark") or data.get("waffarha_adj")) else "COMPETITOR"
+    vertical   = (data.get("vertical") or "").lower().strip()
+
+    # Generic competitor content line based on vertical
+    comp_content_line = next(
+        (v for k, v in VERTICAL_COMP_CONTENT.items() if k in vertical),
+        "Similar offer on Waffarha"
+    )
+
     rows = []
     for o in selected:
         our_disc_raw = o.get("discount_pct", 0)
         our_disc_pct = our_disc_raw if our_disc_raw > 1 else our_disc_raw * 100
+        # Clamp our discount to cap (defensive — node 8 should already enforce this)
+        our_disc_pct = min(our_disc_pct, WEIN_OFFER_CAP)
+
         reg   = o.get("regular_egp") or o.get("price_original_egp", 0)
         promo = o.get("promo_egp")   or o.get("price_discounted_egp", 0)
-        # competitor's deal price = same regular price at their (lower) discount
+
+        # FIX 3A: ensure WeIN always beats competitor on paper.
+        # If competitor floor ≥ our cap, clamp competitor to (our_disc - 5) so we show a win.
+        if raw_cdp >= our_disc_pct:
+            cdp = max(our_disc_pct - 5, 0)
+        else:
+            cdp = raw_cdp
+
         comp_deal = round(reg * (1 - cdp / 100)) if reg else 0
         title = re.sub(r'\s*·?\s*\d+%\s*off(?:\s*@[^·]+)?$', '',
                        o.get("title", ""), flags=re.IGNORECASE).strip()
@@ -445,10 +478,14 @@ def _derive_comparisons(data, selected):
         party = o.get("party_size") or _party_size(o)
         tier  = o.get("tier", "")
         section = f"{party} — {tier}" if tier else party
-        gap = our_disc_pct - cdp
+        gap       = our_disc_pct - cdp
         gap_label = f"+{gap:.0f}% vs {comp_label.title()}"
         why_win   = (f"WeIN at {our_disc_pct:.0f}% vs {comp_label.title()} {cdp:.0f}% — "
                      f"{gap:.0f}% stronger deal with curated bundle")
+
+        # FIX 3B: generic competitor content so the side isn't blank
+        comp_items = [comp_content_line] if not items else [comp_content_line]
+
         rows.append({
             "section":       section,
             "gap":           gap_label,
@@ -458,10 +495,9 @@ def _derive_comparisons(data, selected):
             "our_promo_str": f"EGP {promo:,.0f}"  if promo else "",
             "our_items":     items,
             "comp_disc":     f"{cdp:.0f}%",
-            # Competitor regular = same item at same base price; promo = their deal
-            "comp_reg":      f"EGP {reg:,.0f}"      if reg      else "",
+            "comp_reg":      f"EGP {reg:,.0f}"       if reg      else "",
             "comp_promo_str":f"EGP {comp_deal:,.0f}" if comp_deal else "",
-            "comp_items":    [],
+            "comp_items":    comp_items,
             "comp_label":    comp_label,
             "why_win":       why_win,
         })
