@@ -12,16 +12,18 @@ from reportlab.lib.utils import simpleSplit
 W, H = A4
 
 # Colors
-NAVY   = HexColor("#1F3864")
+NAVY   = HexColor("#1B3A6B")   # WeIN deep blue
 BLUE   = HexColor("#2E75B6")
-ORANGE = HexColor("#F39C12")
-TEAL   = HexColor("#1A7A6E")
-LGREY  = HexColor("#F2F3F4")
+ORANGE = HexColor("#F5A623")   # discount badge
+TEAL   = HexColor("#2E7D6F")   # accent / upgrade
+LGREY  = HexColor("#F4F6F9")
 DGREY  = HexColor("#888888")
-MGREY  = HexColor("#666666")
+MGREY  = HexColor("#555555")
 LBLUE  = HexColor("#D6EAF8")
-LORANGE= HexColor("#FDEBD0")
+LORANGE= HexColor("#FEF3DC")
 DKRED  = HexColor("#922B21")
+CARD_BG= HexColor("#FFFFFF")
+CARD_BD= HexColor("#D8DCE6")
 
 def split_top_level(text):
     """Split a contents string on ' + ' at the top level only — does not split
@@ -111,265 +113,289 @@ def comp_page_header(c_obj, provider, page_num):
     c_obj.line(20*mm, 13*mm, W - 20*mm, 13*mm)
 
 # ─────────────────────────────────────────────────────────────────
-# FILE 1 — PROVIDER NEGOTIATION PDF
+# FILE 1 — PROVIDER NEGOTIATION PDF  (Waffarha card style, 2/page)
 # ─────────────────────────────────────────────────────────────────
+
+# Fixed card dimensions
+CARD_W  = W - 30*mm          # 180mm — 15mm margin each side
+CARD_H  = 125*mm             # two cards + 7mm gap fits A4
+CARD_X  = 15*mm
+CARD_GAP = 7*mm
+# Top positions of card 1 and card 2 within the body area (below header line)
+BODY_TOP = H - 18*mm         # below page header rule
+
+
+def _draw_offer_card(c, offer, provider, card_top, card_w, card_h, idx, total):
+    """Draw a single Waffarha-style offer card.  card_top = y of TOP edge."""
+    cx    = CARD_X
+    cbot  = card_top - card_h
+    cw    = card_w
+    ch    = card_h
+
+    # ── Card background + border ─────────────────────────────────
+    c.setFillColor(CARD_BG)
+    c.setStrokeColor(CARD_BD)
+    c.setLineWidth(0.8)
+    c.roundRect(cx, cbot, cw, ch, 3*mm, fill=1, stroke=1)
+
+    # ── 1. HEADER BAND — navy, full-width top of card ────────────
+    HEADER_H = 16*mm
+    header_top = card_top
+    c.setFillColor(NAVY)
+    # Clip to rounded top corners: draw a rect inside + a rect for top-rounded fill
+    c.roundRect(cx, header_top - HEADER_H, cw, HEADER_H + 3*mm, 3*mm, fill=1, stroke=0)
+    c.setFillColor(NAVY)
+    c.rect(cx, header_top - HEADER_H, cw, 3*mm, fill=1, stroke=0)
+
+    # Party size + tier label (small, top-left)
+    party = offer.get("party_size", "")
+    tier  = offer.get("tier", "")
+    sub_label = f"{party}  ·  {tier}" if party and tier else (party or tier or "")
+    c.setFont("Helvetica", 7)
+    c.setFillColor(LBLUE)
+    c.drawString(cx + 4*mm, header_top - 4*mm, sub_label)
+
+    # Offer number (small, top-right)
+    c.setFont("Helvetica", 7)
+    c.drawRightString(cx + cw - 4*mm, header_top - 4*mm, f"#{idx} of {total}")
+
+    # Title — auto-shrink to fit width excluding badge space
+    BADGE_W   = 20*mm
+    title_raw = offer.get("title", "")
+    title     = re.sub(r'\s*·?\s*\d+%\s*off(?:\s*@[^·]+)?$', '', title_raw, flags=re.IGNORECASE).strip()
+    title_max = cw - BADGE_W - 10*mm
+    tfont = 11
+    while tfont >= 7.5:
+        if len(simpleSplit(title, "Helvetica-Bold", tfont, title_max)) <= 1:
+            break
+        tfont -= 0.5
+    # Truncate with ellipsis if still multi-line at min size
+    display_title = title
+    if len(simpleSplit(title, "Helvetica-Bold", tfont, title_max)) > 1:
+        words = title.split()
+        while words and len(simpleSplit(" ".join(words) + "...", "Helvetica-Bold", tfont, title_max)) > 1:
+            words.pop()
+        display_title = " ".join(words) + "..."
+    c.setFont("Helvetica-Bold", tfont)
+    c.setFillColor(white)
+    c.drawString(cx + 4*mm, header_top - 11*mm, display_title)
+
+    # ── Discount badge — orange pill at top-right of header ──────
+    disc_raw = offer.get("discount_pct", 0)
+    disc     = disc_raw / 100 if disc_raw > 1 else disc_raw
+    badge_x  = cx + cw - BADGE_W - 2*mm
+    badge_y  = header_top - HEADER_H + 2*mm
+    c.setFillColor(ORANGE)
+    c.roundRect(badge_x, badge_y, BADGE_W, HEADER_H - 4*mm, 2.5*mm, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 13)
+    c.setFillColor(white)
+    c.drawCentredString(badge_x + BADGE_W/2, badge_y + 3.5*mm, f"{disc:.0%}")
+    c.setFont("Helvetica", 6.5)
+    c.drawCentredString(badge_x + BADGE_W/2, badge_y + 0.5*mm, "OFF")
+
+    # ── 2. PRICE ROW ─────────────────────────────────────────────
+    reg   = offer.get("regular_egp") or offer.get("price_original_egp", 0)
+    promo = offer.get("promo_egp")   or offer.get("price_discounted_egp", 0)
+    price_top = header_top - HEADER_H
+    PRICE_H   = 17*mm
+    half_w    = cw / 2
+
+    # Left col: Regular Price
+    c.setFillColor(LGREY)
+    c.rect(cx, price_top - PRICE_H, half_w, PRICE_H, fill=1, stroke=0)
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(DGREY)
+    c.drawCentredString(cx + half_w/2, price_top - 4*mm, "Regular Price")
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColor(MGREY)
+    c.drawCentredString(cx + half_w/2, price_top - 12*mm, f"EGP {reg:,.0f}" if reg else "—")
+
+    # Right col: WeIN Price (highlighted)
+    c.setFillColor(LORANGE)
+    c.rect(cx + half_w, price_top - PRICE_H, half_w, PRICE_H, fill=1, stroke=0)
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(TEAL)
+    c.drawCentredString(cx + half_w + half_w/2, price_top - 4*mm, "WeIN Price")
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor(NAVY)
+    c.drawCentredString(cx + half_w + half_w/2, price_top - 13*mm, f"EGP {promo:,.0f}" if promo else "—")
+
+    # Divider below price row
+    div_y = price_top - PRICE_H
+    c.setStrokeColor(CARD_BD)
+    c.setLineWidth(0.4)
+    c.line(cx + 3*mm, div_y, cx + cw - 3*mm, div_y)
+
+    # ── 3. CONTENTS ──────────────────────────────────────────────
+    contents = _contents(offer)
+    PAD_L = cx + 5*mm
+    cont_y = div_y - 4.5*mm
+
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(NAVY)
+    c.drawString(PAD_L, cont_y, "What's included:")
+    cont_y -= 5*mm
+
+    # Parse and render items (max 6 bullets, cap width)
+    item_count = 0
+    item_max_w = cw - 10*mm
+    for line in contents.split("\n"):
+        if item_count >= 6:
+            break
+        line = re.sub(r'\s*\(\d+(?:\s*LE)?\)', '', line).strip().rstrip('/').strip()
+        if not line or line.endswith(":"):
+            continue
+        line = line.lstrip("•").strip()
+        for part in split_top_level(line):
+            if item_count >= 6:
+                break
+            m = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', part)
+            main = m.group(1).strip() if m else part.strip()
+            if not main:
+                continue
+            bullet = simpleSplit("• " + main, "Helvetica", 8.5, item_max_w)
+            c.setFont("Helvetica", 8.5)
+            c.setFillColor(black)
+            for bl in bullet[:2]:  # cap each item at 2 wrapped lines
+                if cont_y < cbot + 22*mm:
+                    break
+                c.drawString(PAD_L + 2*mm, cont_y, bl)
+                cont_y -= 5*mm
+            item_count += 1
+
+    # ── 4. UPGRADE TIER (teal band) ──────────────────────────────
+    upgrade = offer.get("upgrade_tier") or offer.get("upgrade")
+    if upgrade and cont_y > cbot + 16*mm:
+        cont_y -= 2*mm
+        UP_H = 9*mm
+        c.setFillColor(TEAL)
+        c.roundRect(cx + 3*mm, cont_y - UP_H, cw - 6*mm, UP_H, 1.5*mm, fill=1, stroke=0)
+        up_text = simpleSplit(f"+ Upgrade: {upgrade}", "Helvetica", 7.5, cw - 14*mm)
+        c.setFont("Helvetica", 7.5)
+        c.setFillColor(white)
+        c.drawString(cx + 7*mm, cont_y - 6*mm, up_text[0] if up_text else "")
+        cont_y -= UP_H + 2*mm
+
+    # ── 5. DIVIDER ───────────────────────────────────────────────
+    if cont_y > cbot + 12*mm:
+        cont_y -= 1.5*mm
+        c.setStrokeColor(CARD_BD)
+        c.setLineWidth(0.4)
+        c.line(cx + 3*mm, cont_y, cx + cw - 3*mm, cont_y)
+        cont_y -= 3*mm
+
+    # ── 6. TERMS ─────────────────────────────────────────────────
+    terms = offer.get("terms", "")
+    if isinstance(terms, list):
+        terms = " · ".join(str(t) for t in terms)
+    if terms and cont_y > cbot + 4*mm:
+        c.setFont("Helvetica-Bold", 7.5)
+        c.setFillColor(DGREY)
+        c.drawString(PAD_L, cont_y, "Terms:")
+        cont_y -= 4.5*mm
+        c.setFont("Helvetica", 7)
+        c.setFillColor(DGREY)
+        term_max_w = cw - 10*mm
+        term_lines = []
+        for part in terms.replace("·", "\n").split("\n"):
+            part = part.strip()
+            if not part:
+                continue
+            wrapped = simpleSplit(part, "Helvetica", 7, term_max_w)
+            term_lines.extend(wrapped)
+        for tl in term_lines[:3]:  # max 3 lines of terms
+            if cont_y < cbot + 2*mm:
+                break
+            c.drawString(PAD_L + 2*mm, cont_y, tl)
+            cont_y -= 4.5*mm
+
+
 def build_provider_pdf(data, output_path):
-    provider   = data["provider"]
-    tagline    = data.get("tagline", "")
-    selected   = [o for o in data["offers"] if o.get("status","Selected") == "Selected"][:15]
-    selected   = sorted(selected, key=lambda o: o.get("promo_egp") or o.get("price_discounted_egp", 0))  # always ascending by promo price
-    commission = data.get("commission", 0.15)
+    provider  = data["provider"]
+    tagline   = data.get("tagline", "")
+    selected  = [o for o in data["offers"] if o.get("status", "Selected") == "Selected"][:15]
+    selected  = sorted(selected, key=lambda o: o.get("promo_egp") or o.get("price_discounted_egp", 0))
+
     def _disc_dec(o):
         d = o.get("discount_pct", 0)
-        return d / 100 if d > 1 else d  # normalize: stored as 28 or 0.28
+        return d / 100 if d > 1 else d
     def _reg(o):
         return o.get("regular_egp") or o.get("price_original_egp", 0)
-    def _promo(o):
-        return o.get("promo_egp") or o.get("price_discounted_egp", 0)
-    avg_disc   = sum(_disc_dec(o) for o in selected) / len(selected) if selected else 0
-    highest    = max((_reg(o) for o in selected), default=0)
-    top_disc   = max((_disc_dec(o) for o in selected), default=0)
+
+    avg_disc = sum(_disc_dec(o) for o in selected) / len(selected) if selected else 0
+    highest  = max((_reg(o) for o in selected), default=0)
+    top_disc = max((_disc_dec(o) for o in selected), default=0)
 
     c = canvas.Canvas(str(output_path), pagesize=A4)
 
     # ── COVER PAGE ──────────────────────────────────────────────
-    # Navy hero box
     c.setFillColor(NAVY)
-    c.rect(20*mm, H - 80*mm, W - 40*mm, 55*mm, fill=1, stroke=0)
-    c.setFont("Helvetica-Bold", 32)
+    c.rect(0, H - 70*mm, W, 70*mm, fill=1, stroke=0)
+    # WeIN wordmark area
+    c.setFont("Helvetica-Bold", 36)
     c.setFillColor(white)
-    c.drawCentredString(W/2, H - 52*mm, provider)
-    c.setFont("Helvetica", 11)
+    c.drawCentredString(W/2, H - 42*mm, provider)
+    c.setFont("Helvetica", 12)
     c.setFillColor(LBLUE)
-    c.drawCentredString(W/2, H - 62*mm, tagline)
+    c.drawCentredString(W/2, H - 54*mm, tagline or "WeIN Exclusive Offer Proposal")
+    c.setFont("Helvetica", 9)
+    c.setFillColor(LORANGE)
+    c.drawCentredString(W/2, H - 63*mm, "CONFIDENTIAL  ·  NEGOTIATION USE ONLY")
 
-    # KPI table
-    kpi_y = H - 110*mm
+    # KPI boxes
+    kpi_y = H - 88*mm
     kpis = [
-        ("Selected Offers", str(len(selected)), "Active offer set"),
-        ("Average Discount", f"{avg_disc:.0%}", "Avg across all offers"),
-        ("Highest Ticket", f"EGP {highest:,.0f}", "Highest regular price"),
-        ("Top Discount", f"{top_disc:.0%}", "Strongest headline"),
+        ("Offers", str(len(selected)), "Selected for negotiation"),
+        ("Avg Discount", f"{avg_disc:.0%}", "Across all offers"),
+        ("Highest Ticket", f"EGP {highest:,.0f}", "Regular price"),
+        ("Top Discount", f"{top_disc:.0%}", "Headline offer"),
     ]
-    cell_w = (W - 40*mm) / 4
+    cell_w = (W - 30*mm) / 4
     for i, (label, value, sub) in enumerate(kpis):
-        x = 20*mm + i * cell_w
-        c.setStrokeColor(LGREY)
-        c.setLineWidth(1)
-        c.rect(x, kpi_y - 22*mm, cell_w, 22*mm, fill=0, stroke=1)
-        c.setFont("Helvetica", 8)
+        x = 15*mm + i * cell_w
+        c.setFillColor(LGREY)
+        c.setStrokeColor(CARD_BD)
+        c.setLineWidth(0.8)
+        c.roundRect(x, kpi_y - 22*mm, cell_w - 2*mm, 22*mm, 2*mm, fill=1, stroke=1)
+        c.setFont("Helvetica", 7.5)
         c.setFillColor(DGREY)
-        c.drawCentredString(x + cell_w/2, kpi_y - 5*mm, label)
-        c.setFont("Helvetica-Bold", 16)
+        c.drawCentredString(x + (cell_w-2*mm)/2, kpi_y - 4.5*mm, label)
+        c.setFont("Helvetica-Bold", 17)
         c.setFillColor(NAVY)
-        c.drawCentredString(x + cell_w/2, kpi_y - 13*mm, value)
+        c.drawCentredString(x + (cell_w-2*mm)/2, kpi_y - 13*mm, value)
         c.setFont("Helvetica", 7)
         c.setFillColor(DGREY)
-        c.drawCentredString(x + cell_w/2, kpi_y - 20*mm, sub)
+        c.drawCentredString(x + (cell_w-2*mm)/2, kpi_y - 19.5*mm, sub)
 
-    # Selected offers intro
-    y = kpi_y - 35*mm
+    # Intro text
+    intro_y = kpi_y - 33*mm
     c.setFont("Helvetica-Bold", 13)
-    c.setFillColor(BLUE)
-    c.drawString(20*mm, y, "Selected Offers")
-    y -= 8*mm
+    c.setFillColor(NAVY)
+    c.drawString(15*mm, intro_y, "Offer Portfolio")
+    intro_y -= 7*mm
     c.setFont("Helvetica", 9)
-    c.setFillColor(DGREY)
-    c.drawString(20*mm, y, f"The following {len(selected)} offers have been prepared for negotiation. Each offer is presented on a dedicated page for easy review.")
+    c.setFillColor(MGREY)
+    c.drawString(15*mm, intro_y,
+        f"{len(selected)} offers prepared for negotiation — 2 offers per page for easy review.")
 
-    # Header
     page_header(c, provider, 1)
     c.showPage()
 
-    # ── OFFER PAGES ─────────────────────────────────────────────
-    for idx, offer in enumerate(selected, start=1):
-        disc_raw  = offer.get("discount_pct", 0)
-        disc      = disc_raw / 100 if disc_raw > 1 else disc_raw  # normalize
-        regular   = offer.get("regular_egp") or offer.get("price_original_egp", 0)
-        promo     = offer.get("promo_egp") or offer.get("price_discounted_egp", 0)
-        title_raw = offer.get("title", "")
-        # Strip redundant discount suffix (badge already shows it)
-        title     = re.sub(r'\s*·?\s*\d+%\s*off(?:\s*@[^·]+)?$', '', title_raw, flags=re.IGNORECASE).strip()
-        bundle    = offer.get("bundle_type", offer.get("offer_type", "Bundle"))
-        contents  = _contents(offer)
-        terms     = offer.get("terms", "")
-        if isinstance(terms, list):
-            terms = ", ".join(str(t) for t in terms)
+    # ── OFFER PAGES — 2 cards per page ──────────────────────────
+    total = len(selected)
+    for i, offer in enumerate(selected):
+        position = i % 2  # 0 = top card, 1 = bottom card
 
-        page_header(c, provider, idx + 1)
+        if position == 0:
+            # Start fresh page
+            page_num = i // 2 + 2
+            page_header(c, provider, page_num)
 
-        # Offer X of N
-        c.setFont("Helvetica", 8)
-        c.setFillColor(DGREY)
-        c.drawRightString(W - 20*mm, H - 22*mm, f"Offer {idx} of {len(selected)}")
+        card_top = (BODY_TOP - 2*mm) if position == 0 else (BODY_TOP - CARD_H - CARD_GAP - 2*mm)
+        _draw_offer_card(c, offer, provider, card_top, CARD_W, CARD_H, i + 1, total)
 
-        # Title bar — badge at right, title clipped to available width
-        title_y  = H - 30*mm
-        badge_x  = W - 38*mm
-        title_max_w = badge_x - 24*mm  # from 22mm left pad to badge start − 2mm gap
-
-        c.setFillColor(LBLUE)
-        c.rect(20*mm, title_y - 8*mm, W - 40*mm - 20*mm, 12*mm, fill=1, stroke=0)
-
-        # Auto-shrink font until title fits on one line
-        title_font_size = 11
-        while title_font_size >= 7:
-            if simpleSplit(title, "Helvetica-Bold", title_font_size, title_max_w).__len__() == 1:
-                break
-            title_font_size -= 0.5
-        c.setFont("Helvetica-Bold", title_font_size)
-        c.setFillColor(BLUE)
-        # Truncate with ellipsis if still too long at minimum size
-        display_title = title
-        if len(simpleSplit(title, "Helvetica-Bold", title_font_size, title_max_w)) > 1:
-            words = title.split()
-            while words and len(simpleSplit(" ".join(words) + "…", "Helvetica-Bold", title_font_size, title_max_w)) > 1:
-                words.pop()
-            display_title = " ".join(words) + "…"
-        c.drawString(22*mm, title_y - 3*mm, display_title)
-
-        # Discount badge
-        c.setFillColor(ORANGE)
-        c.rect(badge_x, title_y - 8*mm, 18*mm, 12*mm, fill=1, stroke=0)
-        c.setFont("Helvetica-Bold", 11)
-        c.setFillColor(white)
-        c.drawCentredString(badge_x + 9*mm, title_y - 3*mm, f"{disc:.0%}")
-
-        # Price row — 2 columns only
-        price_y = title_y - 22*mm
-        c.setStrokeColor(LGREY)
-        c.setLineWidth(0.5)
-        c.rect(20*mm, price_y - 18*mm, (W-40*mm)/2, 22*mm, fill=0, stroke=1)
-        c.rect(20*mm + (W-40*mm)/2, price_y - 18*mm, (W-40*mm)/2, 22*mm, fill=0, stroke=1)
-
-        col1_x = 20*mm + (W-40*mm)/4
-        col2_x = 20*mm + 3*(W-40*mm)/4
-
-        c.setFont("Helvetica", 8)
-        c.setFillColor(DGREY)
-        c.drawCentredString(col1_x, price_y - 4*mm, "Regular Price")
-        c.drawCentredString(col2_x, price_y - 4*mm, "Promo Price")
-
-        c.setFont("Helvetica-Bold", 18)
-        c.setFillColor(NAVY)
-        c.drawCentredString(col1_x, price_y - 13*mm, f"EGP {regular:,.0f}")
-        c.setFillColor(BLUE)
-        c.drawCentredString(col2_x, price_y - 13*mm, f"EGP {promo:,.0f}")
-
-        # Bundle type label
-        btype_y = price_y - 28*mm
-        c.setFillColor(TEAL)
-        c.rect(20*mm, btype_y - 6*mm, W - 40*mm, 9*mm, fill=1, stroke=0)
-        c.setFont("Helvetica-Bold", 9)
-        c.setFillColor(white)
-        c.drawString(23*mm, btype_y - 2*mm, bundle)
-
-        CONTENT_LINE_H = 5*mm
-        SUB_LINE_H     = 4.2*mm
-        TERMS_LINE_H   = 5.5*mm
-        SECTION_HEAD_H = 4.5*mm
-        SECTION_GAP    = 7*mm
-        PAD_TOP        = 5*mm
-        PAD_BOTTOM     = 6*mm
-
-        # ── Pre-pass: wrap Contents + Terms text so we can size the card ──
-        # content_items: list of (kind, [wrapped lines], line_height)
-        # kind: "header" (bold section label), "body" (top-level item bullet),
-        #       "sub" (indented sub-item from a parenthetical list)
-        content_items = []
-        for line in contents.split("\n"):
-            line = line.strip()
-            if not line: continue
-            # Strip price annotations like (190 LE), (600 LE), (120), (60 LE) etc.
-            line = re.sub(r'\s*\(\d+(?:\s*LE)?\)', '', line)
-            line = line.strip().rstrip('/')
-            line = line.strip()
-            if not line: continue
-            # Section headers (SHARED:, PER PERSON:, etc.) — bold, no bullet
-            is_header = not line.startswith("•") and line.endswith(":")
-            if is_header:
-                wrapped = simpleSplit(line, "Helvetica-Bold", 8.5, W - 50*mm)
-                content_items.append(("header", wrapped, CONTENT_LINE_H))
-                continue
-
-            line = line.lstrip("•").strip()
-            # Split into top-level items on " + ", respecting parentheses
-            for part in split_top_level(line):
-                m = re.match(r'^(.*?)\s*\(([^()]*)\)\s*$', part)
-                if m:
-                    main = m.group(1).strip()
-                    subs = [s.strip() for s in m.group(2).split(",") if s.strip()]
-                else:
-                    main, subs = part, []
-                wrapped_main = simpleSplit("• " + main, "Helvetica", 9, W - 50*mm)
-                content_items.append(("body", wrapped_main, CONTENT_LINE_H))
-                for sub in subs:
-                    wrapped_sub = simpleSplit("‒ " + sub, "Helvetica", 8, W - 58*mm)
-                    content_items.append(("sub", wrapped_sub, SUB_LINE_H))
-
-        terms_items = []  # list of [wrapped lines] per term part
-        if isinstance(terms, list):
-            terms = " · ".join(str(t) for t in terms)
-        for part in terms.replace("·", "\n").split("\n"):
-            part = part.strip()
-            if not part: continue
-            wrapped = simpleSplit("• " + part, "Helvetica", 9, W - 50*mm)
-            terms_items.append(wrapped)
-
-        content_h = sum(len(w) * lh for _, w, lh in content_items)
-        n_terms_lines = sum(len(w) for w in terms_items)
-
-        card_h = (PAD_TOP
-                  + SECTION_HEAD_H + content_h
-                  + SECTION_GAP
-                  + SECTION_HEAD_H + n_terms_lines * TERMS_LINE_H
-                  + PAD_BOTTOM)
-
-        card_top = btype_y - 6*mm - 2*mm  # small gap below the teal bundle bar
-        c.setFillColor(LGREY)
-        c.setStrokeColor(HexColor("#D5D8DC"))
-        c.setLineWidth(0.6)
-        c.roundRect(20*mm, card_top - card_h, W - 40*mm, card_h, 2*mm, fill=1, stroke=1)
-
-        # Contents
-        cont_y = card_top - PAD_TOP - 3.5*mm
-        c.setFont("Helvetica-Bold", 9)
-        c.setFillColor(NAVY)
-        c.drawString(23*mm, cont_y, "Offer Contents")
-        cont_y -= SECTION_HEAD_H
-        last_line_h = SECTION_HEAD_H
-        for kind, wrapped, lh in content_items:
-            if kind == "header":
-                c.setFont("Helvetica-Bold", 8.5)
-                c.setFillColor(NAVY)
-                x = 23*mm
-            elif kind == "sub":
-                c.setFont("Helvetica", 8)
-                c.setFillColor(MGREY)
-                x = 30*mm
-            else:
-                c.setFont("Helvetica", 9)
-                c.setFillColor(black)
-                x = 26*mm
-            for l in wrapped:
-                c.drawString(x, cont_y, l)
-                cont_y -= lh
-            last_line_h = lh
-
-        # Terms
-        terms_y = cont_y - SECTION_GAP + last_line_h
-        c.setFont("Helvetica-Bold", 9)
-        c.setFillColor(NAVY)
-        c.drawString(23*mm, terms_y, "Terms / Conditions")
-        terms_y -= SECTION_HEAD_H
-        c.setFont("Helvetica", 9)
-        c.setFillColor(MGREY)
-        for wrapped in terms_items:
-            for wline in wrapped:
-                c.drawString(26*mm, terms_y, wline)
-                terms_y -= TERMS_LINE_H
-
-        c.showPage()
+        if position == 1 or i == total - 1:
+            c.showPage()
 
     c.save()
     print(f"DONE: {Path(output_path).name}")
