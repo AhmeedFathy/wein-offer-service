@@ -305,6 +305,10 @@ async function sbPatch(path, body) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'PATCH', headers: SB_HEADERS, body: JSON.stringify(body) });
   return r.ok;
 }
+async function sbDelete(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'DELETE', headers: SB_HEADERS });
+  return r.ok;
+}
 
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
@@ -438,8 +442,9 @@ async function openProvider(name, providerId, submissionId) {
               <span class="offer-disc">-${o.discount_pct || 0}%</span>
             </div>
             <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
-              onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">
-              ${isAccepted ? '✓ Accepted' : 'Accept Offer'}
+              onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}', ${isAccepted})"
+              title="${isAccepted ? 'Click to undo' : 'Click to accept'}">
+              ${isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer'}
             </button>
           </div>`;
         }).join('')}
@@ -450,24 +455,39 @@ async function openProvider(name, providerId, submissionId) {
 }
 function closeProviderModal() { document.getElementById('providerModal').classList.remove('active'); }
 
-async function toggleAcceptOffer(btn, offerId, providerName, vertical) {
-  const offer = (cachedOffers.find(o => o.id === offerId)) || null;
-  // Need full offer row — re-fetch since cachedOffers only has id/provider_id
+async function toggleAcceptOffer(btn, offerId, providerName, vertical, isAccepted) {
   btn.disabled = true; btn.textContent = '…';
   try {
-    const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=*`);
-    const o = rows[0];
-    await sbPost('wein_accepted_offers', {
-      provider_id: o.provider_id, provider_name: providerName, vertical, offer_title: o.title,
-      hook: o.hook, regular_egp: o.regular_egp, promo_egp: o.promo_egp, discount_pct: o.discount_pct,
-      upgrade_tier: o.upgrade_tier, items: o.items, terms: o.terms,
-      status: 'accepted', accepted_date: new Date().toISOString().split('T')[0]
-    });
-    btn.closest('.offer-card').classList.add('accepted');
-    btn.className = 'btn btn-success'; btn.textContent = '✓ Accepted';
+    if (isAccepted) {
+      // Undo — remove the accepted-offer row
+      const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=title`);
+      const title = rows[0]?.title;
+      await sbDelete(`wein_accepted_offers?provider_name=eq.${encodeURIComponent(providerName)}&offer_title=eq.${encodeURIComponent(title)}`);
+      btn.closest('.offer-card').classList.remove('accepted');
+      btn.className = 'btn btn-ghost';
+      btn.setAttribute('title', 'Click to accept');
+      btn.setAttribute('onclick', btn.getAttribute('onclick').replace(', true)', ', false)'));
+      btn.textContent = 'Accept Offer';
+    } else {
+      const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=*`);
+      const o = rows[0];
+      await sbPost('wein_accepted_offers', {
+        provider_id: o.provider_id, provider_name: providerName, vertical, offer_title: o.title,
+        hook: o.hook, regular_egp: o.regular_egp, promo_egp: o.promo_egp, discount_pct: o.discount_pct,
+        upgrade_tier: o.upgrade_tier, items: o.items, terms: o.terms,
+        status: 'accepted', accepted_date: new Date().toISOString().split('T')[0]
+      });
+      btn.closest('.offer-card').classList.add('accepted');
+      btn.className = 'btn btn-success';
+      btn.setAttribute('title', 'Click to undo');
+      btn.setAttribute('onclick', btn.getAttribute('onclick').replace(', false)', ', true)'));
+      btn.textContent = '✓ Accepted · click to undo';
+    }
   } catch (e) {
-    btn.disabled = false; btn.textContent = 'Accept Offer';
+    btn.textContent = isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer';
     showModalAlert('Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
