@@ -141,6 +141,7 @@ def build_filled_template(wb_out, data):
     waffarha_adj = data.get("waffarha_adj", "+5 to +7 pts above baseline")
     offers = data.get("offers", [])
     menu_items = data.get("menu_items") or _flatten_menu_items(offers)
+    menu_items = sorted(menu_items, key=lambda x: float(str(x.get("price", x.get("price_egp", 0)) or 0).replace(",", "") or 0))
     # Filled template shows ALL offers (up to 20 selected + 2 backups)
     selected = [o for o in offers if o.get("status", "Selected") == "Selected"]
     backups  = [o for o in offers if o.get("status", "Selected") == "Backup"]
