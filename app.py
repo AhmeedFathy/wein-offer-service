@@ -52,7 +52,7 @@ def run_generation_scripts(provider: str, vertical: str, output_dir: Path, json_
     extra = [str(version)] if version is not None else []
     for script, args in (
         ("build_offer_files.py", [provider, vertical, str(output_dir), str(json_path), "full"] + extra),
-        ("build_pdfs.py", [str(json_path), str(output_dir), "both"]),
+        ("build_pdfs.py", [str(json_path), str(output_dir), "both"] + extra),
     ):
         cmd = [PYTHON_EXECUTABLE, str(TEMPLATES_DIR / script)] + args
         proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(TEMPLATES_DIR))
