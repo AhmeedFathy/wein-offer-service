@@ -702,11 +702,16 @@ def build_comparison_pdf(data, output_path):
     print(f"DONE: {Path(output_path).name}")
 
 
-def run(json_path, output_dir, mode="both"):
+def run(json_path, output_dir, mode="both", explicit_version=None):
     """
     mode = 'both'        → rebuild provider PDF + comparison PDF (new provider / re-send)
     mode = 'comparison'  → rebuild ONLY the comparison PDF (internal — safe for adjustments)
     mode = 'provider'    → rebuild ONLY the provider negotiation PDF (re-send only)
+
+    explicit_version overrides local-directory auto-detection — required when
+    called from a service that generates files in a fresh temp directory each
+    time (next_v() would always find v1 "available" locally even if v2+
+    already exists in Drive).
     """
     output_dir = Path(output_dir)
     with open(json_path, encoding="utf-8") as f:
@@ -715,6 +720,8 @@ def run(json_path, output_dir, mode="both"):
     provider = data["provider"]
 
     def next_v(name, ext):
+        if explicit_version is not None:
+            return explicit_version
         v = 1
         while (output_dir / f"{provider} - {name} - Claude v{v}.{ext}").exists():
             v += 1
@@ -751,8 +758,9 @@ def run(json_path, output_dir, mode="both"):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python build_pdfs.py <json_path> <output_dir> [mode]")
+        print("Usage: python build_pdfs.py <json_path> <output_dir> [mode] [version]")
         print("  mode: both (default) | comparison | provider")
         sys.exit(1)
     m = sys.argv[3] if len(sys.argv) > 3 else "both"
-    run(sys.argv[1], sys.argv[2], m)
+    explicit_version = int(sys.argv[4]) if len(sys.argv) > 4 else None
+    run(sys.argv[1], sys.argv[2], m, explicit_version)
