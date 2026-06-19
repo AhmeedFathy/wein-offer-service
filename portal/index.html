@@ -480,6 +480,20 @@
 
     <div id="alertManager"></div>
 
+    <!-- Pending Submissions Panel -->
+    <div class="card" id="pendingCard">
+      <div class="card-title" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Pending Submissions
+        </span>
+        <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="loadSubmissions()">↻ Refresh</button>
+      </div>
+      <div id="submissionsList" style="display:flex;flex-direction:column;gap:12px;min-height:60px">
+        <div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">Loading…</div>
+      </div>
+    </div>
+
     <!-- Accept Offers Panel -->
     <div class="card" id="acceptCard">
       <div class="card-title">
@@ -539,7 +553,7 @@
         Recent Activity
       </div>
       <div id="activityFeed" style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0">
-        Activity log loads here — connect to Supabase to enable.
+        All submissions are shown in the Pending Submissions panel above.
       </div>
     </div>
 
@@ -563,11 +577,106 @@ if (window.location.pathname.includes('intake')) {
   document.getElementById('modeToggle').style.display = 'none';
 }
 
+const WEBHOOK_LIST    = 'https://weinflow.app.n8n.cloud/webhook/portal-list';
+const WEBHOOK_APPROVE = 'https://weinflow.app.n8n.cloud/webhook/portal-approve';
+const WEBHOOK_REJECT  = 'https://weinflow.app.n8n.cloud/webhook/portal-reject';
+
+// ── Pending submissions ─────────────────────────────────────────────────────
+async function loadSubmissions() {
+  const el = document.getElementById('submissionsList');
+  el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">Loading…</div>';
+  try {
+    const res  = await fetch(WEBHOOK_LIST);
+    const rows = await res.json();
+    const list = Array.isArray(rows) ? rows : [rows];
+    // Update stats
+    document.getElementById('statTotal').textContent   = list.length;
+    document.getElementById('statPending').textContent = list.filter(r => r.status === 'pending').length;
+    document.getElementById('statAccepted').textContent= list.filter(r => r.status === 'approved').length;
+
+    if (!list.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">No submissions yet.</div>';
+      return;
+    }
+    el.innerHTML = list.map(r => {
+      const isPending  = r.status === 'pending';
+      const isApproved = r.status === 'approved';
+      const statusColor = isPending ? '#d97706' : isApproved ? '#16a34a' : '#6b7280';
+      const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
+      const menuLink = r.menu_drive_url
+        ? `<a href="${r.menu_drive_url}" target="_blank" style="color:var(--blue-lt)">📂 View in Drive</a>`
+        : r.menu_link
+          ? `<a href="${r.menu_link}" target="_blank" style="color:var(--blue-lt)">🔗 Menu Link</a>`
+          : r.menu_file_name ? `📎 ${r.menu_file_name}` : '—';
+      const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '';
+      return `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:${isPending?'#fffbeb':'#f9fafb'}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div>
+              <div style="font-weight:600;font-size:15px">${r.provider_name}</div>
+              <div style="font-size:12px;color:var(--muted)">${r.vertical || '—'} · ${date}</div>
+            </div>
+            <span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}18;padding:3px 10px;border-radius:20px">${statusLabel}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;color:var(--text);margin-bottom:12px">
+            <div><span style="color:var(--muted)">Contact:</span> ${r.contact_name || '—'} ${r.contact_phone ? '· ' + r.contact_phone : ''}</div>
+            <div><span style="color:var(--muted)">Location:</span> ${r.location || '—'}</div>
+            <div><span style="color:var(--muted)">Min Spend:</span> ${r.minimum_spend || '—'}</div>
+            <div><span style="color:var(--muted)">Max Group:</span> ${r.max_group_size || '—'}</div>
+            <div><span style="color:var(--muted)">Peak Hours:</span> ${r.peak_hours || '—'}</div>
+            <div><span style="color:var(--muted)">Blackout:</span> ${r.blackout_dates || '—'}</div>
+            ${r.excluded_items ? `<div style="grid-column:span 2"><span style="color:var(--muted)">Excluded:</span> ${r.excluded_items}</div>` : ''}
+            ${r.special_terms  ? `<div style="grid-column:span 2"><span style="color:var(--muted)">Terms:</span> ${r.special_terms}</div>` : ''}
+            <div style="grid-column:span 2"><span style="color:var(--muted)">Menu:</span> ${menuLink}</div>
+          </div>
+          ${isPending ? `
+          <div style="display:flex;gap:8px">
+            <button onclick="approveSubmission('${r.id}','${r.provider_name}')" style="flex:1;padding:8px;background:var(--success);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
+              ▶ Run Pipeline
+            </button>
+            <button onclick="rejectSubmission('${r.id}','${r.provider_name}')" style="padding:8px 16px;background:var(--danger);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
+              ✕ Reject
+            </button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;color:var(--danger);padding:20px;font-size:13px">Failed to load: ${e.message}</div>`;
+  }
+}
+
+async function approveSubmission(id, name) {
+  if (!confirm(`Start pipeline for "${name}"?`)) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Starting…';
+  try {
+    const r = await fetch(`${WEBHOOK_APPROVE}?id=${id}`);
+    const t = await r.text();
+    showAlert('alertManager', `Pipeline started for ${name}. Check Telegram for progress.`, 'success');
+    setTimeout(loadSubmissions, 1500);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '▶ Run Pipeline';
+    showAlert('alertManager', 'Error: ' + e.message, 'error');
+  }
+}
+
+async function rejectSubmission(id, name) {
+  if (!confirm(`Reject submission from "${name}"?`)) return;
+  try {
+    await fetch(`${WEBHOOK_REJECT}?id=${id}`);
+    showAlert('alertManager', `"${name}" rejected.`, 'success');
+    setTimeout(loadSubmissions, 1000);
+  } catch(e) {
+    showAlert('alertManager', 'Error: ' + e.message, 'error');
+  }
+}
+
 // ── Mode switching ─────────────────────────────────────────────────────────
 function setMode(mode) {
   currentMode = mode;
   document.getElementById('teamView').classList.toggle('active', mode === 'team');
   document.getElementById('managerView').classList.toggle('active', mode === 'manager');
+  if (mode === 'manager') loadSubmissions();
   document.getElementById('btnTeam').classList.toggle('active', mode === 'team');
   document.getElementById('btnManager').classList.toggle('active', mode === 'manager');
 }
