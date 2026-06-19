@@ -3,893 +3,662 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WeIN Provider Portal</title>
+<title>WeIN Smart Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
   :root {
-    --blue:    #1B3A6B;
-    --blue-lt: #2a5298;
-    --orange:  #F5A623;
+    --navy: #1B3A6B;
+    --navy-lt: #2a5298;
+    --orange: #F5A623;
     --orange-dk: #d4891a;
-    --bg:      #f0f4fa;
-    --card:    #ffffff;
-    --text:    #1a1a2e;
-    --muted:   #6b7280;
-    --border:  #dce3ef;
+    --teal: #2E7D6F;
+    --bg: #f0f4fa;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --border: #dce3ef;
     --success: #16a34a;
-    --danger:  #dc2626;
-    --radius:  12px;
+    --danger: #dc2626;
+    --warn: #d97706;
+    --radius: 12px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; }
+  button { font-family: inherit; cursor: pointer; }
+  a { color: var(--navy-lt); text-decoration: none; }
 
   /* ── Header ── */
   .header {
-    background: var(--blue);
-    color: #fff;
-    padding: 0 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 56px;
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    background: var(--navy); color: #fff; padding: 0 16px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.2);
   }
-  .logo { display: flex; align-items: center; gap: 10px; }
-  .logo-badge {
-    background: var(--orange);
-    color: var(--blue);
-    font-weight: 700;
-    font-size: 15px;
-    padding: 4px 9px;
-    border-radius: 6px;
-    letter-spacing: .5px;
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .logo-badge { width: 30px; height: 30px; border-radius: 8px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); }
+  .desktop-tabs { display: none; gap: 4px; }
+  .desktop-tabs button { background: transparent; border: none; color: #cbd5e1; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; }
+  .desktop-tabs button.active { background: rgba(255,255,255,.15); color: #fff; }
+  @media (min-width: 768px) {
+    .desktop-tabs { display: flex; }
+    body { padding-bottom: 24px; }
+    .bottom-nav { display: none; }
   }
-  .logo-text { font-size: 16px; font-weight: 600; opacity: .9; }
-  .mode-toggle {
-    display: flex;
-    background: rgba(255,255,255,.12);
-    border-radius: 20px;
-    padding: 3px;
-    gap: 2px;
-  }
-  .mode-btn {
-    background: none; border: none; color: rgba(255,255,255,.7);
-    padding: 5px 14px; border-radius: 17px; cursor: pointer;
-    font-size: 13px; font-weight: 500; transition: all .2s;
-  }
-  .mode-btn.active { background: var(--orange); color: var(--blue); font-weight: 700; }
 
-  /* ── Layout ── */
-  .container { max-width: 680px; margin: 0 auto; padding: 20px 16px 80px; }
+  .container { max-width: 900px; margin: 0 auto; padding: 16px; }
 
   /* ── Cards ── */
-  .card {
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    padding: 24px;
-    margin-bottom: 16px;
-  }
-  .card-title {
-    font-size: 16px; font-weight: 700; color: var(--blue);
-    margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
-  }
-  .card-title svg { color: var(--orange); }
+  .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--navy); margin-bottom: 12px; font-size: 15px; }
 
-  /* ── Progress steps ── */
-  .steps {
-    display: flex; align-items: center; gap: 0;
-    margin-bottom: 28px;
-  }
-  .step {
-    display: flex; flex-direction: column; align-items: center; flex: 1;
-    position: relative;
-  }
-  .step:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    top: 14px; left: 50%; right: -50%;
-    height: 2px;
-    background: var(--border);
-    z-index: 0;
-  }
-  .step.done:not(:last-child)::after { background: var(--blue); }
-  .step-circle {
-    width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700;
-    background: var(--border); color: var(--muted);
-    position: relative; z-index: 1; transition: all .3s;
-  }
-  .step.active .step-circle { background: var(--blue); color: #fff; }
-  .step.done .step-circle { background: var(--success); color: #fff; }
-  .step-label { font-size: 11px; color: var(--muted); margin-top: 5px; text-align: center; }
-  .step.active .step-label { color: var(--blue); font-weight: 600; }
-
-  /* ── Form elements ── */
-  .field { margin-bottom: 16px; }
-  .field label {
-    display: block; font-size: 13px; font-weight: 600;
-    color: var(--text); margin-bottom: 6px;
-  }
-  .field label .req { color: var(--orange); margin-left: 2px; }
-  .field input, .field select, .field textarea {
-    width: 100%; padding: 10px 12px;
-    border: 1.5px solid var(--border);
-    border-radius: 8px; font-size: 14px; font-family: inherit;
-    background: #fff; color: var(--text);
-    transition: border-color .2s;
-    -webkit-appearance: none;
-  }
-  .field input:focus, .field select:focus, .field textarea:focus {
-    outline: none; border-color: var(--blue);
-  }
-  .field textarea { resize: vertical; min-height: 80px; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
-  /* ── File upload ── */
-  .file-drop {
-    border: 2px dashed var(--border);
-    border-radius: 8px; padding: 24px;
-    text-align: center; cursor: pointer;
-    transition: all .2s; background: #fafbfd;
-    position: relative;
-  }
-  .file-drop:hover, .file-drop.drag { border-color: var(--blue); background: #eef2fb; }
-  .file-drop input[type=file] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-  }
-  .file-drop-icon { color: var(--blue); margin-bottom: 8px; }
-  .file-drop-text { font-size: 13px; color: var(--muted); }
-  .file-drop-text strong { color: var(--blue); }
-  .file-name {
-    display: none; font-size: 13px; color: var(--success);
-    font-weight: 600; margin-top: 8px;
-  }
-
-  /* ── Buttons ── */
-  .btn {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 11px 22px; border-radius: 8px; font-size: 14px;
-    font-weight: 600; border: none; cursor: pointer;
-    transition: all .2s; font-family: inherit;
-  }
-  .btn-primary { background: var(--blue); color: #fff; }
-  .btn-primary:hover { background: var(--blue-lt); }
-  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-  .btn-orange { background: var(--orange); color: var(--blue); }
-  .btn-orange:hover { background: var(--orange-dk); }
-  .btn-ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
-  .btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
-  .btn-sm { padding: 7px 14px; font-size: 13px; }
-  .btn-full { width: 100%; justify-content: center; }
-  .btn-row { display: flex; gap: 10px; justify-content: space-between; margin-top: 8px; }
-
-  /* ── Tags / badges ── */
-  .badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
-  }
-  .badge-blue   { background: #dbeafe; color: var(--blue); }
-  .badge-orange { background: #fef3c7; color: #92400e; }
-  .badge-green  { background: #dcfce7; color: #15803d; }
-  .badge-red    { background: #fee2e2; color: #991b1b; }
-
-  /* ── Alerts ── */
-  .alert {
-    padding: 12px 16px; border-radius: 8px; font-size: 13px;
-    display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px;
-  }
-  .alert-success { background: #dcfce7; color: #15803d; }
-  .alert-error   { background: #fee2e2; color: #991b1b; }
-  .alert-info    { background: #dbeafe; color: #1e40af; }
-
-  /* ── Manager: stats row ── */
-  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
-  .stat-card {
-    background: var(--card); border-radius: var(--radius);
-    padding: 16px; text-align: center;
-    box-shadow: 0 1px 4px rgba(0,0,0,.07);
-  }
-  .stat-num { font-size: 28px; font-weight: 700; color: var(--blue); }
-  .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  /* ── Stats ── */
+  .stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 600px) { .stats-row { grid-template-columns: repeat(4, 1fr); } }
+  .stat-card { background: var(--card); border-radius: var(--radius); padding: 14px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .stat-num { font-size: 26px; font-weight: 800; color: var(--navy); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; }
 
   /* ── Provider cards ── */
-  .provider-card {
-    background: var(--card); border-radius: var(--radius);
-    box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    margin-bottom: 12px; overflow: hidden;
-  }
-  .provider-card-header {
-    padding: 14px 18px; display: flex; align-items: center;
-    justify-content: space-between; cursor: pointer;
-    border-bottom: 1px solid var(--border);
-  }
-  .provider-card-header:hover { background: #f8faff; }
-  .provider-name { font-weight: 700; font-size: 15px; }
-  .provider-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .provider-card-body { padding: 16px 18px; display: none; }
-  .provider-card-body.open { display: block; }
-  .offer-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 0; border-bottom: 1px solid #f3f4f6;
-    font-size: 13px;
-  }
-  .offer-row:last-child { border-bottom: none; }
-  .offer-id { font-weight: 700; color: var(--blue); min-width: 28px; }
-  .offer-title { flex: 1; }
-  .offer-price { color: var(--success); font-weight: 600; white-space: nowrap; }
-  .offer-check input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--blue); }
+  .provider-card { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: background .15s; }
+  .provider-card:hover { background: #f8fafc; }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: var(--success); } .dot-orange { background: var(--orange); } .dot-yellow { background: #eab308; } .dot-gray { background: #9ca3af; }
+  .provider-info { flex: 1; min-width: 0; }
+  .provider-name { font-weight: 600; font-size: 14px; }
+  .provider-meta { font-size: 12px; color: var(--muted); }
+  .badge { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; }
+  .badge-pending { background: #fef3c7; color: var(--warn); }
+  .badge-done { background: #dcfce7; color: var(--success); }
+  .badge-running { background: #dbeafe; color: var(--navy-lt); }
+  .badge-rejected { background: #fee2e2; color: var(--danger); }
 
-  /* ── Accept panel ── */
-  .accept-panel {
-    margin-top: 14px; padding: 14px;
-    background: #f8faff; border-radius: 8px; display: none;
-  }
-  .accept-panel.open { display: block; }
+  /* ── Buttons ── */
+  .btn { padding: 9px 16px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; }
+  .btn-orange { background: var(--orange); color: var(--navy); }
+  .btn-navy { background: var(--navy); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-full { width: 100%; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-  /* ── Spinner ── */
-  .spinner {
-    display: inline-block; width: 18px; height: 18px;
-    border: 2px solid rgba(255,255,255,.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin .6s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── Success screen ── */
-  .success-screen {
-    text-align: center; padding: 40px 20px; display: none;
-  }
-  .success-screen.show { display: block; }
-  .success-icon {
-    width: 72px; height: 72px; background: #dcfce7;
-    border-radius: 50%; display: flex; align-items: center;
-    justify-content: center; margin: 0 auto 20px;
-    font-size: 36px;
-  }
-  .success-screen h2 { color: var(--blue); margin-bottom: 8px; }
-  .success-screen p { color: var(--muted); font-size: 14px; }
-
-  /* ── Section toggle ── */
+  /* ── Views ── */
   .view { display: none; }
   .view.active { display: block; }
 
-  @media (max-width: 420px) {
-    .field-row { grid-template-columns: 1fr; }
-    .stats-row { grid-template-columns: repeat(3,1fr); gap: 8px; }
-    .stat-num { font-size: 22px; }
-    .header { padding: 0 12px; }
-    .logo-text { display: none; }
-  }
+  /* ── Bottom nav (mobile) ── */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); display: flex; z-index: 100; box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; background: none; border: none; color: var(--muted); font-size: 10px; font-weight: 600; }
+  .nav-btn.active { color: var(--orange-dk); }
+  .nav-btn svg { width: 20px; height: 20px; }
+
+  /* ── Offer cards ── */
+  .offer-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+  .offer-card.accepted { background: #f0fdf4; border-color: var(--success); }
+  .offer-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .offer-hook { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .offer-prices { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .offer-old { text-decoration: line-through; color: var(--muted); font-size: 12px; }
+  .offer-new { font-weight: 800; color: var(--teal); font-size: 16px; }
+  .offer-disc { font-size: 11px; background: #fef3c7; color: var(--warn); padding: 2px 7px; border-radius: 12px; font-weight: 700; }
+
+  /* ── Chat ── */
+  .chat-window { display: flex; flex-direction: column; gap: 10px; min-height: 50vh; max-height: 60vh; overflow-y: auto; padding: 4px; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; }
+  .msg-user { background: var(--navy); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg-bot { background: #f1f5f9; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; white-space: pre-wrap; }
+  .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .chip { font-size: 12px; padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: #fff; color: var(--navy); }
+
+  /* ── Form fields (intake) ── */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+  .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .req { color: var(--danger); }
+  .step-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .step-dot.active { background: var(--orange); color: var(--navy); }
+  .step-dot.done { background: var(--success); color: #fff; }
+  .step-row { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 16px; }
+
+  /* ── Modal (provider detail) ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.active { display: flex; }
+  @media (min-width: 768px) { .modal-overlay { align-items: center; } }
+  .modal-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 20px; }
+  @media (min-width: 768px) { .modal-box { border-radius: 16px; } }
+  .modal-close { float: right; background: none; border: none; font-size: 22px; color: var(--muted); }
+
+  .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
+  .alert-success { background: #dcfce7; color: var(--success); }
+  .alert-error { background: #fee2e2; color: var(--danger); }
+
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 13px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════ HEADER ═══════════════ -->
 <div class="header">
-  <div class="logo">
-    <span class="logo-badge">WeIN</span>
-    <span class="logo-text">Provider Portal</span>
-  </div>
-  <div class="mode-toggle" id="modeToggle">
-    <button class="mode-btn active" onclick="setMode('team')" id="btnTeam">Team</button>
-    <button class="mode-btn" onclick="setMode('manager')" id="btnManager">Manager</button>
+  <div class="logo"><div class="logo-badge">W</div> WeIN Portal</div>
+  <div class="desktop-tabs" id="desktopTabs">
+    <button data-view="dashboard" class="active">Dashboard</button>
+    <button data-view="chat">Chat</button>
+    <button data-view="intake">Add Provider</button>
+    <button data-view="activity">Activity</button>
   </div>
 </div>
 
-<!-- ═══════════════ CONTAINER ═══════════════ -->
 <div class="container">
 
-  <!-- ══════════════ TEAM VIEW (3-step wizard) ══════════════ -->
-  <div class="view active" id="teamView">
-
-    <!-- Progress -->
-    <div class="steps" id="stepsBar">
-      <div class="step active" id="step1">
-        <div class="step-circle">1</div>
-        <div class="step-label">Provider</div>
-      </div>
-      <div class="step" id="step2">
-        <div class="step-circle">2</div>
-        <div class="step-label">Constraints</div>
-      </div>
-      <div class="step" id="step3">
-        <div class="step-circle">3</div>
-        <div class="step-label">Menu</div>
-      </div>
+  <!-- ══════════════ DASHBOARD ══════════════ -->
+  <div class="view active" id="view-dashboard">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num" id="statProviders">—</div><div class="stat-lbl">Providers</div></div>
+      <div class="stat-card"><div class="stat-num" id="statOffers">—</div><div class="stat-lbl">Offers Built</div></div>
+      <div class="stat-card"><div class="stat-num" id="statPending">—</div><div class="stat-lbl">Pending</div></div>
+      <div class="stat-card"><div class="stat-num" id="statAccepted">—</div><div class="stat-lbl">Accepted</div></div>
     </div>
 
-    <!-- Success screen -->
-    <div class="success-screen" id="teamSuccess">
-      <div class="success-icon">✅</div>
-      <h2>Provider Submitted!</h2>
-      <p id="successMsg">The pipeline is now generating offers for this provider.</p>
-      <br>
-      <button class="btn btn-primary" onclick="resetWizard()" style="margin:0 auto">
-        Add Another Provider
-      </button>
-    </div>
-
-    <!-- STEP 1: Provider Info -->
-    <div id="pane1">
-      <div class="card">
-        <div class="card-title">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          Provider Information
-        </div>
-
-        <div class="field">
-          <label>Provider Name <span class="req">*</span></label>
-          <input type="text" id="providerName" placeholder="e.g. Almayass Grand Restaurant">
-        </div>
-
-        <div class="field">
-          <label>Vertical <span class="req">*</span></label>
-          <select id="vertical">
-            <option value="">Select vertical…</option>
-            <option>Dining</option>
-            <option>Fun &amp; Activities</option>
-            <option>Health &amp; Beauty</option>
-            <option>Hotels &amp; Aqua Park</option>
-          </select>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label>Contact Name</label>
-            <input type="text" id="contactName" placeholder="e.g. Ahmed Fathy">
-          </div>
-          <div class="field">
-            <label>Contact Phone</label>
-            <input type="tel" id="contactPhone" placeholder="+20 10 xxxx xxxx">
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Location / Area in Sharm</label>
-          <input type="text" id="location" placeholder="e.g. Naama Bay, Old Market">
-        </div>
-
-        <div class="field">
-          <label>View or Atmosphere</label>
-          <input type="text" id="atmosphere" placeholder="e.g. sea view, garden terrace">
-        </div>
-
-        <div class="field">
-          <label>Menu Link (if available)</label>
-          <input type="url" id="menuLink" placeholder="https://...">
-        </div>
-
-        <div id="alertStep1"></div>
-        <button class="btn btn-primary btn-full" onclick="goStep(2)">
-          Next: Constraints →
-        </button>
-      </div>
-    </div>
-
-    <!-- STEP 2: Constraints -->
-    <div id="pane2" style="display:none">
-      <div class="card">
-        <div class="card-title">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-          Terms &amp; Constraints
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label>Minimum Spend (EGP)</label>
-            <input type="number" id="minSpend" placeholder="e.g. 500" min="0">
-          </div>
-          <div class="field">
-            <label>Max Group Size</label>
-            <input type="number" id="maxGroup" placeholder="e.g. 20" min="1">
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Peak Hours</label>
-          <input type="text" id="peakHours" placeholder="e.g. Friday brunch, sunset 6–9pm">
-        </div>
-
-        <div class="field">
-          <label>Blackout Dates / Days</label>
-          <input type="text" id="blackout" placeholder="e.g. Fridays, public holidays, Ramadan">
-        </div>
-
-        <div class="field">
-          <label>Items Excluded from Discounts</label>
-          <textarea id="excluded" placeholder="e.g. Beverages, shisha, seasonal specials"></textarea>
-        </div>
-
-        <div class="field">
-          <label>Special Terms / Notes</label>
-          <textarea id="specialTerms" placeholder="Any other restrictions or notes for the WeIN team"></textarea>
-        </div>
-
-        <div class="btn-row">
-          <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
-          <button class="btn btn-primary" onclick="goStep(3)">Next: Menu →</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- STEP 3: Menu -->
-    <div id="pane3" style="display:none">
-      <div class="card">
-        <div class="card-title">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          Menu / Services
-        </div>
-
-        <div class="alert alert-info">
-          Upload the provider's menu PDF, or paste a link. If neither is available now, you can skip and add later.
-        </div>
-
-        <div class="field">
-          <label>Upload Menu File (PDF or image)</label>
-          <div class="file-drop" id="fileDrop">
-            <input type="file" id="menuFile" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="onFileSelect(this)">
-            <div class="file-drop-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            </div>
-            <div class="file-drop-text"><strong>Tap to upload</strong> or drag &amp; drop<br>PDF, JPG, PNG up to 10MB</div>
-            <div class="file-name" id="fileName"></div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>— or — Menu / Services Description</label>
-          <textarea id="menuText" placeholder="Paste menu items, price list, or describe services…" style="min-height:100px"></textarea>
-          <div class="field-hint">This text will be used to extract menu items if no file is uploaded.</div>
-        </div>
-
-        <div id="alertStep3"></div>
-
-        <div class="btn-row">
-          <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
-          <button class="btn btn-orange btn-full" id="submitBtn" onclick="submitForm()">
-            Submit Provider
-          </button>
-        </div>
-      </div>
-    </div>
-  </div><!-- /teamView -->
-
-
-  <!-- ══════════════ MANAGER VIEW ══════════════ -->
-  <div class="view" id="managerView">
-
-    <div class="stats-row" id="statsRow">
-      <div class="stat-card">
-        <div class="stat-num" id="statTotal">—</div>
-        <div class="stat-lbl">Providers</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num" id="statPending">—</div>
-        <div class="stat-lbl">Pending</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num" id="statAccepted">—</div>
-        <div class="stat-lbl">Accepted</div>
-      </div>
-    </div>
-
-    <div id="alertManager"></div>
-
-    <!-- Pending Submissions Panel -->
-    <div class="card" id="pendingCard">
-      <div class="card-title" style="justify-content:space-between">
-        <span style="display:flex;align-items:center;gap:8px">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Pending Submissions
-        </span>
-        <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="loadSubmissions()">↻ Refresh</button>
-      </div>
-      <div id="submissionsList" style="display:flex;flex-direction:column;gap:12px;min-height:60px">
-        <div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">Loading…</div>
-      </div>
-    </div>
-
-    <!-- Accept Offers Panel -->
-    <div class="card" id="acceptCard">
-      <div class="card-title">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Accept Offers
-      </div>
-
-      <div class="field">
-        <label>Provider Name <span class="req">*</span></label>
-        <input type="text" id="acceptProvider" placeholder="e.g. Almayass Grand Restaurant">
-      </div>
-
-      <div class="field">
-        <label>Vertical <span class="req">*</span></label>
-        <select id="acceptVertical">
-          <option value="">Select…</option>
-          <option>Dining</option>
-          <option>Fun &amp; Activities</option>
-          <option>Health &amp; Beauty</option>
-          <option>Hotels &amp; Aqua Park</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Accepted Offer IDs <span class="req">*</span></label>
-        <input type="text" id="acceptIds" placeholder="e.g. 1, 3, 5, 7, 9">
-        <div class="field-hint">Comma-separated offer numbers from the PDF/Excel</div>
-      </div>
-
-      <div class="field">
-        <label>Accepted Date</label>
-        <input type="date" id="acceptDate" value="">
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label>Provider Notes</label>
-          <textarea id="providerNotes" style="min-height:60px" placeholder="What the provider said…"></textarea>
-        </div>
-        <div class="field">
-          <label>Negotiated Changes</label>
-          <textarea id="weiNotes" style="min-height:60px" placeholder="Any price / term adjustments…"></textarea>
-        </div>
-      </div>
-
-      <div id="alertAccept"></div>
-
-      <button class="btn btn-orange btn-full" id="acceptBtn" onclick="submitAccept()">
-        ✅ Mark Offers Accepted
-      </button>
-    </div>
-
-    <!-- Recent submissions log -->
     <div class="card">
-      <div class="card-title">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Recent Activity
+      <div class="card-title">📋 Provider Pipeline</div>
+      <div id="alertDashboard"></div>
+      <div id="providerList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ CHAT ══════════════ -->
+  <div class="view" id="view-chat">
+    <div class="card">
+      <div class="card-title">💬 Pipeline Assistant</div>
+      <div class="chips">
+        <button class="chip" onclick="sendQuickChat('Which providers are pending?')">Show pending</button>
+        <button class="chip" onclick="sendQuickChat('Show overall stats')">Show stats</button>
+        <button class="chip" onclick="sendQuickChat('List all providers')">List providers</button>
       </div>
-      <div id="activityFeed" style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0">
-        All submissions are shown in the Pending Submissions panel above.
+      <div class="chat-window" id="chatWindow">
+        <div class="msg msg-bot">Hi! I can run pipelines, show providers, accept offers, or pull stats. Try: "Run Almayass, focus on couples, Ramadan theme" or "Which providers are pending?"</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Type a command…" onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="btn btn-orange" onclick="sendChat()">Send</button>
       </div>
     </div>
+  </div>
 
-  </div><!-- /managerView -->
+  <!-- ══════════════ TEAM INTAKE ══════════════ -->
+  <div class="view" id="view-intake">
+    <div class="step-row">
+      <div class="step-dot active" id="stepDot1">1</div>
+      <div class="step-dot" id="stepDot2">2</div>
+      <div class="step-dot" id="stepDot3">3</div>
+    </div>
+
+    <div class="card" id="intakePane1">
+      <div class="card-title">🏢 Provider Information</div>
+      <div class="field"><label>Provider Name <span class="req">*</span></label><input type="text" id="iProviderName" placeholder="e.g. Almayass Grand Restaurant"></div>
+      <div class="field"><label>Vertical <span class="req">*</span></label>
+        <select id="iVertical"><option value="">Select…</option><option>Dining</option><option>Fun &amp; Activities</option><option>Health &amp; Beauty</option><option>Hotels &amp; Aqua Park</option></select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Contact Name</label><input type="text" id="iContactName"></div>
+        <div class="field"><label>Contact Phone</label><input type="text" id="iContactPhone"></div>
+      </div>
+      <div class="field"><label>Location / Area</label><input type="text" id="iLocation" placeholder="e.g. Naama Bay"></div>
+      <div class="field"><label>View / Atmosphere</label><input type="text" id="iAtmosphere"></div>
+      <div id="alertIntake1"></div>
+      <button class="btn btn-orange btn-full" onclick="intakeGoStep(2)">Next: Constraints →</button>
+    </div>
+
+    <div class="card" id="intakePane2" style="display:none">
+      <div class="card-title">🔒 Constraints</div>
+      <div class="field-row">
+        <div class="field"><label>Minimum Spend</label><input type="text" id="iMinSpend"></div>
+        <div class="field"><label>Max Group Size</label><input type="text" id="iMaxGroup"></div>
+      </div>
+      <div class="field"><label>Peak Hours</label><input type="text" id="iPeakHours"></div>
+      <div class="field"><label>Blackout Dates</label><input type="text" id="iBlackout"></div>
+      <div class="field"><label>Excluded Items</label><textarea id="iExcluded"></textarea></div>
+      <div class="field"><label>Special Terms</label><textarea id="iTerms"></textarea></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="intakeGoStep(1)">← Back</button><button class="btn btn-orange btn-full" onclick="intakeGoStep(3)">Next: Menu →</button></div>
+    </div>
+
+    <div class="card" id="intakePane3" style="display:none">
+      <div class="card-title">🍽️ Menu</div>
+      <div class="field"><label>Menu Link</label><input type="text" id="iMenuLink" placeholder="https://..."></div>
+      <div class="field"><label>— or — Menu File</label><input type="file" id="iMenuFile" accept=".pdf,.jpg,.jpeg,.png"></div>
+      <div class="field"><label>— or — Menu Text</label><textarea id="iMenuText" placeholder="Paste menu items…" style="min-height:100px"></textarea></div>
+      <div id="alertIntake3"></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="intakeGoStep(2)">← Back</button><button class="btn btn-orange btn-full" id="intakeSubmitBtn" onclick="submitIntake()">Submit Provider</button></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ ACTIVITY ══════════════ -->
+  <div class="view" id="view-activity">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;display:flex"><span>🕐 Recent Activity</span><button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="loadActivity()">↻ Refresh</button></div>
+      <div id="activityList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
 
 </div><!-- /container -->
 
+<!-- ══════════════ PROVIDER DETAIL MODAL ══════════════ -->
+<div class="modal-overlay" id="providerModal" onclick="if(event.target===this) closeProviderModal()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeProviderModal()">&times;</button>
+    <div id="modalContent"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ══════════════ BOTTOM NAV (mobile) ══════════════ -->
+<div class="bottom-nav">
+  <button class="nav-btn active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Dashboard</button>
+  <button class="nav-btn" data-view="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Chat</button>
+  <button class="nav-btn" data-view="intake"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
+  <button class="nav-btn" data-view="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity</button>
+</div>
+
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-const WEBHOOK_INTAKE  = 'https://weinflow.app.n8n.cloud/webhook/portal-intake-save';
-const WEBHOOK_ACCEPT  = 'https://weinflow.app.n8n.cloud/form/accept-offers-v1';
+// ════════════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════════════
+const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
+const N8N     = 'https://weinflow.app.n8n.cloud/webhook';
+const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' };
 
-let currentStep = 1;
-let currentMode = 'team';
-
-// Set today's date default
-document.getElementById('acceptDate').value = new Date().toISOString().split('T')[0];
-
-// Detect /intake route — hide manager toggle
-if (window.location.pathname.includes('intake')) {
-  document.getElementById('modeToggle').style.display = 'none';
+async function sbGet(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase GET failed: ${r.status}`);
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...SB_HEADERS, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`Supabase POST failed: ${r.status} ${await r.text()}`);
+  return r.json();
+}
+async function sbPatch(path, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'PATCH', headers: SB_HEADERS, body: JSON.stringify(body) });
+  return r.ok;
 }
 
-// Auto-load submissions when page opens (populates stats + pending list immediately)
-window.addEventListener('DOMContentLoaded', () => {
-  loadSubmissions();
-});
+// ════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.querySelectorAll('#desktopTabs button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'activity') loadActivity();
+}
+document.querySelectorAll('.nav-btn, #desktopTabs button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
-const WEBHOOK_LIST    = 'https://weinflow.app.n8n.cloud/webhook/portal-list';
-const WEBHOOK_APPROVE = 'https://weinflow.app.n8n.cloud/webhook/portal-approve';
-const WEBHOOK_REJECT  = 'https://weinflow.app.n8n.cloud/webhook/portal-reject';
+// ════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════════════
+let cachedProviders = [], cachedOffers = [], cachedSubmissions = [], cachedAccepted = [];
 
-// ── Pending submissions ─────────────────────────────────────────────────────
-async function loadSubmissions() {
-  const el = document.getElementById('submissionsList');
-  el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">Loading…</div>';
+async function loadDashboard() {
+  const listEl = document.getElementById('providerList');
   try {
-    const res  = await fetch(WEBHOOK_LIST);
-    const rows = await res.json();
-    const list = Array.isArray(rows) ? rows : [rows];
-    // Update stats
-    document.getElementById('statTotal').textContent   = list.length;
-    document.getElementById('statPending').textContent = list.filter(r => r.status === 'pending').length;
-    document.getElementById('statAccepted').textContent= list.filter(r => r.status === 'approved').length;
+    const [providers, offers, submissions, accepted] = await Promise.all([
+      sbGet('wein_providers?select=*&order=created_at.desc'),
+      sbGet('wein_offers?select=id,provider_id'),
+      sbGet('portal_submissions?select=*&order=created_at.desc'),
+      sbGet('wein_accepted_offers?select=*').catch(() => [])
+    ]);
+    cachedProviders = providers; cachedOffers = offers; cachedSubmissions = submissions; cachedAccepted = accepted;
 
-    if (!list.length) {
-      el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">No submissions yet.</div>';
-      return;
-    }
-    el.innerHTML = list.map(r => {
-      const isPending  = r.status === 'pending';
-      const isApproved = r.status === 'approved';
-      const statusColor = isPending ? '#d97706' : isApproved ? '#16a34a' : '#6b7280';
-      const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
-      const menuLink = r.menu_drive_url
-        ? `<a href="${r.menu_drive_url}" target="_blank" style="color:var(--blue-lt)">📂 View in Drive</a>`
-        : r.menu_link
-          ? `<a href="${r.menu_link}" target="_blank" style="color:var(--blue-lt)">🔗 Menu Link</a>`
-          : r.menu_file_name ? `📎 ${r.menu_file_name}` : '—';
-      const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '';
-      return `
-        <div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:${isPending?'#fffbeb':'#f9fafb'}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-            <div>
-              <div style="font-weight:600;font-size:15px">${r.provider_name}</div>
-              <div style="font-size:12px;color:var(--muted)">${r.vertical || '—'} · ${date}</div>
-            </div>
-            <span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}18;padding:3px 10px;border-radius:20px">${statusLabel}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;color:var(--text);margin-bottom:12px">
-            <div><span style="color:var(--muted)">Contact:</span> ${r.contact_name || '—'} ${r.contact_phone ? '· ' + r.contact_phone : ''}</div>
-            <div><span style="color:var(--muted)">Location:</span> ${r.location || '—'}</div>
-            <div><span style="color:var(--muted)">Min Spend:</span> ${r.minimum_spend || '—'}</div>
-            <div><span style="color:var(--muted)">Max Group:</span> ${r.max_group_size || '—'}</div>
-            <div><span style="color:var(--muted)">Peak Hours:</span> ${r.peak_hours || '—'}</div>
-            <div><span style="color:var(--muted)">Blackout:</span> ${r.blackout_dates || '—'}</div>
-            ${r.excluded_items ? `<div style="grid-column:span 2"><span style="color:var(--muted)">Excluded:</span> ${r.excluded_items}</div>` : ''}
-            ${r.special_terms  ? `<div style="grid-column:span 2"><span style="color:var(--muted)">Terms:</span> ${r.special_terms}</div>` : ''}
-            <div style="grid-column:span 2"><span style="color:var(--muted)">Menu:</span> ${menuLink}</div>
-          </div>
-          ${isPending ? `
-          <div style="display:flex;gap:8px">
-            <button onclick="approveSubmission('${r.id}','${r.provider_name}')" style="flex:1;padding:8px;background:var(--success);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
-              ▶ Run Pipeline
-            </button>
-            <button onclick="rejectSubmission('${r.id}','${r.provider_name}')" style="padding:8px 16px;background:var(--danger);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px">
-              ✕ Reject
-            </button>
-          </div>` : ''}
-        </div>`;
-    }).join('');
-  } catch(e) {
-    el.innerHTML = `<div style="text-align:center;color:var(--danger);padding:20px;font-size:13px">Failed to load: ${e.message}</div>`;
+    document.getElementById('statProviders').textContent = providers.length;
+    document.getElementById('statOffers').textContent    = offers.length;
+    document.getElementById('statPending').textContent   = submissions.filter(s => s.status === 'pending').length;
+    document.getElementById('statAccepted').textContent  = accepted.length;
+
+    renderProviderList();
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
   }
 }
 
-async function approveSubmission(id, name) {
-  if (!confirm(`Start pipeline for "${name}"?`)) return;
-  const btn = event.target;
-  btn.disabled = true; btn.textContent = 'Starting…';
-  try {
-    const r = await fetch(`${WEBHOOK_APPROVE}?id=${id}`);
-    const t = await r.text();
-    showAlert('alertManager', `Pipeline started for ${name}. Check Telegram for progress.`, 'success');
-    setTimeout(loadSubmissions, 1500);
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '▶ Run Pipeline';
-    showAlert('alertManager', 'Error: ' + e.message, 'error');
-  }
-}
-
-async function rejectSubmission(id, name) {
-  if (!confirm(`Reject submission from "${name}"?`)) return;
-  try {
-    await fetch(`${WEBHOOK_REJECT}?id=${id}`);
-    showAlert('alertManager', `"${name}" rejected.`, 'success');
-    setTimeout(loadSubmissions, 1000);
-  } catch(e) {
-    showAlert('alertManager', 'Error: ' + e.message, 'error');
-  }
-}
-
-// ── Mode switching ─────────────────────────────────────────────────────────
-function setMode(mode) {
-  currentMode = mode;
-  document.getElementById('teamView').classList.toggle('active', mode === 'team');
-  document.getElementById('managerView').classList.toggle('active', mode === 'manager');
-  if (mode === 'manager') loadSubmissions();
-  document.getElementById('btnTeam').classList.toggle('active', mode === 'team');
-  document.getElementById('btnManager').classList.toggle('active', mode === 'manager');
-}
-
-// ── Step navigation ────────────────────────────────────────────────────────
-function goStep(n) {
-  // Validate step 1 before advancing
-  if (n > 1 && currentStep === 1) {
-    const name = document.getElementById('providerName').value.trim();
-    const vert = document.getElementById('vertical').value;
-    if (!name || !vert) {
-      showAlert('alertStep1', 'Please fill in Provider Name and Vertical.', 'error');
-      return;
-    }
-    clearAlert('alertStep1');
-  }
-
-  // Mark done
-  if (n > currentStep) {
-    document.getElementById('step' + currentStep).classList.add('done');
-  }
-
-  currentStep = n;
-  document.getElementById('pane1').style.display = n === 1 ? 'block' : 'none';
-  document.getElementById('pane2').style.display = n === 2 ? 'block' : 'none';
-  document.getElementById('pane3').style.display = n === 3 ? 'block' : 'none';
-
-  // Update step indicators
-  [1,2,3].forEach(i => {
-    const el = document.getElementById('step' + i);
-    el.classList.remove('active');
-    if (i < n) el.classList.add('done');
-    if (i === n) el.classList.add('active');
-  });
-
-  window.scrollTo({top: 0, behavior: 'smooth'});
-}
-
-function resetWizard() {
-  document.getElementById('teamSuccess').style.display = 'none';
-  document.getElementById('stepsBar').style.display = 'flex';
-  document.getElementById('pane1').style.display = 'block';
-  document.getElementById('pane2').style.display = 'none';
-  document.getElementById('pane3').style.display = 'none';
-  [1,2,3].forEach(i => {
-    const el = document.getElementById('step' + i);
-    el.classList.remove('active','done');
-  });
-  document.getElementById('step1').classList.add('active');
-  document.getElementById('providerName').value = '';
-  document.getElementById('vertical').value = '';
-  document.getElementById('contactName').value = '';
-  document.getElementById('contactPhone').value = '';
-  document.getElementById('location').value = '';
-  document.getElementById('atmosphere').value = '';
-  document.getElementById('menuLink').value = '';
-  document.getElementById('minSpend').value = '';
-  document.getElementById('maxGroup').value = '';
-  document.getElementById('peakHours').value = '';
-  document.getElementById('blackout').value = '';
-  document.getElementById('excluded').value = '';
-  document.getElementById('specialTerms').value = '';
-  document.getElementById('menuText').value = '';
-  document.getElementById('menuFile').value = '';
-  document.getElementById('fileName').style.display = 'none';
-  currentStep = 1;
-}
-
-// ── File selection ─────────────────────────────────────────────────────────
-function onFileSelect(input) {
-  const file = input.files[0];
-  if (file) {
-    const el = document.getElementById('fileName');
-    el.textContent = '📎 ' + file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
-    el.style.display = 'block';
-  }
-}
-
-// Drag & drop
-const drop = document.getElementById('fileDrop');
-drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
-drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-drop.addEventListener('drop', e => {
-  e.preventDefault(); drop.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file) {
-    document.getElementById('menuFile').files = e.dataTransfer.files;
-    onFileSelect({files: [file]});
-  }
-});
-
-// ── Submit team intake ─────────────────────────────────────────────────────
-async function submitForm() {
-  const name    = document.getElementById('providerName').value.trim();
-  const vert    = document.getElementById('vertical').value;
-  const menuFile = document.getElementById('menuFile').files[0];
-  const menuText = document.getElementById('menuText').value.trim();
-
-  if (!name || !vert) {
-    showAlert('alertStep3', 'Provider name and vertical are required.', 'error');
-    return;
-  }
-
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Submitting…';
-  clearAlert('alertStep3');
-
-  try {
-    const formData = new FormData();
-    formData.append('provider_name', name);
-    formData.append('vertical', vert);
-    formData.append('contact_name', document.getElementById('contactName').value.trim());
-    formData.append('contact_phone', document.getElementById('contactPhone').value.trim());
-    formData.append('location', document.getElementById('location').value.trim());
-    formData.append('atmosphere', document.getElementById('atmosphere').value.trim());
-    formData.append('menu_link', document.getElementById('menuLink').value.trim());
-    formData.append('minimum_spend', document.getElementById('minSpend').value || '');
-    formData.append('max_group_size', document.getElementById('maxGroup').value || '');
-    formData.append('peak_hours', document.getElementById('peakHours').value.trim());
-    formData.append('blackout_dates', document.getElementById('blackout').value.trim());
-    formData.append('excluded_items', document.getElementById('excluded').value.trim());
-    formData.append('special_terms', document.getElementById('specialTerms').value.trim());
-    formData.append('menu_or_services', menuText);
-    if (menuFile) formData.append('menu_file', menuFile);
-
-    const resp = await fetch(WEBHOOK_INTAKE, { method: 'POST', body: formData });
-
-    if (resp.ok || resp.status === 200 || resp.status === 202) {
-      document.getElementById('pane3').style.display = 'none';
-      document.getElementById('stepsBar').style.display = 'none';
-      document.getElementById('teamSuccess').style.display = 'block';
-      document.getElementById('successMsg').textContent =
-        name + ' has been submitted. The WeIN pipeline is now generating offers!';
-    } else {
-      const txt = await resp.text();
-      showAlert('alertStep3', 'Submission failed (' + resp.status + '). Please try again.', 'error');
-    }
-  } catch (err) {
-    // n8n webhooks sometimes return empty body — treat as success
-    if (err.message && err.message.includes('Failed to fetch')) {
-      showAlert('alertStep3', 'Network error. Please check your connection.', 'error');
-    } else {
-      // Likely a CORS / empty-body response from n8n — treat as success
-      document.getElementById('pane3').style.display = 'none';
-      document.getElementById('stepsBar').style.display = 'none';
-      document.getElementById('teamSuccess').style.display = 'block';
-      document.getElementById('successMsg').textContent =
-        name + ' submitted. The pipeline is generating offers!';
-    }
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = 'Submit Provider';
-  }
-}
-
-// ── Submit accept offers ───────────────────────────────────────────────────
-async function submitAccept() {
-  const provider = document.getElementById('acceptProvider').value.trim();
-  const vertical = document.getElementById('acceptVertical').value;
-  const ids      = document.getElementById('acceptIds').value.trim();
-
-  if (!provider || !vertical || !ids) {
-    showAlert('alertAccept', 'Provider, vertical, and offer IDs are required.', 'error');
-    return;
-  }
-
-  const btn = document.getElementById('acceptBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Saving…';
-  clearAlert('alertAccept');
-
-  try {
-    const payload = {
-      'Provider Name':        provider,
-      'Vertical':             vertical,
-      'Accepted Offer IDs':   ids,
-      'Provider Notes':       document.getElementById('providerNotes').value.trim(),
-      'Negotiated Changes':   document.getElementById('weiNotes').value.trim(),
-      'Accepted Date':        document.getElementById('acceptDate').value,
-    };
-
-    const resp = await fetch(WEBHOOK_ACCEPT, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
+function renderProviderList() {
+  const listEl = document.getElementById('providerList');
+  // Merge: built providers + pending/rejected submissions not yet built
+  const byName = new Map();
+  cachedProviders.forEach(p => {
+    const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
+    const acceptedCount = cachedAccepted.filter(a => a.provider_name === p.provider_name).length;
+    byName.set(p.provider_name, {
+      name: p.provider_name, vertical: p.vertical, id: p.id,
+      status: offerCount > 0 ? 'done' : 'running',
+      offerCount, acceptedCount, created: p.created_at
     });
+  });
+  cachedSubmissions.forEach(s => {
+    if (!byName.has(s.provider_name)) {
+      byName.set(s.provider_name, {
+        name: s.provider_name, vertical: s.vertical, id: null,
+        status: s.status === 'pending' ? 'pending' : s.status === 'rejected' ? 'rejected' : 'running',
+        offerCount: 0, acceptedCount: 0, created: s.created_at, submissionId: s.id
+      });
+    }
+  });
+  const list = Array.from(byName.values()).sort((a,b) => new Date(b.created) - new Date(a.created));
 
-    showAlert('alertAccept',
-      '✅ Accepted offers saved for ' + provider + ' (IDs: ' + ids + ')', 'success');
-    document.getElementById('acceptIds').value = '';
-    document.getElementById('providerNotes').value = '';
-    document.getElementById('weiNotes').value = '';
-  } catch (err) {
-    showAlert('alertAccept', '✅ Request sent (check Telegram for confirmation)', 'success');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '✅ Mark Offers Accepted';
+  if (!list.length) { listEl.innerHTML = '<div class="empty">No providers yet.</div>'; return; }
+
+  listEl.innerHTML = list.map(p => {
+    const dot = p.acceptedCount > 0 ? 'dot-green' : p.offerCount > 0 ? 'dot-orange' : p.status === 'pending' ? 'dot-yellow' : 'dot-gray';
+    const badgeClass = p.status === 'done' ? 'badge-done' : p.status === 'pending' ? 'badge-pending' : p.status === 'rejected' ? 'badge-rejected' : 'badge-running';
+    const label = p.status === 'done' ? 'Done' : p.status === 'pending' ? 'Pending' : p.status === 'rejected' ? 'Rejected' : 'Running';
+    return `
+      <div class="provider-card" onclick="openProvider('${p.name.replace(/'/g,"\\'")}', ${p.id || 'null'}, '${(p.submissionId||'')}')">
+        <div class="health-dot ${dot}"></div>
+        <div class="provider-info">
+          <div class="provider-name">${p.name}</div>
+          <div class="provider-meta">${p.vertical || '—'} · ${p.offerCount} offers · ${new Date(p.created).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</div>
+        </div>
+        <span class="badge ${badgeClass}">${label}</span>
+      </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROVIDER DETAIL MODAL
+// ════════════════════════════════════════════════════════════════════
+async function openProvider(name, providerId, submissionId) {
+  document.getElementById('providerModal').classList.add('active');
+  const content = document.getElementById('modalContent');
+  content.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const [profile, menuItems, offers, accepted, submission] = await Promise.all([
+      sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(name)}&select=*`).catch(() => []),
+      providerId ? sbGet(`wein_menu_items?provider_id=eq.${providerId}&select=id`) : Promise.resolve([]),
+      providerId ? sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc`) : Promise.resolve([]),
+      sbGet(`wein_accepted_offers?provider_name=eq.${encodeURIComponent(name)}&select=*`).catch(() => []),
+      submissionId ? sbGet(`portal_submissions?id=eq.${submissionId}&select=*`) : Promise.resolve([])
+    ]);
+    const prof = profile[0] || {};
+    const sub  = submission[0] || {};
+    const acceptedTitles = new Set(accepted.map(a => a.offer_title));
+
+    const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(name)}`;
+
+    content.innerHTML = `
+      <div class="card-title">🏢 ${name}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        ${prof.vertical || sub.vertical || '—'} · ${prof.location || sub.location || '—'} ·
+        ${menuItems.length} menu items
+      </div>
+
+      <div class="alert" id="modalAlert" style="display:none"></div>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-navy" onclick="runPipelineFor('${name.replace(/'/g,"\\'")}','${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">▶ Run Pipeline</button>
+        <a href="${driveSearchUrl}" target="_blank"><button class="btn btn-ghost">📂 View Files</button></a>
+        ${sub.id ? `<button class="btn btn-success" onclick="approveSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✅ Approve Submission</button>` : ''}
+        ${sub.id && sub.status === 'pending' ? `<button class="btn btn-danger" onclick="rejectSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✕ Reject</button>` : ''}
+      </div>
+
+      <div class="card-title">Generated Offers (${offers.length})</div>
+      <div id="modalOffers">
+        ${offers.length === 0 ? '<div class="empty">No offers generated yet.</div>' : offers.map(o => {
+          const isAccepted = acceptedTitles.has(o.title);
+          return `
+          <div class="offer-card ${isAccepted ? 'accepted' : ''}" data-offer-id="${o.id}">
+            <div class="offer-title">${o.title}</div>
+            <div class="offer-hook">${o.hook || ''}</div>
+            <div class="offer-prices">
+              <span class="offer-old">EGP ${o.regular_egp || 0}</span>
+              <span class="offer-new">EGP ${o.promo_egp || 0}</span>
+              <span class="offer-disc">-${o.discount_pct || 0}%</span>
+            </div>
+            <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
+              onclick="toggleAcceptOffer(this, ${o.id}, '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">
+              ${isAccepted ? '✓ Accepted' : 'Accept Offer'}
+            </button>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch (e) {
+    content.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
+  }
+}
+function closeProviderModal() { document.getElementById('providerModal').classList.remove('active'); }
+
+async function toggleAcceptOffer(btn, offerId, providerName, vertical) {
+  const offer = (cachedOffers.find(o => o.id === offerId)) || null;
+  // Need full offer row — re-fetch since cachedOffers only has id/provider_id
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=*`);
+    const o = rows[0];
+    await sbPost('wein_accepted_offers', {
+      provider_id: o.provider_id, provider_name: providerName, vertical, offer_title: o.title,
+      hook: o.hook, regular_egp: o.regular_egp, promo_egp: o.promo_egp, discount_pct: o.discount_pct,
+      upgrade_tier: o.upgrade_tier, items: o.items, terms: o.terms,
+      status: 'accepted', accepted_date: new Date().toISOString().split('T')[0]
+    });
+    btn.closest('.offer-card').classList.add('accepted');
+    btn.className = 'btn btn-success'; btn.textContent = '✓ Accepted';
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Accept Offer';
+    showModalAlert('Failed: ' + e.message, 'error');
   }
 }
 
-// ── Alert helpers ──────────────────────────────────────────────────────────
-function showAlert(id, msg, type) {
+async function runPipelineFor(name, vertical) {
+  showModalAlert(`Starting pipeline for ${name}…`, 'success');
+  try {
+    await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ provider_name: name, vertical }) });
+    showModalAlert(`Pipeline started for ${name}. This runs for a few minutes — check back or watch Telegram.`, 'success');
+  } catch (e) { showModalAlert('Failed to start: ' + e.message, 'error'); }
+}
+async function approveSubmissionModal(id, name) {
+  await fetch(`${N8N}/portal-approve?id=${id}`);
+  showModalAlert(`Approved. Pipeline starting for ${name}.`, 'success');
+  setTimeout(loadDashboard, 1500);
+}
+async function rejectSubmissionModal(id, name) {
+  await fetch(`${N8N}/portal-reject?id=${id}`);
+  showModalAlert(`Rejected ${name}.`, 'success');
+  closeProviderModal();
+  setTimeout(loadDashboard, 1000);
+}
+function showModalAlert(msg, type) {
+  const el = document.getElementById('modalAlert');
+  el.textContent = msg; el.className = `alert alert-${type}`; el.style.display = 'block';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CHAT (Claude-powered, proxied via Flask /api/chat)
+// ════════════════════════════════════════════════════════════════════
+let chatHistory = [];
+function sendQuickChat(text) { document.getElementById('chatInput').value = text; sendChat(); }
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  appendChatMsg(text, 'user');
+  chatHistory.push({ role: 'user', content: text });
+
+  const thinkingId = appendChatMsg('…', 'bot');
+  try {
+    const res = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ messages: chatHistory }) });
+    if (!res.ok) throw new Error(`Chat backend error: ${res.status}`);
+    const data = await res.json();
+    const reply = data.reply || '(no response)';
+    document.getElementById(thinkingId).textContent = reply.replace(/```json[\s\S]*?```/g, '').trim() || reply;
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    const action = extractAction(reply);
+    if (action) await dispatchAction(action);
+  } catch (e) {
+    document.getElementById(thinkingId).textContent = 'Error: ' + e.message;
+  }
+}
+function appendChatMsg(text, who) {
+  const win = document.getElementById('chatWindow');
+  const id = 'msg-' + Date.now() + Math.random().toString(36).slice(2,6);
+  const div = document.createElement('div');
+  div.id = id; div.className = `msg msg-${who}`; div.textContent = text;
+  win.appendChild(div); win.scrollTop = win.scrollHeight;
+  return id;
+}
+function extractAction(text) {
+  const m = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*"action"[\s\S]*\})/);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch(e) { return null; }
+}
+async function dispatchAction(action) {
+  try {
+    if (action.action === 'run_pipeline') {
+      await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical, ...(action.params||{}) }) });
+      appendChatMsg(`✅ Pipeline started for ${action.provider}.`, 'bot');
+    } else if (action.action === 'show_provider') {
+      await loadDashboard();
+      const p = cachedProviders.find(p => p.provider_name.toLowerCase() === (action.provider||'').toLowerCase());
+      if (p) { showView('dashboard'); openProvider(p.provider_name, p.id, ''); }
+      else appendChatMsg(`Couldn't find provider "${action.provider}".`, 'bot');
+    } else if (action.action === 'accept_offers') {
+      await loadDashboard();
+      const offers = cachedOffers.filter(o => action.offer_ids.includes(o.id));
+      for (const o of offers) {
+        const rows = await sbGet(`wein_offers?id=eq.${o.id}&select=*`);
+        const full = rows[0];
+        await sbPost('wein_accepted_offers', { provider_id: full.provider_id, provider_name: action.provider,
+          vertical: action.vertical || '', offer_title: full.title, hook: full.hook,
+          regular_egp: full.regular_egp, promo_egp: full.promo_egp, discount_pct: full.discount_pct,
+          upgrade_tier: full.upgrade_tier, items: full.items, terms: full.terms,
+          status: 'accepted', accepted_date: new Date().toISOString().split('T')[0] });
+      }
+      appendChatMsg(`✅ Accepted ${offers.length} offer(s) for ${action.provider}.`, 'bot');
+    } else if (action.action === 'show_stats') {
+      await loadDashboard();
+      appendChatMsg(`📊 Providers: ${cachedProviders.length} · Offers: ${cachedOffers.length} · Pending: ${cachedSubmissions.filter(s=>s.status==='pending').length} · Accepted: ${cachedAccepted.length}`, 'bot');
+    } else if (action.action === 'list_providers') {
+      await loadDashboard();
+      const filter = action.filter;
+      let names = cachedProviders.map(p => p.provider_name);
+      if (filter === 'pending') names = cachedSubmissions.filter(s => s.status === 'pending').map(s => s.provider_name);
+      appendChatMsg(names.length ? names.join(', ') : 'None found.', 'bot');
+    }
+  } catch (e) {
+    appendChatMsg('Action failed: ' + e.message, 'bot');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// TEAM INTAKE (3-step wizard)
+// ════════════════════════════════════════════════════════════════════
+let intakeStep = 1;
+function intakeGoStep(n) {
+  if (n > 1 && intakeStep === 1) {
+    if (!document.getElementById('iProviderName').value.trim() || !document.getElementById('iVertical').value) {
+      showAlertEl('alertIntake1', 'Please fill in Provider Name and Vertical.', 'error'); return;
+    }
+  }
+  intakeStep = n;
+  [1,2,3].forEach(i => {
+    document.getElementById('intakePane'+i).style.display = i === n ? 'block' : 'none';
+    document.getElementById('stepDot'+i).className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+  });
+}
+async function submitIntake() {
+  const btn = document.getElementById('intakeSubmitBtn');
+  const name = document.getElementById('iProviderName').value.trim();
+  if (!name) { showAlertEl('alertIntake3', 'Provider name is required.', 'error'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Submitting…';
+
+  const fd = new FormData();
+  fd.append('provider_name', name);
+  fd.append('vertical', document.getElementById('iVertical').value);
+  fd.append('contact_name', document.getElementById('iContactName').value);
+  fd.append('contact_phone', document.getElementById('iContactPhone').value);
+  fd.append('location', document.getElementById('iLocation').value);
+  fd.append('atmosphere', document.getElementById('iAtmosphere').value);
+  fd.append('minimum_spend', document.getElementById('iMinSpend').value);
+  fd.append('max_group_size', document.getElementById('iMaxGroup').value);
+  fd.append('peak_hours', document.getElementById('iPeakHours').value);
+  fd.append('blackout_dates', document.getElementById('iBlackout').value);
+  fd.append('excluded_items', document.getElementById('iExcluded').value);
+  fd.append('special_terms', document.getElementById('iTerms').value);
+  fd.append('menu_link', document.getElementById('iMenuLink').value);
+  fd.append('menu_or_services', document.getElementById('iMenuText').value);
+  const file = document.getElementById('iMenuFile').files[0];
+  if (file) fd.append('menu_file', file);
+
+  try {
+    await fetch(`${N8N}/portal-intake-save`, { method: 'POST', body: fd });
+    showAlertEl('alertIntake3', `✅ Submitted! The WeIN team will review "${name}" shortly.`, 'success');
+    setTimeout(() => { resetIntakeForm(); intakeGoStep(1); }, 2500);
+  } catch (e) {
+    showAlertEl('alertIntake3', 'Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit Provider';
+  }
+}
+function resetIntakeForm() {
+  ['iProviderName','iContactName','iContactPhone','iLocation','iAtmosphere','iMinSpend','iMaxGroup',
+   'iPeakHours','iBlackout','iExcluded','iTerms','iMenuLink','iMenuText'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('iVertical').value = '';
+  document.getElementById('iMenuFile').value = '';
+}
+function showAlertEl(id, msg, type) {
   const el = document.getElementById(id);
   el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(() => { if (type === 'success') el.innerHTML = ''; }, 4000);
 }
-function clearAlert(id) {
-  document.getElementById(id).innerHTML = '';
+
+// ════════════════════════════════════════════════════════════════════
+// ACTIVITY FEED
+// ════════════════════════════════════════════════════════════════════
+async function loadActivity() {
+  const el = document.getElementById('activityList');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const outcomes = await sbGet('offer_outcomes?select=*&order=created_at.desc&limit=20');
+    if (!outcomes.length) { el.innerHTML = '<div class="empty">No activity yet.</div>'; return; }
+    const providerIds = [...new Set(outcomes.map(o => o.provider_id))].filter(Boolean);
+    let providers = [];
+    if (providerIds.length) providers = await sbGet(`wein_providers?id=in.(${providerIds.join(',')})&select=id,provider_name`);
+    const nameById = new Map(providers.map(p => [p.id, p.provider_name]));
+
+    el.innerHTML = outcomes.map(o => {
+      const gradeColor = (o.final_grade||'').toLowerCase().includes('excellent') ? 'var(--success)' :
+                         (o.final_grade||'').toLowerCase().includes('good') ? 'var(--teal)' :
+                         (o.final_grade||'').toLowerCase().includes('needs') ? 'var(--warn)' : 'var(--muted)';
+      return `
+        <div class="provider-card" style="cursor:default">
+          <div class="health-dot" style="background:${gradeColor}"></div>
+          <div class="provider-info">
+            <div class="provider-name">${nameById.get(o.provider_id) || 'Provider #' + o.provider_id}</div>
+            <div class="provider-meta">${o.final_grade || o.verdict || '—'} · ${new Date(o.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════
+if (window.location.pathname.includes('intake')) {
+  document.getElementById('desktopTabs').style.display = 'none';
+  showView('intake');
+} else {
+  loadDashboard();
 }
 </script>
 </body>

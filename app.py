@@ -21,6 +21,7 @@ import tempfile
 from pathlib import Path
 
 from flask import Flask, jsonify, request
+import requests as requests_lib
 
 TEMPLATES_DIR = Path(__file__).resolve().parent
 
@@ -197,27 +198,77 @@ def generate_offer_files():
     })
 
 
-def _serve_portal(force_team=False):
+def _serve_portal():
     portal_path = os.path.join(os.path.dirname(__file__), "portal", "index.html")
     with open(portal_path, "r", encoding="utf-8") as f:
         html = f.read()
-    if force_team:
-        # Hide mode toggle so field team can't switch to manager view
-        html = html.replace(
-            'id="modeToggle"',
-            'id="modeToggle" style="display:none"'
-        )
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 @app.route("/portal")
 def portal():
-    return _serve_portal(force_team=False)
+    return _serve_portal()
 
 
 @app.route("/intake")
 def intake():
-    return _serve_portal(force_team=True)
+    # Portal JS detects the /intake path itself and jumps straight to the
+    # team intake view with the desktop tabs hidden.
+    return _serve_portal()
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    """Proxies chat messages to Claude so the API key never reaches the browser."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY not set on the server"}), 500
+
+    payload = request.get_json(force=True, silent=True) or {}
+    messages = payload.get("messages", [])
+    if not messages:
+        return jsonify({"error": "messages required"}), 400
+
+    system_prompt = (
+        "You are the WeIN pipeline controller for a premium lifestyle marketplace "
+        "in Sharm El Sheikh, Egypt. You help the user control the offer generation "
+        "pipeline by understanding natural language commands and translating them "
+        "into actions.\n\n"
+        "Available actions you can trigger (respond with a JSON action block):\n"
+        '1. Run pipeline: {"action": "run_pipeline", "provider": "name", '
+        '"vertical": "Dining", "params": {"party_sizes": [], "tiers": [], "theme": "", "max_discount": 40}}\n'
+        '2. Show provider: {"action": "show_provider", "provider": "name"}\n'
+        '3. Accept offers: {"action": "accept_offers", "provider": "name", "vertical": "Dining", "offer_ids": [1,3,5]}\n'
+        '4. Show stats: {"action": "show_stats"}\n'
+        '5. List providers: {"action": "list_providers", "filter": "pending"}\n\n'
+        "When the user types a command, respond with a short friendly confirmation "
+        "of what you understood, then the JSON action block in a ```json fenced "
+        "code block if an action is needed. Ask a clarifying question instead of "
+        "guessing if the intent is unclear."
+    )
+
+    try:
+        resp = requests_lib.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-6",
+                "max_tokens": 600,
+                "system": system_prompt,
+                "messages": messages,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply = "".join(block.get("text", "") for block in data.get("content", []))
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 if __name__ == "__main__":
