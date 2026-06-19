@@ -142,7 +142,26 @@
 </head>
 <body>
 
-<div class="header">
+<!-- ══════════════ LOGIN SCREEN ══════════════ -->
+<div id="loginScreen" style="position:fixed;inset:0;background:var(--navy);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+  <div style="width:64px;height:64px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:var(--navy);margin-bottom:16px">W</div>
+  <div style="color:#fff;font-size:20px;font-weight:700;margin-bottom:4px">WeIN Portal</div>
+  <div style="color:#cbd5e1;font-size:13px;margin-bottom:28px">Enter your access code</div>
+  <div style="display:flex;gap:10px;margin-bottom:18px" id="pinBoxes">
+    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
+    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="1">
+    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
+    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
+  </div>
+  <div id="loginError" style="color:#fca5a5;font-size:13px;min-height:18px;margin-bottom:10px"></div>
+  <button class="btn btn-orange" style="padding:10px 40px" onclick="attemptLogin()">Login</button>
+</div>
+<style>
+  .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 10px; border: none; background: rgba(255,255,255,.12); color: #fff; }
+  .pin-box:focus { outline: 2px solid var(--orange); }
+</style>
+
+<div class="header" id="appHeader" style="display:none">
   <div class="logo"><div class="logo-badge">W</div> WeIN Portal</div>
   <div class="desktop-tabs" id="desktopTabs">
     <button data-view="dashboard" class="active">Dashboard</button>
@@ -150,9 +169,10 @@
     <button data-view="intake">Add Provider</button>
     <button data-view="activity">Activity</button>
   </div>
+  <button class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3);padding:6px 14px;font-size:12px" onclick="logout()">Logout</button>
 </div>
 
-<div class="container">
+<div class="container" id="appContainer" style="display:none">
 
   <!-- ══════════════ DASHBOARD ══════════════ -->
   <div class="view active" id="view-dashboard">
@@ -255,7 +275,7 @@
 </div>
 
 <!-- ══════════════ BOTTOM NAV (mobile) ══════════════ -->
-<div class="bottom-nav">
+<div class="bottom-nav" id="bottomNav" style="display:none">
   <button class="nav-btn active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Dashboard</button>
   <button class="nav-btn" data-view="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Chat</button>
   <button class="nav-btn" data-view="intake"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
@@ -652,13 +672,87 @@ async function loadActivity() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// ACCESS CONTROL (PIN-based)
+// ════════════════════════════════════════════════════════════════════
+const PIN_ROLES = {
+  '1986': 'admin',
+  '2026': 'manager',
+  '1234': 'team',
+};
+const ADMIN_VIEWS = ['dashboard', 'chat', 'intake', 'activity'];
+const TEAM_VIEWS  = ['intake'];
+
+function applyRole(role) {
+  const allowed = role === 'team' ? TEAM_VIEWS : ADMIN_VIEWS;
+  document.querySelectorAll('#desktopTabs button').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
+  document.querySelectorAll('.nav-btn').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
+  showView(allowed[0]);
+}
+
+function showApp(role) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appHeader').style.display = 'flex';
+  document.getElementById('appContainer').style.display = 'block';
+  document.getElementById('bottomNav').style.display = '';
+  applyRole(role);
+}
+
+function attemptLogin() {
+  const boxes = document.querySelectorAll('.pin-box');
+  const pin = Array.from(boxes).map(b => b.value).join('');
+  const role = PIN_ROLES[pin];
+  if (!role) {
+    document.getElementById('loginError').textContent = 'Incorrect code. Try again.';
+    boxes.forEach(b => b.value = '');
+    boxes[0].focus();
+    return;
+  }
+  sessionStorage.setItem('weinRole', role);
+  showApp(role);
+}
+
+function logout() {
+  sessionStorage.removeItem('weinRole');
+  document.getElementById('appHeader').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'none';
+  document.getElementById('bottomNav').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.querySelectorAll('.pin-box').forEach(b => b.value = '');
+  document.getElementById('loginError').textContent = '';
+}
+
+// PIN box auto-advance / auto-submit
+document.querySelectorAll('.pin-box').forEach((box, i) => {
+  box.addEventListener('input', () => {
+    box.value = box.value.replace(/\D/g, '').slice(0, 1);
+    if (box.value && i < 3) document.querySelectorAll('.pin-box')[i + 1].focus();
+    if (box.value && i === 3) attemptLogin();
+  });
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !box.value && i > 0) document.querySelectorAll('.pin-box')[i - 1].focus();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════════════
 if (window.location.pathname.includes('intake')) {
+  // Field team intake page — no login, no nav, intake form only.
   document.getElementById('desktopTabs').style.display = 'none';
+  document.getElementById('appHeader').style.display = 'flex';
+  document.getElementById('appContainer').style.display = 'block';
+  document.getElementById('bottomNav').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'none';
   showView('intake');
 } else {
-  loadDashboard();
+  const savedRole = sessionStorage.getItem('weinRole');
+  if (Object.values(PIN_ROLES).includes(savedRole)) {
+    showApp(savedRole);
+    loadDashboard();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.querySelector('.pin-box').focus();
+  }
 }
 </script>
 </body>
