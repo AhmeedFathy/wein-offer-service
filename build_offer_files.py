@@ -59,6 +59,54 @@ def _gap_str(o):
     pct = round(_disc(o) * 100)
     base = max(0, pct - 6)
     return f"+{pct - base}% ✓"
+
+def _contents(o):
+    """Bundle contents — derived from items[] (current node-8 schema), falling
+    back to a legacy 'contents' string if present."""
+    items = o.get("items")
+    if items:
+        return ", ".join(item.get("name", "") for item in items)
+    return o.get("contents", "")
+
+def _hook_line(o):
+    """Guest-facing marketing hook — current schema stores this as 'hook'."""
+    return o.get("hook") or o.get("hook_line", "")
+
+def _hook_type(o):
+    """Hook type/category — current schema has no hook_type; title_strategy is
+    the closest available classification."""
+    return o.get("hook_type") or o.get("title_strategy", "")
+
+def _party_size(o):
+    """Party size — current schema has no party_size field; derive from
+    keywords in the title/hook, defaulting to '—' if unclear."""
+    if o.get("party_size"):
+        return o["party_size"]
+    text = (o.get("title", "") + " " + o.get("hook", "")).lower()
+    if "family" in text:
+        return "Family"
+    if "group" in text:
+        return "Group"
+    if "couple" in text:
+        return "Couple"
+    if "solo" in text:
+        return "Solo"
+    return "—"
+
+def _flatten_menu_items(offers):
+    """Derive a Menu Input list by flattening offers[].items[], deduplicated
+    by item name (current schema has no top-level menu_items)."""
+    all_items = {}
+    for o in offers:
+        for item in o.get("items", []):
+            name = item.get("name", "")
+            if name and name not in all_items:
+                all_items[name] = {
+                    "name": name,
+                    "me_class": item.get("me_class", ""),
+                    "bundle_role": item.get("bundle_role", ""),
+                }
+    return list(all_items.values())
 # ─────────────────────────────────────────────────────────────────────────────
 
 def navy_font(bold=True):  return Font(color=WHITE, bold=bold)
@@ -91,8 +139,8 @@ def build_filled_template(wb_out, data):
     eur_rate = data.get("eur_rate", 62.44)
     commission = data.get("commission", 0.15)
     waffarha_adj = data.get("waffarha_adj", "+5 to +7 pts above baseline")
-    menu_items = data.get("menu_items", [])
     offers = data.get("offers", [])
+    menu_items = data.get("menu_items") or _flatten_menu_items(offers)
     # Filled template shows ALL offers (up to 20 selected + 2 backups)
     selected = [o for o in offers if o.get("status", "Selected") == "Selected"]
     backups  = [o for o in offers if o.get("status", "Selected") == "Backup"]
@@ -256,12 +304,12 @@ def build_filled_template(wb_out, data):
         fill = lgrey_fill() if i % 2 == 0 else PatternFill("solid", fgColor="FAFAFA")
         vals = [
             item.get("name", ""),
-            item.get("category", ""),
-            item.get("price", item.get("price_egp", "")),
-            item.get("cost_sensitivity", "Low"),
+            item.get("category", "N/A"),
+            item.get("price", item.get("price_egp", "N/A")),
+            item.get("cost_sensitivity", "N/A"),
             me_class,
             item.get("bundle_role", ""),
-            item.get("eligible", ""),
+            item.get("eligible", "N/A"),
             item.get("notes", ""),
         ]
         for j, v in enumerate(vals):
@@ -302,11 +350,11 @@ def build_filled_template(wb_out, data):
     ws3["B1"].alignment = center()
     ws3.row_dimensions[1].height = 24
 
-    off_headers = ["#", "Party Size", "Tier", "Offer Title", "Offer Contents", "Discount %",
+    off_headers = ["#", "Party Size", "Offer Title", "Offer Contents", "Discount %",
                    "À la Carte EGP", "Promo Price EGP", "Save EGP", "Your 15%",
                    "Provider Gets", "Waffarha Ref %", "Gap vs Waffarha", "Hook Type",
                    "Guest Hook Line", "Validity / Terms"]
-    col_widths = [5, 10, 10, 35, 50, 10, 14, 14, 12, 12, 14, 14, 14, 18, 40, 40]
+    col_widths = [5, 10, 35, 50, 10, 14, 14, 12, 12, 14, 14, 14, 18, 40, 40]
     for j, (h, w) in enumerate(zip(off_headers, col_widths)):
         col_letter = chr(66 + j)  # B=66
         ws3.column_dimensions[col_letter].width = w
@@ -347,10 +395,10 @@ def build_filled_template(wb_out, data):
         if o.get("status") == "Backup":
             fill = PatternFill("solid", fgColor="FFF9C4")
 
-        vals = [num, o.get("party_size",""), o.get("tier",""), o.get("title",""),
-                o.get("contents",""), _disc_pct_str(o), alc, promo, save,
-                comm, prov, waf_ref, gap, o.get("hook_type",""),
-                o.get("hook_line",""), o.get("terms","")]
+        vals = [num, _party_size(o), o.get("title",""),
+                _contents(o), _disc_pct_str(o), alc, promo, save,
+                comm, prov, waf_ref, gap, _hook_type(o),
+                _hook_line(o), o.get("terms","")]
 
         for j, v in enumerate(vals):
             cell = ws3.cell(row=i, column=j+2)
@@ -396,8 +444,8 @@ def build_filled_template(wb_out, data):
     ws4["B2"].font = Font(italic=True, color=TEAL, size=9)
     ws4["B2"].alignment = center()
 
-    pick_headers = ["#", "Offer Title", "Party Size", "Tier", "Disc %", "Promo EGP", "Save EGP", "Your 15%", "Rationale", "Status"]
-    pick_widths  = [5, 42, 12, 10, 8, 14, 12, 12, 50, 10]
+    pick_headers = ["#", "Offer Title", "Party Size", "Disc %", "Promo EGP", "Save EGP", "Your 15%", "Rationale", "Status"]
+    pick_widths  = [5, 42, 12, 8, 14, 12, 12, 50, 10]
     for j, (h, w) in enumerate(zip(pick_headers, pick_widths)):
         col_letter = chr(66 + j)
         ws4.column_dimensions[col_letter].width = w
@@ -416,8 +464,8 @@ def build_filled_template(wb_out, data):
         save  = alc - promo
         comm  = round(promo * commission, 2)
         fill  = lgreen_fill() if i % 2 == 0 else PatternFill("solid", fgColor="F0FAF4")
-        vals  = [o.get("id", i-3), o.get("title",""), o.get("party_size",""),
-                 o.get("tier",""), _disc_pct_str(o), promo, save, comm,
+        vals  = [o.get("id", i-3), o.get("title",""), _party_size(o),
+                 _disc_pct_str(o), promo, save, comm,
                  o.get("rationale",""), "Selected"]
         for j, v in enumerate(vals):
             cell = ws4.cell(row=i, column=j+2)
@@ -443,8 +491,8 @@ def build_filled_template(wb_out, data):
         alc   = _alc(o)
         save  = alc - promo
         comm  = round(promo * commission, 2)
-        vals  = [f"B{i-sep_row}", o.get("title",""), o.get("party_size",""),
-                 o.get("tier",""), _disc_pct_str(o), promo, save, comm,
+        vals  = [f"B{i-sep_row}", o.get("title",""), _party_size(o),
+                 _disc_pct_str(o), promo, save, comm,
                  o.get("rationale",""), "Backup"]
         for j, v in enumerate(vals):
             cell = ws4.cell(row=i, column=j+2)
@@ -483,7 +531,7 @@ def build_provider_xlsx(wb_out, data):
         ("Total Offers", str(len(selected))),
         ("Avg Discount", f"{sum(_disc(o) for o in selected)/len(selected):.0%}" if selected else "0%"),
         ("Highest Ticket", f"EGP {max((_alc(o) for o in selected), default=0):,.0f}"),
-        ("Party Coverage", " · ".join(sorted(set(o.get("party_size","") for o in selected)))),
+        ("Party Coverage", " · ".join(sorted(set(_party_size(o) for o in selected)))),
     ]
     ws.row_dimensions[2].height = 14
     ws.row_dimensions[3].height = 32
@@ -526,9 +574,9 @@ def build_provider_xlsx(wb_out, data):
         comm  = round(promo * commission, 2)
         fill  = lgrey_fill() if i % 2 == 0 else PatternFill("solid", fgColor="FAFAFA")
 
-        vals = [o.get("id", i-5), o.get("title",""), o.get("party_size",""),
-                o.get("contents",""), alc, _disc_pct_str(o), promo, comm,
-                o.get("hook_line",""), o.get("terms","")]
+        vals = [o.get("id", i-5), o.get("title",""), _party_size(o),
+                _contents(o), alc, _disc_pct_str(o), promo, comm,
+                _hook_line(o), o.get("terms","")]
 
         for j, (col, v) in enumerate(zip(col_letters, vals)):
             cell = ws[f"{col}{i}"]
@@ -543,7 +591,7 @@ def build_provider_xlsx(wb_out, data):
         ws.row_dimensions[i].height = 50
 
 
-def run(provider_name, vertical, output_dir, json_path, mode="full"):
+def run(provider_name, vertical, output_dir, json_path, mode="full", explicit_version=None):
     """
     mode = 'full'       → build both xlsx files (new provider)
     mode = 'adjust'     → rebuild Filled Offer Template only, keep provider xlsx/PDFs unchanged
@@ -571,7 +619,7 @@ def run(provider_name, vertical, output_dir, json_path, mode="full"):
 
     # ── File 1: Filled Offer Template (always rebuilt in full/adjust/filled mode) ──
     if mode in ("full", "adjust", "filled"):
-        v1 = next_version(output_dir, provider_name, "Filled Offer Template", "xlsx")
+        v1 = explicit_version if explicit_version is not None else next_version(output_dir, provider_name, "Filled Offer Template", "xlsx")
         wb1 = openpyxl.Workbook()
         build_filled_template(wb1, data)
         out1 = output_dir / f"{provider_name} - Filled Offer Template - Claude v{v1}.xlsx"
@@ -580,7 +628,7 @@ def run(provider_name, vertical, output_dir, json_path, mode="full"):
 
     # ── File 2: Provider Negotiation xlsx (only in full/provider mode — NOT in adjust) ──
     if mode in ("full", "provider"):
-        v2 = next_version(output_dir, provider_name, "Provider Negotiation Offers", "xlsx")
+        v2 = explicit_version if explicit_version is not None else next_version(output_dir, provider_name, "Provider Negotiation Offers", "xlsx")
         wb2 = openpyxl.Workbook()
         build_provider_xlsx(wb2, data)
         out2 = output_dir / f"{provider_name} - Provider Negotiation Offers - Claude v{v2}.xlsx"
@@ -601,4 +649,5 @@ if __name__ == "__main__":
         print("  mode: full (default) | adjust | filled | provider")
         sys.exit(1)
     mode = sys.argv[5] if len(sys.argv) > 5 else "full"
-    run(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], mode)
+    explicit_version = int(sys.argv[6]) if len(sys.argv) > 6 else None
+    run(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], mode, explicit_version=explicit_version)

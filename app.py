@@ -47,9 +47,10 @@ def sanitize_name(name: str) -> str:
     return name
 
 
-def run_generation_scripts(provider: str, vertical: str, output_dir: Path, json_path: Path):
+def run_generation_scripts(provider: str, vertical: str, output_dir: Path, json_path: Path, version: int = None):
+    extra = [str(version)] if version is not None else []
     for script, args in (
-        ("build_offer_files.py", [provider, vertical, str(output_dir), str(json_path), "full"]),
+        ("build_offer_files.py", [provider, vertical, str(output_dir), str(json_path), "full"] + extra),
         ("build_pdfs.py", [str(json_path), str(output_dir), "both"]),
     ):
         cmd = [PYTHON_EXECUTABLE, str(TEMPLATES_DIR / script)] + args
@@ -144,9 +145,17 @@ def generate_offer_files():
     provider = payload.get("provider")
     vertical = payload.get("vertical")
     offer_data = payload.get("offer_data")
+    version_label = payload.get("version")  # e.g. "Claude v3" from n8n Get Version Number
 
     if not provider or not vertical or not offer_data:
         return jsonify({"error": "Body must include 'provider', 'vertical', and 'offer_data'"}), 400
+
+    # Parse explicit version number if provided (overrides auto-detection)
+    version_num = None
+    if version_label:
+        m = re.search(r'(\d+)', str(version_label))
+        if m:
+            version_num = int(m.group(1))
 
     provider_dir_name = sanitize_name(provider)
     vertical_dir_name = sanitize_name(vertical)
@@ -159,7 +168,7 @@ def generate_offer_files():
         json_path.write_text(json.dumps(offer_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
         try:
-            run_generation_scripts(provider, vertical, output_dir, json_path)
+            run_generation_scripts(provider, vertical, output_dir, json_path, version=version_num)
         except RuntimeError as e:
             return jsonify({"error": str(e)}), 500
 
