@@ -356,7 +356,7 @@ function renderProviderList() {
     const badgeClass = p.status === 'done' ? 'badge-done' : p.status === 'pending' ? 'badge-pending' : p.status === 'rejected' ? 'badge-rejected' : 'badge-running';
     const label = p.status === 'done' ? 'Done' : p.status === 'pending' ? 'Pending' : p.status === 'rejected' ? 'Rejected' : 'Running';
     return `
-      <div class="provider-card" onclick="openProvider('${p.name.replace(/'/g,"\\'")}', ${p.id || 'null'}, '${(p.submissionId||'')}')">
+      <div class="provider-card" onclick="openProvider('${p.name.replace(/'/g,"\\'")}', ${p.id ? `'${p.id}'` : 'null'}, '${(p.submissionId||'')}')">
         <div class="health-dot ${dot}"></div>
         <div class="provider-info">
           <div class="provider-name">${p.name}</div>
