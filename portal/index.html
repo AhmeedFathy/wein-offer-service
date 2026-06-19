@@ -438,7 +438,7 @@ async function openProvider(name, providerId, submissionId) {
               <span class="offer-disc">-${o.discount_pct || 0}%</span>
             </div>
             <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
-              onclick="toggleAcceptOffer(this, ${o.id}, '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">
+              onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">
               ${isAccepted ? '✓ Accepted' : 'Accept Offer'}
             </button>
           </div>`;
