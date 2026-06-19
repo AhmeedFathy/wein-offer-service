@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeIN Provider Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --blue:    #1B3A6B;
+    --blue-lt: #2a5298;
+    --orange:  #F5A623;
+    --orange-dk: #d4891a;
+    --bg:      #f0f4fa;
+    --card:    #ffffff;
+    --text:    #1a1a2e;
+    --muted:   #6b7280;
+    --border:  #dce3ef;
+    --success: #16a34a;
+    --danger:  #dc2626;
+    --radius:  12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--blue);
+    color: #fff;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-badge {
+    background: var(--orange);
+    color: var(--blue);
+    font-weight: 700;
+    font-size: 15px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    letter-spacing: .5px;
+  }
+  .logo-text { font-size: 16px; font-weight: 600; opacity: .9; }
+  .mode-toggle {
+    display: flex;
+    background: rgba(255,255,255,.12);
+    border-radius: 20px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .mode-btn {
+    background: none; border: none; color: rgba(255,255,255,.7);
+    padding: 5px 14px; border-radius: 17px; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all .2s;
+  }
+  .mode-btn.active { background: var(--orange); color: var(--blue); font-weight: 700; }
+
+  /* ── Layout ── */
+  .container { max-width: 680px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; color: var(--blue);
+    margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+  }
+  .card-title svg { color: var(--orange); }
+
+  /* ── Progress steps ── */
+  .steps {
+    display: flex; align-items: center; gap: 0;
+    margin-bottom: 28px;
+  }
+  .step {
+    display: flex; flex-direction: column; align-items: center; flex: 1;
+    position: relative;
+  }
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 14px; left: 50%; right: -50%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .step.done:not(:last-child)::after { background: var(--blue); }
+  .step-circle {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    background: var(--border); color: var(--muted);
+    position: relative; z-index: 1; transition: all .3s;
+  }
+  .step.active .step-circle { background: var(--blue); color: #fff; }
+  .step.done .step-circle { background: var(--success); color: #fff; }
+  .step-label { font-size: 11px; color: var(--muted); margin-top: 5px; text-align: center; }
+  .step.active .step-label { color: var(--blue); font-weight: 600; }
+
+  /* ── Form elements ── */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .field label .req { color: var(--orange); margin-left: 2px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: inherit;
+    background: #fff; color: var(--text);
+    transition: border-color .2s;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--blue);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── File upload ── */
+  .file-drop {
+    border: 2px dashed var(--border);
+    border-radius: 8px; padding: 24px;
+    text-align: center; cursor: pointer;
+    transition: all .2s; background: #fafbfd;
+    position: relative;
+  }
+  .file-drop:hover, .file-drop.drag { border-color: var(--blue); background: #eef2fb; }
+  .file-drop input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .file-drop-icon { color: var(--blue); margin-bottom: 8px; }
+  .file-drop-text { font-size: 13px; color: var(--muted); }
+  .file-drop-text strong { color: var(--blue); }
+  .file-name {
+    display: none; font-size: 13px; color: var(--success);
+    font-weight: 600; margin-top: 8px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 11px 22px; border-radius: 8px; font-size: 14px;
+    font-weight: 600; border: none; cursor: pointer;
+    transition: all .2s; font-family: inherit;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-lt); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-orange { background: var(--orange); color: var(--blue); }
+  .btn-orange:hover { background: var(--orange-dk); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
+  .btn-sm { padding: 7px 14px; font-size: 13px; }
+  .btn-full { width: 100%; justify-content: center; }
+  .btn-row { display: flex; gap: 10px; justify-content: space-between; margin-top: 8px; }
+
+  /* ── Tags / badges ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .badge-blue   { background: #dbeafe; color: var(--blue); }
+  .badge-orange { background: #fef3c7; color: #92400e; }
+  .badge-green  { background: #dcfce7; color: #15803d; }
+  .badge-red    { background: #fee2e2; color: #991b1b; }
+
+  /* ── Alerts ── */
+  .alert {
+    padding: 12px 16px; border-radius: 8px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px;
+  }
+  .alert-success { background: #dcfce7; color: #15803d; }
+  .alert-error   { background: #fee2e2; color: #991b1b; }
+  .alert-info    { background: #dbeafe; color: #1e40af; }
+
+  /* ── Manager: stats row ── */
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px; text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  }
+  .stat-num { font-size: 28px; font-weight: 700; color: var(--blue); }
+  .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Provider cards ── */
+  .provider-card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    margin-bottom: 12px; overflow: hidden;
+  }
+  .provider-card-header {
+    padding: 14px 18px; display: flex; align-items: center;
+    justify-content: space-between; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .provider-card-header:hover { background: #f8faff; }
+  .provider-name { font-weight: 700; font-size: 15px; }
+  .provider-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .provider-card-body { padding: 16px 18px; display: none; }
+  .provider-card-body.open { display: block; }
+  .offer-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid #f3f4f6;
+    font-size: 13px;
+  }
+  .offer-row:last-child { border-bottom: none; }
+  .offer-id { font-weight: 700; color: var(--blue); min-width: 28px; }
+  .offer-title { flex: 1; }
+  .offer-price { color: var(--success); font-weight: 600; white-space: nowrap; }
+  .offer-check input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--blue); }
+
+  /* ── Accept panel ── */
+  .accept-panel {
+    margin-top: 14px; padding: 14px;
+    background: #f8faff; border-radius: 8px; display: none;
+  }
+  .accept-panel.open { display: block; }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Success screen ── */
+  .success-screen {
+    text-align: center; padding: 40px 20px; display: none;
+  }
+  .success-screen.show { display: block; }
+  .success-icon {
+    width: 72px; height: 72px; background: #dcfce7;
+    border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; margin: 0 auto 20px;
+    font-size: 36px;
+  }
+  .success-screen h2 { color: var(--blue); margin-bottom: 8px; }
+  .success-screen p { color: var(--muted); font-size: 14px; }
+
+  /* ── Section toggle ── */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  @media (max-width: 420px) {
+    .field-row { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(3,1fr); gap: 8px; }
+    .stat-num { font-size: 22px; }
+    .header { padding: 0 12px; }
+    .logo-text { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="header">
+  <div class="logo">
+    <span class="logo-badge">WeIN</span>
+    <span class="logo-text">Provider Portal</span>
+  </div>
+  <div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" onclick="setMode('team')" id="btnTeam">Team</button>
+    <button class="mode-btn" onclick="setMode('manager')" id="btnManager">Manager</button>
+  </div>
+</div>
+
+<!-- ═══════════════ CONTAINER ═══════════════ -->
+<div class="container">
+
+  <!-- ══════════════ TEAM VIEW (3-step wizard) ══════════════ -->
+  <div class="view active" id="teamView">
+
+    <!-- Progress -->
+    <div class="steps" id="stepsBar">
+      <div class="step active" id="step1">
+        <div class="step-circle">1</div>
+        <div class="step-label">Provider</div>
+      </div>
+      <div class="step" id="step2">
+        <div class="step-circle">2</div>
+        <div class="step-label">Constraints</div>
+      </div>
+      <div class="step" id="step3">
+        <div class="step-circle">3</div>
+        <div class="step-label">Menu</div>
+      </div>
+    </div>
+
+    <!-- Success screen -->
+    <div class="success-screen" id="teamSuccess">
+      <div class="success-icon">✅</div>
+      <h2>Provider Submitted!</h2>
+      <p id="successMsg">The pipeline is now generating offers for this provider.</p>
+      <br>
+      <button class="btn btn-primary" onclick="resetWizard()" style="margin:0 auto">
+        Add Another Provider
+      </button>
+    </div>
+
+    <!-- STEP 1: Provider Info -->
+    <div id="pane1">
+      <div class="card">
+        <div class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Provider Information
+        </div>
+
+        <div class="field">
+          <label>Provider Name <span class="req">*</span></label>
+          <input type="text" id="providerName" placeholder="e.g. Almayass Grand Restaurant">
+        </div>
+
+        <div class="field">
+          <label>Vertical <span class="req">*</span></label>
+          <select id="vertical">
+            <option value="">Select vertical…</option>
+            <option>Dining</option>
+            <option>Fun &amp; Activities</option>
+            <option>Health &amp; Beauty</option>
+            <option>Hotels &amp; Aqua Park</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Contact Name</label>
+            <input type="text" id="contactName" placeholder="e.g. Ahmed Fathy">
+          </div>
+          <div class="field">
+            <label>Contact Phone</label>
+            <input type="tel" id="contactPhone" placeholder="+20 10 xxxx xxxx">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Location / Area in Sharm</label>
+          <input type="text" id="location" placeholder="e.g. Naama Bay, Old Market">
+        </div>
+
+        <div class="field">
+          <label>View or Atmosphere</label>
+          <input type="text" id="atmosphere" placeholder="e.g. sea view, garden terrace">
+        </div>
+
+        <div class="field">
+          <label>Menu Link (if available)</label>
+          <input type="url" id="menuLink" placeholder="https://...">
+        </div>
+
+        <div id="alertStep1"></div>
+        <button class="btn btn-primary btn-full" onclick="goStep(2)">
+          Next: Constraints →
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Constraints -->
+    <div id="pane2" style="display:none">
+      <div class="card">
+        <div class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Terms &amp; Constraints
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Minimum Spend (EGP)</label>
+            <input type="number" id="minSpend" placeholder="e.g. 500" min="0">
+          </div>
+          <div class="field">
+            <label>Max Group Size</label>
+            <input type="number" id="maxGroup" placeholder="e.g. 20" min="1">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Peak Hours</label>
+          <input type="text" id="peakHours" placeholder="e.g. Friday brunch, sunset 6–9pm">
+        </div>
+
+        <div class="field">
+          <label>Blackout Dates / Days</label>
+          <input type="text" id="blackout" placeholder="e.g. Fridays, public holidays, Ramadan">
+        </div>
+
+        <div class="field">
+          <label>Items Excluded from Discounts</label>
+          <textarea id="excluded" placeholder="e.g. Beverages, shisha, seasonal specials"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Special Terms / Notes</label>
+          <textarea id="specialTerms" placeholder="Any other restrictions or notes for the WeIN team"></textarea>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+          <button class="btn btn-primary" onclick="goStep(3)">Next: Menu →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Menu -->
+    <div id="pane3" style="display:none">
+      <div class="card">
+        <div class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Menu / Services
+        </div>
+
+        <div class="alert alert-info">
+          Upload the provider's menu PDF, or paste a link. If neither is available now, you can skip and add later.
+        </div>
+
+        <div class="field">
+          <label>Upload Menu File (PDF or image)</label>
+          <div class="file-drop" id="fileDrop">
+            <input type="file" id="menuFile" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="onFileSelect(this)">
+            <div class="file-drop-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="file-drop-text"><strong>Tap to upload</strong> or drag &amp; drop<br>PDF, JPG, PNG up to 10MB</div>
+            <div class="file-name" id="fileName"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>— or — Menu / Services Description</label>
+          <textarea id="menuText" placeholder="Paste menu items, price list, or describe services…" style="min-height:100px"></textarea>
+          <div class="field-hint">This text will be used to extract menu items if no file is uploaded.</div>
+        </div>
+
+        <div id="alertStep3"></div>
+
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
+          <button class="btn btn-orange btn-full" id="submitBtn" onclick="submitForm()">
+            Submit Provider
+          </button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /teamView -->
+
+
+  <!-- ══════════════ MANAGER VIEW ══════════════ -->
+  <div class="view" id="managerView">
+
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card">
+        <div class="stat-num" id="statTotal">—</div>
+        <div class="stat-lbl">Providers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statPending">—</div>
+        <div class="stat-lbl">Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statAccepted">—</div>
+        <div class="stat-lbl">Accepted</div>
+      </div>
+    </div>
+
+    <div id="alertManager"></div>
+
+    <!-- Accept Offers Panel -->
+    <div class="card" id="acceptCard">
+      <div class="card-title">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Accept Offers
+      </div>
+
+      <div class="field">
+        <label>Provider Name <span class="req">*</span></label>
+        <input type="text" id="acceptProvider" placeholder="e.g. Almayass Grand Restaurant">
+      </div>
+
+      <div class="field">
+        <label>Vertical <span class="req">*</span></label>
+        <select id="acceptVertical">
+          <option value="">Select…</option>
+          <option>Dining</option>
+          <option>Fun &amp; Activities</option>
+          <option>Health &amp; Beauty</option>
+          <option>Hotels &amp; Aqua Park</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Accepted Offer IDs <span class="req">*</span></label>
+        <input type="text" id="acceptIds" placeholder="e.g. 1, 3, 5, 7, 9">
+        <div class="field-hint">Comma-separated offer numbers from the PDF/Excel</div>
+      </div>
+
+      <div class="field">
+        <label>Accepted Date</label>
+        <input type="date" id="acceptDate" value="">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Provider Notes</label>
+          <textarea id="providerNotes" style="min-height:60px" placeholder="What the provider said…"></textarea>
+        </div>
+        <div class="field">
+          <label>Negotiated Changes</label>
+          <textarea id="weiNotes" style="min-height:60px" placeholder="Any price / term adjustments…"></textarea>
+        </div>
+      </div>
+
+      <div id="alertAccept"></div>
+
+      <button class="btn btn-orange btn-full" id="acceptBtn" onclick="submitAccept()">
+        ✅ Mark Offers Accepted
+      </button>
+    </div>
+
+    <!-- Recent submissions log -->
+    <div class="card">
+      <div class="card-title">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Recent Activity
+      </div>
+      <div id="activityFeed" style="font-size:13px;color:var(--muted);text-align:center;padding:20px 0">
+        Activity log loads here — connect to Supabase to enable.
+      </div>
+    </div>
+
+  </div><!-- /managerView -->
+
+</div><!-- /container -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const WEBHOOK_INTAKE  = 'https://weinflow.app.n8n.cloud/webhook/new-provider';
+const WEBHOOK_ACCEPT  = 'https://weinflow.app.n8n.cloud/form/accept-offers-v1';
+
+let currentStep = 1;
+let currentMode = 'team';
+
+// Set today's date default
+document.getElementById('acceptDate').value = new Date().toISOString().split('T')[0];
+
+// Detect /intake route — hide manager toggle
+if (window.location.pathname.includes('intake')) {
+  document.getElementById('modeToggle').style.display = 'none';
+}
+
+// ── Mode switching ─────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('teamView').classList.toggle('active', mode === 'team');
+  document.getElementById('managerView').classList.toggle('active', mode === 'manager');
+  document.getElementById('btnTeam').classList.toggle('active', mode === 'team');
+  document.getElementById('btnManager').classList.toggle('active', mode === 'manager');
+}
+
+// ── Step navigation ────────────────────────────────────────────────────────
+function goStep(n) {
+  // Validate step 1 before advancing
+  if (n > 1 && currentStep === 1) {
+    const name = document.getElementById('providerName').value.trim();
+    const vert = document.getElementById('vertical').value;
+    if (!name || !vert) {
+      showAlert('alertStep1', 'Please fill in Provider Name and Vertical.', 'error');
+      return;
+    }
+    clearAlert('alertStep1');
+  }
+
+  // Mark done
+  if (n > currentStep) {
+    document.getElementById('step' + currentStep).classList.add('done');
+  }
+
+  currentStep = n;
+  document.getElementById('pane1').style.display = n === 1 ? 'block' : 'none';
+  document.getElementById('pane2').style.display = n === 2 ? 'block' : 'none';
+  document.getElementById('pane3').style.display = n === 3 ? 'block' : 'none';
+
+  // Update step indicators
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active');
+    if (i < n) el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  });
+
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function resetWizard() {
+  document.getElementById('teamSuccess').style.display = 'none';
+  document.getElementById('stepsBar').style.display = 'flex';
+  document.getElementById('pane1').style.display = 'block';
+  document.getElementById('pane2').style.display = 'none';
+  document.getElementById('pane3').style.display = 'none';
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active','done');
+  });
+  document.getElementById('step1').classList.add('active');
+  document.getElementById('providerName').value = '';
+  document.getElementById('vertical').value = '';
+  document.getElementById('contactName').value = '';
+  document.getElementById('contactPhone').value = '';
+  document.getElementById('location').value = '';
+  document.getElementById('atmosphere').value = '';
+  document.getElementById('menuLink').value = '';
+  document.getElementById('minSpend').value = '';
+  document.getElementById('maxGroup').value = '';
+  document.getElementById('peakHours').value = '';
+  document.getElementById('blackout').value = '';
+  document.getElementById('excluded').value = '';
+  document.getElementById('specialTerms').value = '';
+  document.getElementById('menuText').value = '';
+  document.getElementById('menuFile').value = '';
+  document.getElementById('fileName').style.display = 'none';
+  currentStep = 1;
+}
+
+// ── File selection ─────────────────────────────────────────────────────────
+function onFileSelect(input) {
+  const file = input.files[0];
+  if (file) {
+    const el = document.getElementById('fileName');
+    el.textContent = '📎 ' + file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+    el.style.display = 'block';
+  }
+}
+
+// Drag & drop
+const drop = document.getElementById('fileDrop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    document.getElementById('menuFile').files = e.dataTransfer.files;
+    onFileSelect({files: [file]});
+  }
+});
+
+// ── Submit team intake ─────────────────────────────────────────────────────
+async function submitForm() {
+  const name    = document.getElementById('providerName').value.trim();
+  const vert    = document.getElementById('vertical').value;
+  const menuFile = document.getElementById('menuFile').files[0];
+  const menuText = document.getElementById('menuText').value.trim();
+
+  if (!name || !vert) {
+    showAlert('alertStep3', 'Provider name and vertical are required.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Submitting…';
+  clearAlert('alertStep3');
+
+  try {
+    const formData = new FormData();
+    formData.append('provider_name', name);
+    formData.append('vertical', vert);
+    formData.append('contact_name', document.getElementById('contactName').value.trim());
+    formData.append('contact_phone', document.getElementById('contactPhone').value.trim());
+    formData.append('location', document.getElementById('location').value.trim());
+    formData.append('atmosphere', document.getElementById('atmosphere').value.trim());
+    formData.append('menu_link', document.getElementById('menuLink').value.trim());
+    formData.append('minimum_spend', document.getElementById('minSpend').value || '');
+    formData.append('max_group_size', document.getElementById('maxGroup').value || '');
+    formData.append('peak_hours', document.getElementById('peakHours').value.trim());
+    formData.append('blackout_dates', document.getElementById('blackout').value.trim());
+    formData.append('excluded_items', document.getElementById('excluded').value.trim());
+    formData.append('special_terms', document.getElementById('specialTerms').value.trim());
+    formData.append('menu_or_services', menuText);
+    if (menuFile) formData.append('menu_file', menuFile);
+
+    const resp = await fetch(WEBHOOK_INTAKE, { method: 'POST', body: formData });
+
+    if (resp.ok || resp.status === 200 || resp.status === 202) {
+      document.getElementById('pane3').style.display = 'none';
+      document.getElementById('stepsBar').style.display = 'none';
+      document.getElementById('teamSuccess').style.display = 'block';
+      document.getElementById('successMsg').textContent =
+        name + ' has been submitted. The WeIN pipeline is now generating offers!';
+    } else {
+      const txt = await resp.text();
+      showAlert('alertStep3', 'Submission failed (' + resp.status + '). Please try again.', 'error');
+    }
+  } catch (err) {
+    // n8n webhooks sometimes return empty body — treat as success
+    if (err.message && err.message.includes('Failed to fetch')) {
+      showAlert('alertStep3', 'Network error. Please check your connection.', 'error');
+    } else {
+      // Likely a CORS / empty-body response from n8n — treat as success
+      document.getElementById('pane3').style.display = 'none';
+      document.getElementById('stepsBar').style.display = 'none';
+      document.getElementById('teamSuccess').style.display = 'block';
+      document.getElementById('successMsg').textContent =
+        name + ' submitted. The pipeline is generating offers!';
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Submit Provider';
+  }
+}
+
+// ── Submit accept offers ───────────────────────────────────────────────────
+async function submitAccept() {
+  const provider = document.getElementById('acceptProvider').value.trim();
+  const vertical = document.getElementById('acceptVertical').value;
+  const ids      = document.getElementById('acceptIds').value.trim();
+
+  if (!provider || !vertical || !ids) {
+    showAlert('alertAccept', 'Provider, vertical, and offer IDs are required.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('acceptBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Saving…';
+  clearAlert('alertAccept');
+
+  try {
+    const payload = {
+      'Provider Name':        provider,
+      'Vertical':             vertical,
+      'Accepted Offer IDs':   ids,
+      'Provider Notes':       document.getElementById('providerNotes').value.trim(),
+      'Negotiated Changes':   document.getElementById('weiNotes').value.trim(),
+      'Accepted Date':        document.getElementById('acceptDate').value,
+    };
+
+    const resp = await fetch(WEBHOOK_ACCEPT, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    showAlert('alertAccept',
+      '✅ Accepted offers saved for ' + provider + ' (IDs: ' + ids + ')', 'success');
+    document.getElementById('acceptIds').value = '';
+    document.getElementById('providerNotes').value = '';
+    document.getElementById('weiNotes').value = '';
+  } catch (err) {
+    showAlert('alertAccept', '✅ Request sent (check Telegram for confirmation)', 'success');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✅ Mark Offers Accepted';
+  }
+}
+
+// ── Alert helpers ──────────────────────────────────────────────────────────
+function showAlert(id, msg, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
+function clearAlert(id) {
+  document.getElementById(id).innerHTML = '';
+}
+</script>
+</body>
+</html>

@@ -197,6 +197,28 @@ def generate_offer_files():
     })
 
 
+def _serve_portal(force_team=False):
+    portal_path = os.path.join(os.path.dirname(__file__), "portal", "index.html")
+    with open(portal_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    if force_team:
+        # Hide mode toggle so field team can't switch to manager view
+        html = html.replace(
+            'id="modeToggle"',
+            'id="modeToggle" style="display:none"'
+        )
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.route("/portal")
+def portal():
+    return _serve_portal(force_team=False)
+
+
+@app.route("/intake")
+def intake():
+    return _serve_portal(force_team=True)
+
+
 if __name__ == "__main__":
-    import os
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5055)))
