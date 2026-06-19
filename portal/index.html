@@ -577,6 +577,11 @@ if (window.location.pathname.includes('intake')) {
   document.getElementById('modeToggle').style.display = 'none';
 }
 
+// Auto-load submissions when page opens (populates stats + pending list immediately)
+window.addEventListener('DOMContentLoaded', () => {
+  loadSubmissions();
+});
+
 const WEBHOOK_LIST    = 'https://weinflow.app.n8n.cloud/webhook/portal-list';
 const WEBHOOK_APPROVE = 'https://weinflow.app.n8n.cloud/webhook/portal-approve';
 const WEBHOOK_REJECT  = 'https://weinflow.app.n8n.cloud/webhook/portal-reject';
