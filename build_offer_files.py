@@ -302,11 +302,26 @@ def build_filled_template(wb_out, data):
     for i, item in enumerate(menu_items, start=3):
         me_class = item.get("me_class", "")
         fill = lgrey_fill() if i % 2 == 0 else PatternFill("solid", fgColor="FAFAFA")
+
+        # Derive cost_sensitivity from price if not already set
+        raw_price = item.get("price", item.get("price_egp"))
+        cs = item.get("cost_sensitivity") or ""
+        if not cs or cs == "N/A":
+            try:
+                p = float(str(raw_price).replace(",", ""))
+                if p < 100:   cs = "Low"
+                elif p < 250: cs = "Low-Medium"
+                elif p < 400: cs = "Medium"
+                elif p < 600: cs = "High"
+                else:         cs = "Very High"
+            except (TypeError, ValueError):
+                cs = "N/A"
+
         vals = [
             item.get("name", ""),
             item.get("category", "N/A"),
-            item.get("price", item.get("price_egp", "N/A")),
-            item.get("cost_sensitivity", "N/A"),
+            raw_price if raw_price is not None else "N/A",
+            cs,
             me_class,
             item.get("bundle_role", ""),
             item.get("eligible", "N/A"),
