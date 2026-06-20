@@ -840,13 +840,19 @@ async function loadActivity() {
       sbGet('wein_providers?select=id,provider_name').catch(() => [])
     ]);
     const nameById = new Map(providers.map(p => [p.id, p.provider_name]));
+    const nameByLowerName = new Map(providers.map(p => [p.provider_name.toLowerCase(), p.provider_name]));
+    function resolveProviderLabel(id) {
+      if (nameById.has(id)) return nameById.get(id);
+      if (typeof id === 'string' && nameByLowerName.has(id.toLowerCase())) return nameByLowerName.get(id.toLowerCase());
+      return typeof id === 'string' ? id : `Provider #${id}`;
+    }
 
     const allActivity = [
       ...outcomes.map(o => ({
         dot: (o.final_grade||'').toLowerCase().includes('excellent') ? 'var(--success)' :
              (o.final_grade||'').toLowerCase().includes('good') ? 'var(--teal)' :
              (o.final_grade||'').toLowerCase().includes('needs') ? 'var(--warn)' : 'var(--muted)',
-        provider: nameById.get(o.provider_id) || `Provider #${o.provider_id}`,
+        provider: resolveProviderLabel(o.provider_id),
         title: `Pipeline run — Grade: ${o.final_grade || o.verdict || 'GOOD'}`,
         time: o.created_at
       })),
