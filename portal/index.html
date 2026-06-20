@@ -564,10 +564,17 @@ function extractAction(text) {
 async function dispatchAction(action) {
   try {
     if (action.action === 'run_pipeline') {
+      const params = action.params || null;
+      const descBits = [];
+      if (params?.party_sizes) descBits.push(`${params.party_sizes.join('+')} only`);
+      if (params?.tiers) descBits.push(params.tiers.join('+'));
+      if (params?.group_size) descBits.push(`${params.group_size} people`);
+      if (params?.theme) descBits.push(`${params.theme} theme`);
+      appendChatMsg(`🚀 Running pipeline for ${action.provider}${descBits.length ? ' (' + descBits.join(' · ') + ')' : ''}…`, 'bot');
       await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical, ...(action.params||{}) }) });
-      appendChatMsg(`✅ Pipeline started for ${action.provider}.`, 'bot');
-    } else if (action.action === 'show_provider') {
+        body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical || '', pipeline_params: params }) });
+      appendChatMsg(`✅ Pipeline started for ${action.provider}. Check Telegram for the completion notification.`, 'bot');
+    } else if (action.action === 'show_provider' || action.action === 'show_offers') {
       await loadDashboard();
       const p = cachedProviders.find(p => p.provider_name.toLowerCase() === (action.provider||'').toLowerCase());
       if (p) { showView('dashboard'); openProvider(p.provider_name, p.id, ''); }
