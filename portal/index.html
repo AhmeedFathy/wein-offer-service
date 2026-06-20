@@ -55,7 +55,8 @@
     width: 52px; flex-shrink: 0; background: var(--surface); border-right: .5px solid var(--border);
     display: none; flex-direction: column; align-items: center; padding: 16px 0; gap: 4px;
   }
-  .sb-logo { width: 32px; height: 32px; border-radius: 9px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); margin-bottom: 16px; flex-shrink: 0; }
+  .sb-logo { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); margin-bottom: 16px; flex-shrink: 0; overflow: hidden; }
+  .sb-logo:empty, .sb-logo:not(:has(img)) { background: var(--orange); }
   .sb-icon {
     position: relative; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center;
     justify-content: center; color: var(--text-faint); font-size: 18px; background: transparent; border: none; flex-shrink: 0;
@@ -246,7 +247,7 @@
 
 <div id="appShell" style="display:none">
 <div id="sidebar">
-  <div class="sb-logo">W</div>
+  <div class="sb-logo"><img src="https://wein-eg.com/images/wein-logo.svg" alt="W" style="width:20px;height:20px;border-radius:6px" onerror="this.parentElement.textContent='W'"></div>
   <button class="sb-icon active" data-view="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i></button>
   <button class="sb-icon" data-view="providers" title="Providers"><span class="sb-dot"></span><i class="ti ti-building-store"></i></button>
   <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
