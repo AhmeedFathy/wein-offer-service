@@ -203,6 +203,31 @@
   .pill { font-size: 12px; padding: 6px 14px; border-radius: 16px; border: .5px solid var(--border); background: var(--surface2); color: var(--text-dim); }
   .pill.active { background: var(--orange); color: #1a1208; border-color: var(--orange); }
 
+  select, input[type="text"], input[type="search"] {
+    background: var(--surface2); color: var(--text); border: .5px solid var(--border);
+    border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit;
+    outline: none; appearance: none; -webkit-appearance: none;
+  }
+  select { padding-right: 30px; cursor: pointer;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a93a6' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat; background-position: right 10px center; }
+  select option { background: var(--surface2); color: var(--text); }
+  input[type="text"]:focus, input[type="search"]:focus, select:focus { border-color: var(--orange); }
+  input::placeholder { color: var(--text-faint); }
+
+  .file-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: .5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; background: var(--surface2); }
+  .file-row:hover { border-color: rgba(255,255,255,.12); }
+  .file-row .ti { font-size: 22px; flex-shrink: 0; }
+  .file-row .file-row-main { flex: 1; min-width: 0; }
+  .file-row .file-row-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-row .file-row-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .grade-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+  .grade-pill.grade-excellent { background: rgba(46,125,111,.18); color: var(--success); }
+  .grade-pill.grade-good { background: rgba(46,125,111,.18); color: var(--success); }
+  .grade-pill.grade-needs_work, .grade-pill.grade-needswork { background: rgba(245,166,35,.15); color: var(--orange); }
+  .files-empty { text-align: center; padding: 48px 20px; color: var(--text-faint); }
+  .files-empty i { font-size: 36px; display: block; margin-bottom: 10px; opacity: .5; }
+
   /* ── Right panel widgets ── */
   .rp-task-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: .5px solid var(--border); }
   .rp-task-row:last-child { border-bottom: none; }
@@ -312,21 +337,21 @@
 
   <!-- ══════════════ FILES ══════════════ -->
   <div class="view" id="view-files">
-    <div class="card-title" style="margin-bottom:14px">📂 Files</div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-      <input type="text" id="filesSearch" placeholder="Search file name or provider…" oninput="renderFilesView()" style="flex:1;min-width:200px">
-      <select id="filesFilterVertical" onchange="renderFilesView()"><option value="all">All verticals</option></select>
-      <select id="filesFilterType" onchange="renderFilesView()">
-        <option value="all">All types</option>
-        <option value="offer_template">Offer Template</option>
-        <option value="comparison_pdf">Comparison PDF</option>
-        <option value="negotiation_pdf">Negotiation PDF</option>
-        <option value="negotiation_xlsx">Negotiation Excel</option>
-      </select>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div class="card-title" style="margin:0">📂 Files <span id="filesCount" style="font-size:12px;color:var(--text-dim);font-weight:400"></span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="filesSearch" placeholder="Search file name or provider…" oninput="renderFilesView()" style="min-width:220px">
+        <select id="filesFilterVertical" onchange="renderFilesView()"><option value="all">All verticals</option></select>
+        <select id="filesFilterType" onchange="renderFilesView()">
+          <option value="all">All types</option>
+          <option value="offer_template">Offer Template</option>
+          <option value="comparison_pdf">Comparison PDF</option>
+          <option value="negotiation_pdf">Negotiation PDF</option>
+          <option value="negotiation_xlsx">Negotiation Excel</option>
+        </select>
+      </div>
     </div>
-    <div class="card">
-      <div id="filesFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
-    </div>
+    <div id="filesFullList"><div class="empty">Loading…</div></div>
   </div>
 
   <!-- ══════════════ TASKS ══════════════ -->
@@ -1441,6 +1466,7 @@ async function loadFilesView() {
 }
 function renderFilesView() {
   const el = document.getElementById('filesFullList');
+  const countEl = document.getElementById('filesCount');
   const search = (document.getElementById('filesSearch')?.value || '').toLowerCase();
   const vFilter = document.getElementById('filesFilterVertical')?.value || 'all';
   const tFilter = document.getElementById('filesFilterType')?.value || 'all';
@@ -1450,20 +1476,36 @@ function renderFilesView() {
   if (vFilter !== 'all') list = list.filter(f => f.vertical === vFilter);
   if (tFilter !== 'all') list = list.filter(f => f.file_type === tFilter);
 
-  if (!list.length) { el.innerHTML = '<div class="empty">No files match.</div>'; return; }
+  if (countEl) countEl.textContent = cachedAllFiles.length ? `(${list.length} of ${cachedAllFiles.length})` : '';
+
+  if (!cachedAllFiles.length) {
+    el.innerHTML = `<div class="files-empty"><i class="ti ti-folder"></i>No files generated yet.<br>Run the pipeline on a provider to populate this view.</div>`;
+    return;
+  }
+  if (!list.length) {
+    el.innerHTML = `<div class="files-empty"><i class="ti ti-filter-x"></i>No files match your filters.</div>`;
+    return;
+  }
   el.innerHTML = list.map(f => {
     const meta = FILE_TYPE_META[f.file_type] || { icon: 'ti-file', color: '#888', label: f.file_name, kind: '' };
     const date = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+    const gradeClass = (f.grade || '').toLowerCase().replace(/\s+/g, '_');
     return `
-      <div class="provider-card" style="cursor:default">
-        <i class="ti ${meta.icon}" style="color:${meta.color};font-size:20px"></i>
-        <div class="provider-info">
-          <div class="provider-name">${f.provider_name} <span class="badge" style="margin-left:6px">${f.vertical || '—'}</span></div>
-          <div class="provider-meta">${meta.label} · v${f.version || 1} · ${date}${f.grade ? ` · Grade: ${f.grade}` : ''}</div>
+      <div class="file-row">
+        <i class="ti ${meta.icon}" style="color:${meta.color}"></i>
+        <div class="file-row-main">
+          <div class="file-row-title">${meta.label} <span style="color:var(--text-faint);font-weight:400">· ${meta.kind}</span></div>
+          <div class="file-row-meta">
+            <span>${f.provider_name}</span>
+            ${f.vertical ? `<span class="badge">${f.vertical}</span>` : ''}
+            <span>v${f.version || 1}</span>
+            <span>${date}</span>
+            ${f.grade ? `<span class="grade-pill grade-${gradeClass}">${f.grade}</span>` : ''}
+          </div>
         </div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-shrink:0">
           ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">View</button></a>` : ''}
-          ${f.drive_folder_url ? `<a href="${f.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Open folder</button></a>` : ''}
+          ${f.drive_folder_url ? `<a href="${f.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">${f.drive_view_url ? 'Folder' : 'Open folder'}</button></a>` : ''}
         </div>
       </div>`;
   }).join('');
