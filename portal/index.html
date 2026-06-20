@@ -251,6 +251,7 @@
   <button class="sb-icon active" data-view="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i></button>
   <button class="sb-icon" data-view="providers" title="Providers"><span class="sb-dot"></span><i class="ti ti-building-store"></i></button>
   <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
+  <button class="sb-icon" data-view="files" title="Files"><i class="ti ti-files"></i></button>
   <button class="sb-icon" data-view="tasks" title="Tasks"><span class="sb-dot"></span><i class="ti ti-checkbox"></i></button>
   <button class="sb-icon" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="finance" title="Finance"><i class="ti ti-currency-dollar"></i></button>
@@ -306,6 +307,25 @@
     </div>
     <div class="card">
       <div id="offersFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ FILES ══════════════ -->
+  <div class="view" id="view-files">
+    <div class="card-title" style="margin-bottom:14px">📂 Files</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <input type="text" id="filesSearch" placeholder="Search file name or provider…" oninput="renderFilesView()" style="flex:1;min-width:200px">
+      <select id="filesFilterVertical" onchange="renderFilesView()"><option value="all">All verticals</option></select>
+      <select id="filesFilterType" onchange="renderFilesView()">
+        <option value="all">All types</option>
+        <option value="offer_template">Offer Template</option>
+        <option value="comparison_pdf">Comparison PDF</option>
+        <option value="negotiation_pdf">Negotiation PDF</option>
+        <option value="negotiation_xlsx">Negotiation Excel</option>
+      </select>
+    </div>
+    <div class="card">
+      <div id="filesFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
     </div>
   </div>
 
@@ -662,6 +682,7 @@ function showView(name) {
   if (name === 'activity') loadActivity();
   if (name === 'providers') renderProvidersView();
   if (name === 'offers') renderOffersView('all');
+  if (name === 'files') loadFilesView();
   if (name === 'tasks') renderTasks('all');
   if (name === 'settings') { const el = document.getElementById('settingsRole'); if (el) el.textContent = sessionStorage.getItem('weinRole') || '—'; }
 }
@@ -807,17 +828,69 @@ function renderModalOffers(filter) {
     : filtered.map(o => buildOfferCardHtml(o, name, vertical, acceptedTitles.has(o.title))).join('');
 }
 
+const FILE_TYPE_META = {
+  offer_template:    { icon: 'ti-table',              color: '#2E7D6F', label: 'Filled Offer Template', kind: 'Excel' },
+  comparison_pdf:    { icon: 'ti-file-description',   color: '#e5484d', label: 'Offer Comparison',       kind: 'PDF' },
+  negotiation_pdf:   { icon: 'ti-file-type-pdf',       color: '#F5A623', label: 'Negotiation Offers',     kind: 'PDF' },
+  negotiation_xlsx:  { icon: 'ti-table',               color: '#2E7D6F', label: 'Negotiation Offers',     kind: 'Excel' },
+};
+
+function buildFileCardHtml(f) {
+  const meta = FILE_TYPE_META[f.file_type] || { icon: 'ti-file', color: '#888', label: f.file_name, kind: '' };
+  const viewBtn = f.drive_view_url
+    ? `<a href="${f.drive_view_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">View</button></a>`
+    : '';
+  const folderBtn = f.drive_folder_url
+    ? `<a href="${f.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">${f.drive_view_url ? 'Folder' : 'Open folder'}</button></a>`
+    : '';
+  return `
+    <div class="file-card">
+      <i class="ti ${meta.icon}" style="color:${meta.color}"></i>
+      <div style="flex:1;min-width:0">
+        <div class="file-name">${meta.label}</div>
+        <div style="font-size:11px;color:var(--muted)">Claude v${f.version || 1} · ${meta.kind}</div>
+      </div>
+      <div style="display:flex;gap:6px">${viewBtn}${folderBtn}</div>
+    </div>`;
+}
+
+function buildProviderFilesHtml(files, providerRow) {
+  if (!files || files.length === 0) {
+    if (providerRow.drive_folder_url) {
+      return `<div class="card-title" style="margin-top:16px">📂 Files</div>
+        <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-navy btn-full">Open Drive folder</button></a>`;
+    }
+    return `<div class="card-title" style="margin-top:16px">📂 Files</div><div class="empty">No files yet — run pipeline to generate</div>`;
+  }
+  const byVersion = {};
+  files.forEach(f => { (byVersion[f.version || 1] = byVersion[f.version || 1] || []).push(f); });
+  const versions = Object.keys(byVersion).map(Number).sort((a, b) => b - a);
+  return `<div class="card-title" style="margin-top:16px">📂 Files</div>` + versions.map((v, idx) => {
+    const group = byVersion[v];
+    const date = group[0].created_at ? new Date(group[0].created_at).toLocaleDateString() : '';
+    const grade = group[0].grade || '';
+    return `
+      <details ${idx === 0 ? 'open' : ''} style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted);margin-bottom:6px">
+          Version ${v} — ${date}${grade ? ` — Grade: ${grade}` : ''}
+        </summary>
+        ${group.map(buildFileCardHtml).join('')}
+      </details>`;
+  }).join('');
+}
+
 async function openProvider(name, providerId, submissionId) {
   document.getElementById('providerModal').classList.add('active');
   const content = document.getElementById('modalContent');
   content.innerHTML = '<div class="empty">Loading…</div>';
   try {
-    const [profile, menuItems, offers, accepted, submission] = await Promise.all([
+    const [profile, menuItems, offers, accepted, submission, files] = await Promise.all([
       sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(name)}&select=*`).catch(() => []),
       providerId ? sbGet(`wein_menu_items?provider_id=eq.${providerId}&select=id`) : Promise.resolve([]),
       providerId ? sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc`) : Promise.resolve([]),
       sbGet(`wein_accepted_offers?provider_name=eq.${encodeURIComponent(name)}&select=*`).catch(() => []),
-      submissionId ? sbGet(`portal_submissions?id=eq.${submissionId}&select=*`) : Promise.resolve([])
+      submissionId ? sbGet(`portal_submissions?id=eq.${submissionId}&select=*`) : Promise.resolve([]),
+      providerId ? sbGet(`wein_files?provider_id=eq.${providerId}&select=*&order=created_at.desc&limit=20`).catch(() => []) : Promise.resolve([])
     ]);
     const prof = profile[0] || {};
     const sub  = submission[0] || {};
@@ -825,26 +898,7 @@ async function openProvider(name, providerId, submissionId) {
     const providerRow = cachedProviders.find(p => p.id === providerId) || {};
     const version = providerRow.current_version || 1;
 
-    let filesHtml = '';
-    if (providerRow.drive_folder_url) {
-      const fileNames = [
-        [`${name} - Filled Offer Template - Claude v${version}.xlsx`, 'ti-table'],
-        [`${name} - Offer Comparison vs Competitor - Claude v${version}.pdf`, 'ti-file-type-pdf'],
-        [`${name} - Provider Negotiation Offers - Claude v${version}.pdf`, 'ti-file-type-pdf'],
-        [`${name} - Provider Negotiation Offers - Claude v${version}.xlsx`, 'ti-table'],
-      ];
-      filesHtml = `
-        <div class="card-title" style="margin-top:16px">📂 Files <span class="badge badge-running" style="margin-left:6px">Claude v${version}</span></div>
-        <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-navy btn-full" style="margin-bottom:8px">Open Drive folder</button></a>
-        ${offers.length > 0 ? fileNames.map(([fn, icon]) => `
-          <div class="file-card">
-            <i class="ti ${icon}"></i>
-            <div class="file-name">${fn}</div>
-            <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Open</button></a>
-          </div>`).join('') : ''}`;
-    } else {
-      filesHtml = `<div class="card-title" style="margin-top:16px">📂 Files</div><div class="empty">No files yet — run pipeline to generate</div>`;
-    }
+    const filesHtml = buildProviderFilesHtml(files, providerRow);
 
     content.innerHTML = `
       <div class="card-title">🏢 ${name}</div>
@@ -1348,6 +1402,74 @@ async function updateProviderStage(providerId, providerName, stage) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// FILES SUMMARY (per-provider badge on Providers view)
+// ════════════════════════════════════════════════════════════════════
+let cachedFilesSummary = new Map(); // provider_id -> { count, version, latest }
+async function loadFilesSummary() {
+  try {
+    const rows = await sbGet('wein_files?select=provider_id,version,created_at&order=created_at.desc&limit=500');
+    cachedFilesSummary = new Map();
+    rows.forEach(r => {
+      if (!r.provider_id) return;
+      const cur = cachedFilesSummary.get(r.provider_id);
+      if (!cur) cachedFilesSummary.set(r.provider_id, { count: 1, version: r.version || 1, latest: r.created_at });
+      else cur.count++;
+    });
+  } catch (e) { /* table may not exist yet */ }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GLOBAL FILES VIEW (repository across all providers)
+// ════════════════════════════════════════════════════════════════════
+let cachedAllFiles = [];
+async function loadFilesView() {
+  const el = document.getElementById('filesFullList');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    cachedAllFiles = await sbGet('wein_files?select=*&order=created_at.desc&limit=100');
+    const vfEl = document.getElementById('filesFilterVertical');
+    if (vfEl) {
+      const verticals = [...new Set(cachedAllFiles.map(f => f.vertical).filter(Boolean))];
+      const cur = vfEl.value;
+      vfEl.innerHTML = '<option value="all">All verticals</option>' + verticals.map(v => `<option value="${v}">${v}</option>`).join('');
+      vfEl.value = verticals.includes(cur) ? cur : 'all';
+    }
+    renderFilesView();
+  } catch (e) {
+    el.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
+  }
+}
+function renderFilesView() {
+  const el = document.getElementById('filesFullList');
+  const search = (document.getElementById('filesSearch')?.value || '').toLowerCase();
+  const vFilter = document.getElementById('filesFilterVertical')?.value || 'all';
+  const tFilter = document.getElementById('filesFilterType')?.value || 'all';
+
+  let list = cachedAllFiles.filter(f =>
+    (f.file_name || '').toLowerCase().includes(search) || (f.provider_name || '').toLowerCase().includes(search));
+  if (vFilter !== 'all') list = list.filter(f => f.vertical === vFilter);
+  if (tFilter !== 'all') list = list.filter(f => f.file_type === tFilter);
+
+  if (!list.length) { el.innerHTML = '<div class="empty">No files match.</div>'; return; }
+  el.innerHTML = list.map(f => {
+    const meta = FILE_TYPE_META[f.file_type] || { icon: 'ti-file', color: '#888', label: f.file_name, kind: '' };
+    const date = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+    return `
+      <div class="provider-card" style="cursor:default">
+        <i class="ti ${meta.icon}" style="color:${meta.color};font-size:20px"></i>
+        <div class="provider-info">
+          <div class="provider-name">${f.provider_name} <span class="badge" style="margin-left:6px">${f.vertical || '—'}</span></div>
+          <div class="provider-meta">${meta.label} · v${f.version || 1} · ${date}${f.grade ? ` · Grade: ${f.grade}` : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">View</button></a>` : ''}
+          ${f.drive_folder_url ? `<a href="${f.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Open folder</button></a>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════
 // PROVIDERS VIEW (CRM list)
 // ════════════════════════════════════════════════════════════════════
 function renderProvidersView() {
@@ -1370,14 +1492,19 @@ function renderProvidersView() {
     const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
     const acceptedCount = cachedAccepted.filter(a => (a.provider_name||'').toLowerCase() === p.provider_name.toLowerCase()).length;
     const stage = cachedStages.get(p.id) || 'lead';
+    const fileSummary = cachedFilesSummary.get(p.id);
+    const filesBadge = fileSummary
+      ? `<span class="badge" style="margin-left:6px" title="${new Date(fileSummary.latest).toLocaleDateString()}">v${fileSummary.version} · ${fileSummary.count} files</span>`
+      : `<span class="badge" style="margin-left:6px;opacity:.6">No files — run pipeline</span>`;
     return `
       <div class="provider-card" onclick="openProvider('${p.provider_name.replace(/'/g,"\\'")}', '${p.id}', '')">
         <div class="health-dot ${acceptedCount > 0 ? 'dot-green' : offerCount > 0 ? 'dot-orange' : 'dot-gray'}"></div>
         <div class="provider-info">
           <div class="provider-name">${p.provider_name}</div>
-          <div class="provider-meta">${p.vertical || '—'} · ${offerCount} offers · ${acceptedCount} accepted</div>
+          <div class="provider-meta">${p.vertical || '—'} · ${offerCount} offers · ${acceptedCount} accepted${filesBadge}</div>
         </div>
         <span class="badge badge-running">${stage.replace('_',' ')}</span>
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation();openProvider('${p.provider_name.replace(/'/g,"\\'")}', '${p.id}', '')">Files</button>
       </div>`;
   }).join('');
 }
@@ -1460,7 +1587,7 @@ const PIN_ROLES = {
   '2026': 'manager',
   '1234': 'team',
 };
-const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'tasks', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
+const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'files', 'tasks', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
 const TEAM_VIEWS  = ['intake'];
 
 function applyRole(role) {
@@ -1481,7 +1608,7 @@ function showApp(role) {
   applyRole(role);
 
   if (role !== 'team') {
-    loadDashboard().then(() => { updateGreeting(); loadActivity(); loadTasks(); loadStages(); loadPipelineHealth(); });
+    loadDashboard().then(() => { updateGreeting(); loadActivity(); loadTasks(); loadStages(); loadPipelineHealth(); loadFilesSummary().then(renderProvidersView); });
     if (!autoRefreshInterval) {
       autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
       activityRefreshInterval = setInterval(() => { if (!document.hidden) { loadActivity(); loadTasks(); } }, 60000);
