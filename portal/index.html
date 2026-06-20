@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WeIN Smart Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <style>
   :root {
     --navy: #1B3A6B;
@@ -13,72 +14,112 @@
     --orange: #F5A623;
     --orange-dk: #d4891a;
     --teal: #2E7D6F;
-    --bg: #f0f4fa;
-    --card: #ffffff;
-    --text: #1a1a2e;
-    --muted: #6b7280;
-    --border: #dce3ef;
-    --success: #16a34a;
-    --danger: #dc2626;
-    --warn: #d97706;
-    --radius: 12px;
+    --bg: #0a0f1e;
+    --surface: #0d1426;
+    --surface2: #111a30;
+    --card: #0d1426;
+    --text: #e8ecf4;
+    --text-dim: #9aa5b8;
+    --muted: #9aa5b8;
+    --text-faint: #5d6678;
+    --border: rgba(255,255,255,.07);
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --radius: 14px;
+    --radius-sm: 10px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; }
   button { font-family: inherit; cursor: pointer; }
-  a { color: var(--navy-lt); text-decoration: none; }
+  a { color: var(--orange); text-decoration: none; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
 
-  /* ── Header ── */
+  /* ── Header (mobile only) ── */
   .header {
-    background: var(--navy); color: #fff; padding: 0 16px; height: 56px;
+    background: var(--surface); color: #fff; padding: 0 16px; height: 56px;
     display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    position: sticky; top: 0; z-index: 100; border-bottom: .5px solid var(--border);
   }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .logo img { height: 22px; }
   .logo-badge { width: 30px; height: 30px; border-radius: 8px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); }
-  .desktop-tabs { display: none; gap: 4px; }
-  .desktop-tabs button { background: transparent; border: none; color: #cbd5e1; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; }
-  .desktop-tabs button.active { background: rgba(255,255,255,.15); color: #fff; }
-  @media (min-width: 768px) {
-    .desktop-tabs { display: flex; }
-    body { padding-bottom: 24px; }
-    .bottom-nav { display: none; }
+  .desktop-tabs { display: none; }
+
+  .container { max-width: 100%; margin: 0; padding: 20px; }
+
+  /* ── App shell (3-panel desktop layout) ── */
+  #appShell { display: flex; height: 100vh; overflow: hidden; }
+  #sidebar {
+    width: 52px; flex-shrink: 0; background: var(--surface); border-right: .5px solid var(--border);
+    display: none; flex-direction: column; align-items: center; padding: 16px 0; gap: 4px;
+  }
+  .sb-logo { width: 32px; height: 32px; border-radius: 9px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); margin-bottom: 16px; flex-shrink: 0; }
+  .sb-icon {
+    position: relative; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; color: var(--text-faint); font-size: 18px; background: transparent; border: none; flex-shrink: 0;
+    transition: background .15s, color .15s;
+  }
+  .sb-icon:hover { background: rgba(255,255,255,.04); color: var(--text-dim); }
+  .sb-icon.active { background: rgba(245,166,35,.12); color: var(--orange); }
+  .sb-icon .sb-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--orange); display: none; }
+  .sb-icon.has-dot .sb-dot { display: block; }
+  .sb-sep { width: 28px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
+  .sb-spacer { flex: 1; }
+
+  #mainArea { flex: 1; overflow-y: auto; min-width: 0; }
+  #rightPanel {
+    width: 240px; flex-shrink: 0; background: var(--surface); border-left: .5px solid var(--border);
+    display: none; flex-direction: column; padding: 16px; gap: 16px; overflow-y: auto;
+  }
+  .rp-section-title { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .rp-badge { background: var(--orange); color: var(--navy); font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 10px; }
+
+  @media (min-width: 1024px) {
+    #sidebar { display: flex; }
+    #rightPanel { display: flex; }
+    .header { display: none; }
+    .bottom-nav { display: none !important; }
+    body { padding-bottom: 0; }
+    .container { padding: 24px 28px; max-width: 1100px; }
   }
 
-  .container { max-width: 900px; margin: 0 auto; padding: 16px; }
-
   /* ── Cards ── */
-  .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-  .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--navy); margin-bottom: 12px; font-size: 15px; }
+  .card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); margin-bottom: 12px; font-size: 15px; }
 
   /* ── Stats ── */
   .stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
   @media (min-width: 600px) { .stats-row { grid-template-columns: repeat(4, 1fr); } }
-  .stat-card { background: var(--card); border-radius: var(--radius); padding: 14px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-  .stat-num { font-size: 26px; font-weight: 800; color: var(--navy); }
-  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; }
+  .stat-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-icon { color: var(--orange); font-size: 18px; margin-bottom: 8px; }
+  .stat-num { font-size: 24px; font-weight: 800; color: var(--text); }
+  .stat-lbl { font-size: 11px; color: var(--text-faint); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
 
   /* ── Provider cards ── */
-  .provider-card { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: background .15s; }
-  .provider-card:hover { background: #f8fafc; }
-  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .dot-green { background: var(--success); } .dot-orange { background: var(--orange); } .dot-yellow { background: #eab308; } .dot-gray { background: #9ca3af; }
+  .provider-card { display: flex; align-items: center; gap: 12px; padding: 14px; border: .5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer; transition: background .15s, border-color .15s; background: var(--surface2); }
+  .provider-card:hover { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.12); }
+  .health-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: var(--success); } .dot-orange { background: var(--orange); } .dot-yellow { background: #eab308; } .dot-gray { background: var(--text-faint); }
   .provider-info { flex: 1; min-width: 0; }
-  .provider-name { font-weight: 600; font-size: 14px; }
-  .provider-meta { font-size: 12px; color: var(--muted); }
+  .provider-name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .provider-meta { font-size: 12px; color: var(--text-dim); }
+  .provider-progress { height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .provider-progress-fill { height: 100%; border-radius: 2px; transition: width .4s; }
   .badge { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; }
-  .badge-pending { background: #fef3c7; color: var(--warn); }
-  .badge-done { background: #dcfce7; color: var(--success); }
-  .badge-running { background: #dbeafe; color: var(--navy-lt); }
-  .badge-rejected { background: #fee2e2; color: var(--danger); }
+  .badge-pending { background: rgba(245,158,11,.15); color: var(--warn); }
+  .badge-done { background: rgba(34,197,94,.15); color: var(--success); }
+  .badge-running { background: rgba(245,166,35,.15); color: var(--orange); }
+  .badge-rejected { background: rgba(239,68,68,.15); color: var(--danger); }
 
   /* ── Buttons ── */
-  .btn { padding: 9px 16px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; }
-  .btn-orange { background: var(--orange); color: var(--navy); }
+  .btn { padding: 9px 16px; border-radius: 9px; border: none; font-weight: 600; font-size: 13px; }
+  .btn-orange { background: var(--orange); color: #1a1208; }
   .btn-navy { background: var(--navy); color: #fff; }
-  .btn-success { background: var(--success); color: #fff; }
+  .btn-success { background: var(--success); color: #06200f; }
   .btn-danger { background: var(--danger); color: #fff; }
-  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost { background: transparent; border: .5px solid var(--border); color: var(--text); }
   .btn-full { width: 100%; }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -87,70 +128,103 @@
   .view.active { display: block; }
 
   /* ── Bottom nav (mobile) ── */
-  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border); display: flex; z-index: 100; box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
-  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; background: none; border: none; color: var(--muted); font-size: 10px; font-weight: 600; }
-  .nav-btn.active { color: var(--orange-dk); }
-  .nav-btn svg { width: 20px; height: 20px; }
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: .5px solid var(--border); display: flex; z-index: 100; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0; background: none; border: none; color: var(--text-faint); font-size: 10px; font-weight: 600; }
+  .nav-btn.active { color: var(--orange); }
+  .nav-btn i { font-size: 18px; }
 
   /* ── Offer cards ── */
-  .offer-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
-  .offer-card.accepted { background: #f0fdf4; border-color: var(--success); }
-  .offer-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
-  .offer-hook { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .offer-card { border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; background: var(--surface2); border-left: 3px solid var(--text-faint); }
+  .offer-card.ps-solo { border-left-color: #3b82f6; } .offer-card.ps-couple { border-left-color: #ec4899; }
+  .offer-card.ps-group { border-left-color: var(--teal); } .offer-card.ps-family { border-left-color: var(--success); }
+  .offer-card.accepted { background: rgba(34,197,94,.06); border-color: var(--success); }
+  .offer-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text); }
+  .offer-hook { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
   .offer-prices { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-  .offer-old { text-decoration: line-through; color: var(--muted); font-size: 12px; }
+  .offer-old { text-decoration: line-through; color: var(--text-faint); font-size: 12px; }
   .offer-new { font-weight: 800; color: var(--teal); font-size: 16px; }
-  .offer-disc { font-size: 11px; background: #fef3c7; color: var(--warn); padding: 2px 7px; border-radius: 12px; font-weight: 700; }
+  .offer-disc { font-size: 11px; background: rgba(245,158,11,.15); color: var(--warn); padding: 2px 7px; border-radius: 12px; font-weight: 700; }
 
   /* ── Chat ── */
   .chat-window { display: flex; flex-direction: column; gap: 10px; min-height: 50vh; max-height: 60vh; overflow-y: auto; padding: 4px; }
-  .msg { max-width: 80%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; }
   .msg-user { background: var(--navy); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
-  .msg-bot { background: #f1f5f9; color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; white-space: pre-wrap; }
+  .msg-bot { background: var(--surface2); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; white-space: pre-wrap; border: .5px solid var(--border); }
   .chat-input-row { display: flex; gap: 8px; margin-top: 12px; }
-  .chat-input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; }
+  .chat-input-row input { flex: 1; padding: 10px 14px; border: .5px solid var(--border); border-radius: 20px; font-size: 13px; background: var(--surface2); color: var(--text); }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  .chip { font-size: 12px; padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: #fff; color: var(--navy); }
-  .offer-tab.active-tab { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .chip { font-size: 12px; padding: 6px 12px; border-radius: 16px; border: .5px solid var(--border); background: var(--surface2); color: var(--text-dim); }
+  .offer-tab.active-tab { background: var(--orange); color: #1a1208; border-color: var(--orange); }
 
   /* ── Form fields (intake) ── */
   .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
-  .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; }
+  .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: var(--text-dim); }
+  .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: .5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--surface2); color: var(--text); }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .req { color: var(--danger); }
-  .step-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
-  .step-dot.active { background: var(--orange); color: var(--navy); }
-  .step-dot.done { background: var(--success); color: #fff; }
+  .step-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--surface2); border: .5px solid var(--border); color: var(--text-faint); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .step-dot.active { background: var(--orange); color: #1a1208; border-color: var(--orange); }
+  .step-dot.done { background: var(--success); color: #06200f; border-color: var(--success); }
   .step-row { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 16px; }
 
   /* ── Modal (provider detail) ── */
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; align-items: flex-end; justify-content: center; }
   .modal-overlay.active { display: flex; }
   @media (min-width: 768px) { .modal-overlay { align-items: center; } }
-  .modal-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 20px; }
+  .modal-box { background: var(--surface); border: .5px solid var(--border); border-radius: 16px 16px 0 0; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 20px; }
   @media (min-width: 768px) { .modal-box { border-radius: 16px; } }
-  .modal-close { float: right; background: none; border: none; font-size: 22px; color: var(--muted); }
+  .modal-close { float: right; background: none; border: none; font-size: 22px; color: var(--text-faint); }
 
   .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
-  .alert-success { background: #dcfce7; color: var(--success); }
-  .alert-error { background: #fee2e2; color: var(--danger); }
+  .alert-success { background: rgba(34,197,94,.12); color: var(--success); }
+  .alert-error { background: rgba(239,68,68,.12); color: var(--danger); }
 
-  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 13px; }
+  .empty { text-align: center; color: var(--text-faint); padding: 30px 10px; font-size: 13px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   .health-dot.pulsing { animation: pulse 1s infinite; }
   .card-run-btn { font-size: 11px; padding: 4px 10px; margin-left: 8px; flex-shrink: 0; }
+
+  /* ── Tasks ── */
+  .task-card { display: flex; align-items: center; gap: 12px; padding: 13px; border: .5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; background: var(--surface2); }
+  .task-priority-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .pri-urgent { background: var(--danger); } .pri-high { background: var(--orange); } .pri-medium { background: #3b82f6; } .pri-low { background: var(--text-faint); }
+  .task-info { flex: 1; min-width: 0; }
+  .task-title { font-size: 13px; color: var(--text); font-weight: 500; }
+  .task-title.done { text-decoration: line-through; color: var(--text-faint); }
+  .task-meta { font-size: 11px; color: var(--text-faint); margin-top: 3px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .task-badge-provider { background: rgba(245,166,35,.15); color: var(--orange); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .task-badge-type { background: var(--surface); color: var(--text-dim); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; }
+  .task-overdue { color: var(--danger) !important; }
+  .task-check { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--border); background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text-faint); }
+  .task-check:hover { border-color: var(--success); color: var(--success); }
+  .pill { font-size: 12px; padding: 6px 14px; border-radius: 16px; border: .5px solid var(--border); background: var(--surface2); color: var(--text-dim); }
+  .pill.active { background: var(--orange); color: #1a1208; border-color: var(--orange); }
+
+  /* ── Right panel widgets ── */
+  .rp-task-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: .5px solid var(--border); }
+  .rp-task-row:last-child { border-bottom: none; }
+  .rp-health-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); padding: 5px 0; }
+  .rp-health-row b { color: var(--text); }
+  .file-card { display: flex; align-items: center; gap: 10px; padding: 10px; border: .5px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--surface2); }
+  .file-card i { font-size: 20px; flex-shrink: 0; }
+  .file-card .ti-table { color: var(--success); } .file-card .ti-file-type-pdf { color: var(--danger); }
+  .file-name { font-size: 12px; color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  /* shake animation for wrong PIN */
+  @keyframes shake { 10%,90%{transform:translateX(-1px)} 20%,80%{transform:translateX(2px)} 30%,50%,70%{transform:translateX(-4px)} 40%,60%{transform:translateX(4px)} }
+  .shake { animation: shake .5s; }
 </style>
 </head>
 <body>
 
 <!-- ══════════════ LOGIN SCREEN ══════════════ -->
-<div id="loginScreen" style="position:fixed;inset:0;background:var(--navy);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
-  <div style="width:64px;height:64px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:var(--navy);margin-bottom:16px">W</div>
-  <div style="color:#fff;font-size:20px;font-weight:700;margin-bottom:4px">WeIN Portal</div>
-  <div style="color:#cbd5e1;font-size:13px;margin-bottom:28px">Enter your access code</div>
+<div id="loginScreen" style="position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .3s">
+  <img src="https://wein-eg.com/images/wein-logo.svg" alt="WeIN" style="height:40px;margin-bottom:18px" onerror="this.style.display='none';document.getElementById('logoFallback').style.display='flex'">
+  <div id="logoFallback" style="display:none;width:64px;height:64px;border-radius:50%;background:var(--orange);align-items:center;justify-content:center;font-weight:800;font-size:28px;color:var(--navy);margin-bottom:16px">W</div>
+  <div style="color:#fff;font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.02em">WeIN OS</div>
+  <div style="color:var(--text-faint);font-size:13px;margin-bottom:32px">Marketplace Operations</div>
   <div style="display:flex;gap:10px;margin-bottom:18px" id="pinBoxes">
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="1">
@@ -158,39 +232,118 @@
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
   </div>
   <div id="loginError" style="color:#fca5a5;font-size:13px;min-height:18px;margin-bottom:10px"></div>
-  <button class="btn btn-orange" style="padding:10px 40px" onclick="attemptLogin()">Login</button>
+  <button class="btn btn-orange" style="padding:10px 40px;width:228px" onclick="attemptLogin()">Login</button>
 </div>
 <style>
-  .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 10px; border: none; background: rgba(255,255,255,.12); color: #fff; }
+  .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 12px; border: .5px solid var(--border); background: var(--surface2); color: #fff; }
   .pin-box:focus { outline: 2px solid var(--orange); }
 </style>
 
 <div class="header" id="appHeader" style="display:none">
-  <div class="logo"><div class="logo-badge">W</div> WeIN Portal</div>
-  <div class="desktop-tabs" id="desktopTabs">
-    <button data-view="dashboard" class="active">Dashboard</button>
-    <button data-view="chat">Chat</button>
-    <button data-view="intake">Add Provider</button>
-    <button data-view="activity">Activity</button>
-  </div>
+  <div class="logo"><img src="https://wein-eg.com/images/wein-logo.svg" alt="WeIN" onerror="this.outerHTML='<div class=&quot;logo-badge&quot;>W</div>'"></div>
   <button class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3);padding:6px 14px;font-size:12px" onclick="logout()">Logout</button>
 </div>
 
+<div id="appShell" style="display:none">
+<div id="sidebar">
+  <div class="sb-logo">W</div>
+  <button class="sb-icon active" data-view="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard"></i></button>
+  <button class="sb-icon" data-view="providers" title="Providers"><span class="sb-dot"></span><i class="ti ti-building-store"></i></button>
+  <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
+  <button class="sb-icon" data-view="tasks" title="Tasks"><span class="sb-dot"></span><i class="ti ti-checkbox"></i></button>
+  <button class="sb-icon" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></button>
+  <button class="sb-icon" data-view="finance" title="Finance"><i class="ti ti-currency-dollar"></i></button>
+  <button class="sb-icon" data-view="activity" title="Activity"><i class="ti ti-clock"></i></button>
+  <div class="sb-sep"></div>
+  <button class="sb-icon" data-view="chat" title="Chat"><i class="ti ti-message-bolt"></i></button>
+  <button class="sb-icon" data-view="intake" title="Add Provider"><i class="ti ti-plus"></i></button>
+  <div class="sb-spacer"></div>
+  <button class="sb-icon" data-view="settings" title="Settings"><i class="ti ti-settings"></i></button>
+</div>
+
+<div id="mainArea">
 <div class="container" id="appContainer" style="display:none">
 
   <!-- ══════════════ DASHBOARD ══════════════ -->
   <div class="view active" id="view-dashboard">
+    <div style="margin-bottom:20px">
+      <div id="dashGreeting" style="font-size:20px;font-weight:800;color:var(--text)">Good morning</div>
+      <div id="dashSubtitle" style="font-size:13px;color:var(--text-faint);margin-top:2px">—</div>
+    </div>
     <div class="stats-row">
-      <div class="stat-card"><div class="stat-num" id="statProviders">—</div><div class="stat-lbl">Providers</div></div>
-      <div class="stat-card"><div class="stat-num" id="statOffers">—</div><div class="stat-lbl">Offers Built</div></div>
-      <div class="stat-card"><div class="stat-num" id="statPending">—</div><div class="stat-lbl">Pending</div></div>
-      <div class="stat-card"><div class="stat-num" id="statAccepted">—</div><div class="stat-lbl">Accepted</div></div>
+      <div class="stat-card"><div class="stat-icon"><i class="ti ti-building-store"></i></div><div class="stat-num" id="statProviders">—</div><div class="stat-lbl">Providers</div></div>
+      <div class="stat-card"><div class="stat-icon"><i class="ti ti-tag"></i></div><div class="stat-num" id="statOffers">—</div><div class="stat-lbl">Offers Built</div></div>
+      <div class="stat-card"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div class="stat-num" id="statAccepted">—</div><div class="stat-lbl">Accepted</div></div>
+      <div class="stat-card"><div class="stat-icon"><i class="ti ti-hourglass"></i></div><div class="stat-num" id="statPending">—</div><div class="stat-lbl">Pending</div></div>
     </div>
 
     <div class="card">
       <div class="card-title">📋 Provider Pipeline</div>
       <div id="alertDashboard"></div>
-      <div id="providerList"><div class="empty">Loading…</div></div>
+      <div id="providerList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ PROVIDERS (CRM) ══════════════ -->
+  <div class="view" id="view-providers">
+    <div class="card-title" style="margin-bottom:14px">🏢 Providers</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input type="text" id="provSearch" placeholder="Search providers…" style="flex:1;min-width:180px;padding:9px 14px;border:.5px solid var(--border);border-radius:20px;font-size:13px;background:var(--surface2);color:var(--text)" oninput="renderProvidersView()">
+    </div>
+    <div class="chips" id="provFilterVertical"></div>
+    <div class="card">
+      <div id="providersFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ OFFERS ══════════════ -->
+  <div class="view" id="view-offers">
+    <div class="card-title" style="margin-bottom:14px">🏷️ Offers</div>
+    <div class="chips">
+      <button class="pill active" data-offerfilter="all" onclick="renderOffersView('all')">All</button>
+      <button class="pill" data-offerfilter="accepted" onclick="renderOffersView('accepted')">Accepted</button>
+    </div>
+    <div class="card">
+      <div id="offersFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ TASKS ══════════════ -->
+  <div class="view" id="view-tasks">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="card-title" style="margin:0">✅ Tasks</div>
+      <button class="btn btn-orange" onclick="openTaskModal()"><i class="ti ti-plus"></i> Add Task</button>
+    </div>
+    <div class="chips" id="taskFilterPills">
+      <button class="pill active" data-taskfilter="all" onclick="renderTasks('all')">All</button>
+      <button class="pill" data-taskfilter="today" onclick="renderTasks('today')">Today</button>
+      <button class="pill" data-taskfilter="week" onclick="renderTasks('week')">This week</button>
+      <button class="pill" data-taskfilter="overdue" onclick="renderTasks('overdue')">Overdue</button>
+      <button class="pill" data-taskfilter="done" onclick="renderTasks('done')">Done</button>
+    </div>
+    <div class="card">
+      <div id="tasksFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ ANALYTICS (placeholder) ══════════════ -->
+  <div class="view" id="view-analytics">
+    <div class="card-title" style="margin-bottom:14px">📊 Analytics</div>
+    <div class="card"><div class="empty">Analytics module coming soon.</div></div>
+  </div>
+
+  <!-- ══════════════ FINANCE (placeholder) ══════════════ -->
+  <div class="view" id="view-finance">
+    <div class="card-title" style="margin-bottom:14px">💰 Finance</div>
+    <div class="card"><div class="empty">Finance module coming soon.</div></div>
+  </div>
+
+  <!-- ══════════════ SETTINGS ══════════════ -->
+  <div class="view" id="view-settings">
+    <div class="card-title" style="margin-bottom:14px">⚙️ Settings</div>
+    <div class="card">
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">Logged in as <b id="settingsRole" style="color:var(--text)">—</b></div>
+      <button class="btn btn-ghost" onclick="logout()">Logout</button>
     </div>
   </div>
 
@@ -269,6 +422,32 @@
   </div>
 
 </div><!-- /container -->
+</div><!-- /mainArea -->
+
+<!-- ══════════════ RIGHT PANEL (desktop always-visible) ══════════════ -->
+<div id="rightPanel">
+  <div>
+    <div class="rp-section-title"><span>AI Chat</span></div>
+    <div id="rpChatMini" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;max-height:160px;overflow-y:auto;font-size:11px;color:var(--text-dim)"></div>
+    <input type="text" id="chatInputMini" placeholder="Ask anything or run a command…" style="width:100%;padding:8px 10px;border:.5px solid var(--border);border-radius:10px;font-size:12px;background:var(--surface2);color:var(--text);margin-bottom:6px" onkeydown="if(event.key==='Enter') sendChatFrom('chatInputMini')">
+    <div class="chips" style="margin-bottom:0">
+      <button class="chip" style="font-size:11px;padding:4px 9px" onclick="document.getElementById('chatInputMini').value='Show overall stats';sendChatFrom('chatInputMini')">Show pending</button>
+      <button class="chip" style="font-size:11px;padding:4px 9px" onclick="document.getElementById('chatInputMini').value='Show overall stats';sendChatFrom('chatInputMini')">Check status</button>
+    </div>
+  </div>
+  <div>
+    <div class="rp-section-title"><span>Due today</span><span class="rp-badge" id="rpTaskCount">0</span></div>
+    <div id="rpTaskList"><div class="empty" style="padding:10px 0">No tasks due</div></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="showView('tasks')">View all</button>
+  </div>
+  <div>
+    <div class="rp-section-title"><span>Pipeline health</span><span id="rpHealthDot" style="width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block"></span></div>
+    <div class="rp-health-row"><span>Avg grade</span><b id="rpAvgGrade">—</b></div>
+    <div class="rp-health-row"><span>Discount violations</span><b id="rpDiscountViol" style="color:var(--success)">0</b></div>
+    <div class="rp-health-row"><span>Last run</span><b id="rpLastRun">—</b></div>
+  </div>
+</div>
+</div><!-- /appShell -->
 
 <!-- ══════════════ PROVIDER DETAIL MODAL ══════════════ -->
 <div class="modal-overlay" id="providerModal" onclick="if(event.target===this) closeProviderModal()">
@@ -278,12 +457,47 @@
   </div>
 </div>
 
+<!-- ══════════════ ADD/TASK MODAL ══════════════ -->
+<div class="modal-overlay" id="taskModal" onclick="if(event.target===this) closeTaskModal()">
+  <div class="modal-box" style="max-width:440px">
+    <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+    <div class="card-title">Add Task</div>
+    <div class="field"><label>Title <span class="req">*</span></label><input type="text" id="tTitle"></div>
+    <div class="field"><label>Task Type</label>
+      <select id="tType">
+        <option value="general">General</option><option value="follow_up">Follow up</option>
+        <option value="negotiation">Negotiation</option><option value="visit">Visit</option>
+        <option value="call">Call</option><option value="review_offers">Review offers</option>
+        <option value="pipeline_run">Pipeline run</option>
+      </select>
+    </div>
+    <div class="field"><label>Provider (optional)</label>
+      <input type="text" id="tProvider" placeholder="Type to search…" list="tProviderList">
+      <datalist id="tProviderList"></datalist>
+    </div>
+    <div class="field"><label>Assigned to</label><input type="text" id="tAssigned" value="Ahmed"></div>
+    <div class="field"><label>Priority</label>
+      <div class="chips" id="tPriorityChips">
+        <button class="pill" data-pri="low" onclick="selectPriority('low')">Low</button>
+        <button class="pill active" data-pri="medium" onclick="selectPriority('medium')">Medium</button>
+        <button class="pill" data-pri="high" onclick="selectPriority('high')">High</button>
+        <button class="pill" data-pri="urgent" onclick="selectPriority('urgent')">Urgent</button>
+      </div>
+    </div>
+    <div class="field"><label>Due date</label><input type="date" id="tDueDate"></div>
+    <div class="field"><label>Description</label><textarea id="tDescription"></textarea></div>
+    <div id="taskModalAlert"></div>
+    <button class="btn btn-orange btn-full" onclick="saveTask()">Save Task</button>
+  </div>
+</div>
+
 <!-- ══════════════ BOTTOM NAV (mobile) ══════════════ -->
 <div class="bottom-nav" id="bottomNav" style="display:none">
-  <button class="nav-btn active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Dashboard</button>
-  <button class="nav-btn" data-view="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Chat</button>
-  <button class="nav-btn" data-view="intake"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
-  <button class="nav-btn" data-view="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity</button>
+  <button class="nav-btn active" data-view="dashboard"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+  <button class="nav-btn" data-view="providers"><i class="ti ti-building-store"></i>Providers</button>
+  <button class="nav-btn" data-view="tasks"><i class="ti ti-checkbox"></i>Tasks</button>
+  <button class="nav-btn" data-view="chat"><i class="ti ti-message-bolt"></i>Chat</button>
+  <button class="nav-btn" data-view="intake"><i class="ti ti-plus"></i>Add</button>
 </div>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
@@ -442,11 +656,25 @@ async function runPipelineFromCard(name, vertical) {
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  document.querySelectorAll('#desktopTabs button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  if (name === 'dashboard') loadDashboard();
+  document.querySelectorAll('.sb-icon').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'dashboard') { loadDashboard(); updateGreeting(); }
   if (name === 'activity') loadActivity();
+  if (name === 'providers') renderProvidersView();
+  if (name === 'offers') renderOffersView('all');
+  if (name === 'tasks') renderTasks('all');
+  if (name === 'settings') { const el = document.getElementById('settingsRole'); if (el) el.textContent = sessionStorage.getItem('weinRole') || '—'; }
 }
-document.querySelectorAll('.nav-btn, #desktopTabs button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+document.querySelectorAll('.nav-btn, .sb-icon').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+function updateGreeting() {
+  const g = document.getElementById('dashGreeting'), s = document.getElementById('dashSubtitle');
+  if (!g) return;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  g.textContent = `${greeting}, Ahmed`;
+  const dueToday = cachedTasks.filter(t => t.status !== 'done' && t.due_date === new Date().toISOString().split('T')[0]).length;
+  s.textContent = `${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${dueToday} task${dueToday===1?'':'s'} due today`;
+}
 
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD
@@ -593,8 +821,29 @@ async function openProvider(name, providerId, submissionId) {
     const prof = profile[0] || {};
     const sub  = submission[0] || {};
     const acceptedTitles = new Set(accepted.map(a => a.offer_title));
+    const providerRow = cachedProviders.find(p => p.id === providerId) || {};
+    const version = providerRow.current_version || 1;
 
-    const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(name)}`;
+    let filesHtml = '';
+    if (providerRow.drive_folder_url) {
+      const fileNames = [
+        [`${name} - Filled Offer Template - Claude v${version}.xlsx`, 'ti-table'],
+        [`${name} - Offer Comparison vs Competitor - Claude v${version}.pdf`, 'ti-file-type-pdf'],
+        [`${name} - Provider Negotiation Offers - Claude v${version}.pdf`, 'ti-file-type-pdf'],
+        [`${name} - Provider Negotiation Offers - Claude v${version}.xlsx`, 'ti-table'],
+      ];
+      filesHtml = `
+        <div class="card-title" style="margin-top:16px">📂 Files <span class="badge badge-running" style="margin-left:6px">Claude v${version}</span></div>
+        <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-navy btn-full" style="margin-bottom:8px">Open Drive folder</button></a>
+        ${offers.length > 0 ? fileNames.map(([fn, icon]) => `
+          <div class="file-card">
+            <i class="ti ${icon}"></i>
+            <div class="file-name">${fn}</div>
+            <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Open</button></a>
+          </div>`).join('') : ''}`;
+    } else {
+      filesHtml = `<div class="card-title" style="margin-top:16px">📂 Files</div><div class="empty">No files yet — run pipeline to generate</div>`;
+    }
 
     content.innerHTML = `
       <div class="card-title">🏢 ${name}</div>
@@ -607,12 +856,13 @@ async function openProvider(name, providerId, submissionId) {
 
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn btn-navy" onclick="runPipelineFor('${name.replace(/'/g,"\\'")}','${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">▶ Run Pipeline</button>
-        <a href="${driveSearchUrl}" target="_blank"><button class="btn btn-ghost">📂 View Files</button></a>
         ${sub.id ? `<button class="btn btn-success" onclick="approveSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✅ Approve Submission</button>` : ''}
         ${sub.id && sub.status === 'pending' ? `<button class="btn btn-danger" onclick="rejectSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✕ Reject</button>` : ''}
       </div>
 
-      <div class="card-title">Generated Offers (${offers.length})</div>
+      ${filesHtml}
+
+      <div class="card-title" style="margin-top:16px">Generated Offers (${offers.length})</div>
       ${offers.length > 0 ? `
       <div class="chips" id="offerTabs">
         ${['All','Solo','Couple','Group','Family','Other'].map(cat => {
@@ -728,6 +978,7 @@ function appendChatMsg(text, who) {
   const div = document.createElement('div');
   div.id = id; div.className = `msg msg-${who}`; div.textContent = text;
   win.appendChild(div); win.scrollTop = win.scrollHeight;
+  mirrorToMiniChat(text, who);
   return id;
 }
 function extractAction(text) {
@@ -788,6 +1039,36 @@ async function dispatchAction(action) {
       let names = cachedProviders.map(p => p.provider_name);
       if (filter === 'pending') names = cachedSubmissions.filter(s => s.status === 'pending').map(s => s.provider_name);
       appendChatMsg(names.length ? names.join(', ') : 'None found.', 'bot');
+    } else if (action.action === 'create_task') {
+      const provider = cachedProviders.find(p => (p.provider_name||'').toLowerCase() === (action.provider||'').toLowerCase());
+      await sbPost('wein_tasks', {
+        title: action.title, task_type: action.task_type || 'general',
+        provider_id: provider ? provider.id : null, provider_name: action.provider || null,
+        assigned_to: action.assigned_to || 'Ahmed', priority: action.priority || 'medium',
+        due_date: action.due_date || null, created_by: 'chat'
+      });
+      await loadTasks();
+      appendChatMsg(`✅ Task created: "${action.title}"${action.due_date ? ' due ' + action.due_date : ''}. Check the Tasks tab.`, 'bot');
+    } else if (action.action === 'list_tasks') {
+      await loadTasks();
+      const today = new Date().toISOString().split('T')[0];
+      const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      let list = cachedTasks.filter(t => t.status !== 'done');
+      if (action.filter === 'today') list = list.filter(t => t.due_date === today);
+      else if (action.filter === 'overdue') list = list.filter(t => t.due_date && t.due_date < today);
+      else if (action.filter === 'this_week') list = list.filter(t => t.due_date && t.due_date <= weekAhead);
+      appendChatMsg(list.length ? list.map(t => `• ${t.title}${t.provider_name ? ' (' + t.provider_name + ')' : ''} — ${t.due_date || 'no due date'}`).join('\n') : 'No matching tasks.', 'bot');
+    } else if (action.action === 'complete_task') {
+      await loadTasks();
+      const task = cachedTasks.find(t => t.id === action.task_id || (t.title||'').toLowerCase().includes((action.task_id||'').toLowerCase()));
+      if (task) { await completeTask(task.id); appendChatMsg(`✅ Marked "${task.title}" as done.`, 'bot'); }
+      else appendChatMsg(`Couldn't find a task matching "${action.task_id}".`, 'bot');
+    } else if (action.action === 'update_stage') {
+      const provider = cachedProviders.find(p => (p.provider_name||'').toLowerCase() === (action.provider||'').toLowerCase());
+      if (provider) {
+        await updateProviderStage(provider.id, provider.provider_name, action.stage);
+        appendChatMsg(`✅ ${action.provider} stage updated to "${action.stage.replace('_',' ')}".`, 'bot');
+      } else appendChatMsg(`Couldn't find provider "${action.provider}".`, 'bot');
     }
   } catch (e) {
     appendChatMsg('Action failed: ' + e.message, 'bot');
@@ -929,6 +1210,248 @@ async function loadActivity() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// TASKS MODULE
+// ════════════════════════════════════════════════════════════════════
+let cachedTasks = [];
+let selectedPriority = 'medium';
+
+async function loadTasks() {
+  try {
+    cachedTasks = await sbGet('wein_tasks?select=*&order=due_date.asc.nullslast');
+  } catch (e) {
+    cachedTasks = [];
+  }
+  const sbIcon = document.querySelector('.sb-icon[data-view="tasks"]');
+  const overdueCount = cachedTasks.filter(t => t.status !== 'done' && t.due_date && t.due_date < new Date().toISOString().split('T')[0]).length;
+  if (sbIcon) sbIcon.classList.toggle('has-dot', overdueCount > 0);
+  renderRightPanelTasks();
+  if (document.getElementById('view-tasks')?.classList.contains('active')) renderTasks(currentTaskFilter);
+  updateGreeting();
+}
+
+let currentTaskFilter = 'all';
+function renderTasks(filter) {
+  currentTaskFilter = filter;
+  document.querySelectorAll('#taskFilterPills .pill').forEach(p => p.classList.toggle('active', p.dataset.taskfilter === filter));
+  const today = new Date().toISOString().split('T')[0];
+  const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  let list = cachedTasks.filter(t => {
+    if (filter === 'done') return t.status === 'done';
+    if (t.status === 'done') return filter === 'all' ? false : false;
+    if (filter === 'today') return t.due_date === today;
+    if (filter === 'week') return t.due_date && t.due_date <= weekAhead;
+    if (filter === 'overdue') return t.due_date && t.due_date < today;
+    return true;
+  });
+  const el = document.getElementById('tasksFullList');
+  if (!list.length) { el.innerHTML = '<div class="empty">No tasks here.</div>'; return; }
+  el.innerHTML = list.map(t => {
+    const overdue = t.status !== 'done' && t.due_date && t.due_date < today;
+    return `
+      <div class="task-card" data-task-id="${t.id}">
+        <div class="task-priority-dot pri-${t.priority}"></div>
+        <div class="task-info">
+          <div class="task-title ${t.status === 'done' ? 'done' : ''}">${t.title}</div>
+          <div class="task-meta">
+            ${t.provider_name ? `<span class="task-badge-provider">${t.provider_name}</span>` : ''}
+            <span class="task-badge-type">${(t.task_type||'general').replace('_',' ')}</span>
+            <span class="${overdue ? 'task-overdue' : ''}">${t.assigned_to || ''} · ${t.due_date ? new Date(t.due_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : 'No due date'}</span>
+          </div>
+        </div>
+        ${t.status !== 'done' ? `<button class="task-check" onclick="completeTask('${t.id}')"><i class="ti ti-check"></i></button>` : '<i class="ti ti-circle-check" style="color:var(--success);font-size:18px"></i>'}
+      </div>`;
+  }).join('');
+}
+
+function renderRightPanelTasks() {
+  const today = new Date().toISOString().split('T')[0];
+  const dueToday = cachedTasks.filter(t => t.status !== 'done' && t.due_date && t.due_date <= today)
+    .sort((a,b) => ({urgent:0,high:1,medium:2,low:3}[a.priority] - ({urgent:0,high:1,medium:2,low:3}[b.priority])))
+    .slice(0, 4);
+  document.getElementById('rpTaskCount').textContent = dueToday.length;
+  const el = document.getElementById('rpTaskList');
+  if (!dueToday.length) { el.innerHTML = '<div class="empty" style="padding:10px 0">No tasks due</div>'; return; }
+  el.innerHTML = dueToday.map(t => {
+    const overdue = t.due_date < today;
+    return `<div class="rp-task-row">
+      <div class="task-priority-dot pri-${t.priority}"></div>
+      <div style="flex:1;min-width:0;font-size:11px;color:${overdue ? 'var(--danger)' : 'var(--text-dim)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.title}</div>
+    </div>`;
+  }).join('');
+}
+
+function openTaskModal() {
+  document.getElementById('taskModal').classList.add('active');
+  document.getElementById('tProviderList').innerHTML = cachedProviders.map(p => `<option value="${p.provider_name}">`).join('');
+  selectPriority('medium');
+}
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.remove('active');
+  ['tTitle','tProvider','tDescription'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tAssigned').value = 'Ahmed';
+  document.getElementById('tDueDate').value = '';
+  document.getElementById('tType').value = 'general';
+}
+function selectPriority(p) {
+  selectedPriority = p;
+  document.querySelectorAll('#tPriorityChips .pill').forEach(b => b.classList.toggle('active', b.dataset.pri === p));
+}
+async function saveTask() {
+  const title = document.getElementById('tTitle').value.trim();
+  if (!title) { document.getElementById('taskModalAlert').innerHTML = '<div class="alert alert-error">Title is required.</div>'; return; }
+  const providerName = document.getElementById('tProvider').value.trim();
+  const provider = cachedProviders.find(p => p.provider_name.toLowerCase() === providerName.toLowerCase());
+  try {
+    await sbPost('wein_tasks', {
+      title, task_type: document.getElementById('tType').value,
+      provider_id: provider ? provider.id : null, provider_name: providerName || null,
+      assigned_to: document.getElementById('tAssigned').value.trim() || 'Ahmed',
+      priority: selectedPriority, due_date: document.getElementById('tDueDate').value || null,
+      description: document.getElementById('tDescription').value.trim() || null,
+      created_by: sessionStorage.getItem('weinRole') || 'portal'
+    });
+    closeTaskModal();
+    await loadTasks();
+    if (document.getElementById('view-tasks')?.classList.contains('active')) renderTasks(currentTaskFilter);
+  } catch (e) {
+    document.getElementById('taskModalAlert').innerHTML = `<div class="alert alert-error">Failed: ${e.message}</div>`;
+  }
+}
+async function completeTask(id) {
+  const card = document.querySelector(`.task-card[data-task-id="${id}"]`);
+  if (card) { card.style.transition = 'opacity .3s, transform .3s'; card.style.opacity = '0'; card.style.transform = 'translateX(20px)'; }
+  await sbPatch(`wein_tasks?id=eq.${id}`, { status: 'done', completed_at: new Date().toISOString() });
+  await sbPost('wein_events', { event_type: 'task_completed', entity_type: 'task', entity_id: id, data: {} }).catch(() => {});
+  await loadTasks();
+  setTimeout(() => { if (document.getElementById('view-tasks')?.classList.contains('active')) renderTasks(currentTaskFilter); }, 300);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROVIDER STAGES (CRM pipeline)
+// ════════════════════════════════════════════════════════════════════
+let cachedStages = new Map(); // provider_id -> latest stage
+const STAGE_ORDER = ['lead','contacted','meeting_done','offers_sent','negotiating','accepted','live','renewal'];
+
+async function loadStages() {
+  try {
+    const rows = await sbGet('wein_provider_stages?select=*&order=changed_at.desc');
+    cachedStages = new Map();
+    rows.forEach(r => { if (r.provider_id && !cachedStages.has(r.provider_id)) cachedStages.set(r.provider_id, r.stage); });
+  } catch (e) { /* table may not exist yet */ }
+}
+async function updateProviderStage(providerId, providerName, stage) {
+  await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: providerName, stage, changed_by: sessionStorage.getItem('weinRole') || 'portal' });
+  await sbPost('wein_events', { event_type: 'stage_changed', entity_type: 'provider', entity_id: providerId, data: { stage } }).catch(() => {});
+  cachedStages.set(providerId, stage);
+  renderProvidersView();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROVIDERS VIEW (CRM list)
+// ════════════════════════════════════════════════════════════════════
+function renderProvidersView() {
+  const search = (document.getElementById('provSearch')?.value || '').toLowerCase();
+  const verticals = [...new Set(cachedProviders.map(p => p.vertical).filter(Boolean))];
+  const vfEl = document.getElementById('provFilterVertical');
+  if (vfEl && !vfEl.dataset.built) {
+    vfEl.dataset.built = '1';
+    vfEl.innerHTML = '<button class="pill active" data-v="all" onclick="setProviderVerticalFilter(\'all\')">All</button>' +
+      verticals.map(v => `<button class="pill" data-v="${v}" onclick="setProviderVerticalFilter('${v.replace(/'/g,"\\'")}')">${v}</button>`).join('');
+  }
+  const activeVertical = vfEl?.querySelector('.pill.active')?.dataset.v || 'all';
+
+  let list = cachedProviders.filter(p => p.provider_name.toLowerCase().includes(search));
+  if (activeVertical !== 'all') list = list.filter(p => p.vertical === activeVertical);
+
+  const el = document.getElementById('providersFullList');
+  if (!list.length) { el.innerHTML = '<div class="empty">No providers match.</div>'; return; }
+  el.innerHTML = list.map(p => {
+    const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
+    const acceptedCount = cachedAccepted.filter(a => (a.provider_name||'').toLowerCase() === p.provider_name.toLowerCase()).length;
+    const stage = cachedStages.get(p.id) || 'lead';
+    return `
+      <div class="provider-card" onclick="openProvider('${p.provider_name.replace(/'/g,"\\'")}', '${p.id}', '')">
+        <div class="health-dot ${acceptedCount > 0 ? 'dot-green' : offerCount > 0 ? 'dot-orange' : 'dot-gray'}"></div>
+        <div class="provider-info">
+          <div class="provider-name">${p.provider_name}</div>
+          <div class="provider-meta">${p.vertical || '—'} · ${offerCount} offers · ${acceptedCount} accepted</div>
+        </div>
+        <span class="badge badge-running">${stage.replace('_',' ')}</span>
+      </div>`;
+  }).join('');
+}
+function setProviderVerticalFilter(v) {
+  document.querySelectorAll('#provFilterVertical .pill').forEach(p => p.classList.toggle('active', p.dataset.v === v));
+  renderProvidersView();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// OFFERS VIEW
+// ════════════════════════════════════════════════════════════════════
+function renderOffersView(filter) {
+  document.querySelectorAll('[data-offerfilter]').forEach(p => p.classList.toggle('active', p.dataset.offerfilter === filter));
+  const el = document.getElementById('offersFullList');
+  const nameById = new Map(cachedProviders.map(p => [p.id, p.provider_name]));
+  if (filter === 'accepted') {
+    if (!cachedAccepted.length) { el.innerHTML = '<div class="empty">No accepted offers yet.</div>'; return; }
+    el.innerHTML = cachedAccepted.map(a => `
+      <div class="offer-card accepted">
+        <div class="offer-title">${a.offer_title}</div>
+        <div class="offer-hook">${a.provider_name} · ${a.vertical || ''}</div>
+        <div class="offer-prices"><span class="offer-old">EGP ${a.regular_egp||0}</span><span class="offer-new">EGP ${a.promo_egp||0}</span><span class="offer-disc">-${a.discount_pct||0}%</span></div>
+      </div>`).join('');
+  } else {
+    if (!cachedOffers.length) { el.innerHTML = '<div class="empty">No offers yet.</div>'; return; }
+    const byProvider = new Map();
+    cachedOffers.forEach(o => { const n = nameById.get(o.provider_id) || 'Unknown'; byProvider.set(n, (byProvider.get(n)||0) + 1); });
+    el.innerHTML = Array.from(byProvider.entries()).map(([name, count]) => `
+      <div class="provider-card" onclick="(function(){const p=cachedProviders.find(p=>p.provider_name==='${name.replace(/'/g,"\\'")}');if(p)openProvider(p.provider_name,p.id,'')})()">
+        <div class="health-dot dot-orange"></div>
+        <div class="provider-info"><div class="provider-name">${name}</div><div class="provider-meta">${count} offers</div></div>
+      </div>`).join('');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CHAT MINI (right panel) — shares logic with full chat view
+// ════════════════════════════════════════════════════════════════════
+async function sendChatFrom(inputId) {
+  const input = document.getElementById(inputId);
+  const text = input.value.trim();
+  if (!text) return;
+  document.getElementById('chatInput').value = text;
+  input.value = '';
+  await sendChat();
+}
+function mirrorToMiniChat(text, who) {
+  const mini = document.getElementById('rpChatMini');
+  if (!mini) return;
+  const div = document.createElement('div');
+  div.style.color = who === 'user' ? 'var(--text)' : 'var(--text-dim)';
+  div.textContent = (who === 'user' ? '› ' : '') + text;
+  mini.appendChild(div);
+  while (mini.children.length > 6) mini.removeChild(mini.firstChild);
+  mini.scrollTop = mini.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PIPELINE HEALTH (right panel)
+// ════════════════════════════════════════════════════════════════════
+async function loadPipelineHealth() {
+  try {
+    const outcomes = await sbGet('offer_outcomes?select=final_grade,created_at&order=created_at.desc&limit=10');
+    const gradeScore = { EXCELLENT: 4, GOOD: 3, 'NEEDS WORK': 2, REJECT: 1 };
+    const scores = outcomes.map(o => gradeScore[o.final_grade] || 0).filter(Boolean);
+    const avg = scores.length ? scores.reduce((a,b)=>a+b,0) / scores.length : 0;
+    const label = avg >= 3.5 ? 'EXCELLENT' : avg >= 2.5 ? 'GOOD' : avg >= 1.5 ? 'NEEDS WORK' : '—';
+    const el = document.getElementById('rpAvgGrade');
+    if (el) { el.textContent = label; el.style.color = label === 'EXCELLENT' || label === 'GOOD' ? 'var(--success)' : label === 'NEEDS WORK' ? 'var(--warn)' : 'var(--text)'; }
+    const lastRunEl = document.getElementById('rpLastRun');
+    if (lastRunEl && outcomes[0]) lastRunEl.textContent = formatActivityTime(outcomes[0].created_at);
+  } catch (e) { /* non-fatal */ }
+}
+
+// ════════════════════════════════════════════════════════════════════
 // ACCESS CONTROL (PIN-based)
 // ════════════════════════════════════════════════════════════════════
 const PIN_ROLES = {
@@ -936,12 +1459,12 @@ const PIN_ROLES = {
   '2026': 'manager',
   '1234': 'team',
 };
-const ADMIN_VIEWS = ['dashboard', 'chat', 'intake', 'activity'];
+const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'tasks', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
 const TEAM_VIEWS  = ['intake'];
 
 function applyRole(role) {
   const allowed = role === 'team' ? TEAM_VIEWS : ADMIN_VIEWS;
-  document.querySelectorAll('#desktopTabs button').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
+  document.querySelectorAll('.sb-icon').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
   document.querySelectorAll('.nav-btn').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
   showView(allowed[0]);
 }
@@ -951,15 +1474,16 @@ let autoRefreshInterval = null, activityRefreshInterval = null;
 function showApp(role) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appHeader').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('bottomNav').style.display = '';
   applyRole(role);
 
   if (role !== 'team') {
-    loadDashboard().then(loadActivity);
+    loadDashboard().then(() => { updateGreeting(); loadActivity(); loadTasks(); loadStages(); loadPipelineHealth(); });
     if (!autoRefreshInterval) {
       autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
-      activityRefreshInterval = setInterval(() => { if (!document.hidden) loadActivity(); }, 60000);
+      activityRefreshInterval = setInterval(() => { if (!document.hidden) { loadActivity(); loadTasks(); } }, 60000);
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && sessionStorage.getItem('weinRole')) loadDashboard();
       });
@@ -972,7 +1496,9 @@ function attemptLogin() {
   const pin = Array.from(boxes).map(b => b.value).join('');
   const role = PIN_ROLES[pin];
   if (!role) {
-    document.getElementById('loginError').textContent = 'Incorrect code. Try again.';
+    document.getElementById('loginError').textContent = 'Invalid access code';
+    const boxesWrap = document.getElementById('pinBoxes');
+    boxesWrap.classList.remove('shake'); void boxesWrap.offsetWidth; boxesWrap.classList.add('shake');
     boxes.forEach(b => b.value = '');
     boxes[0].focus();
     return;
@@ -986,6 +1512,7 @@ function logout() {
   if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
   if (activityRefreshInterval) { clearInterval(activityRefreshInterval); activityRefreshInterval = null; }
   document.getElementById('appHeader').style.display = 'none';
+  document.getElementById('appShell').style.display = 'none';
   document.getElementById('appContainer').style.display = 'none';
   document.getElementById('bottomNav').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
@@ -1010,8 +1537,10 @@ document.querySelectorAll('.pin-box').forEach((box, i) => {
 // ════════════════════════════════════════════════════════════════════
 if (window.location.pathname.includes('intake')) {
   // Field team intake page — no login, no nav, intake form only.
-  document.getElementById('desktopTabs').style.display = 'none';
   document.getElementById('appHeader').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'flex';
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('rightPanel').style.display = 'none';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('bottomNav').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'none';
