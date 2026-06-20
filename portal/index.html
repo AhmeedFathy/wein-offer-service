@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --navy: #1B3A6B;
@@ -241,6 +242,42 @@
   /* shake animation for wrong PIN */
   @keyframes shake { 10%,90%{transform:translateX(-1px)} 20%,80%{transform:translateX(2px)} 30%,50%,70%{transform:translateX(-4px)} 40%,60%{transform:translateX(4px)} }
   .shake { animation: shake .5s; }
+
+  /* ── Analytics screen ── */
+  .analytics-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: .5px solid var(--border); overflow-x: auto; }
+  .analytics-tab-btn { font-size: 13px; padding: 10px 16px; background: none; border: none; color: var(--text-faint); font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .analytics-tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+  .analytics-screen { display: none; }
+  .analytics-screen.active { display: block; }
+  .card-sub { font-size: 11px; color: var(--text-faint); font-weight: 400; }
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .stat-delta { font-size: 12px; font-weight: 700; margin-top: 4px; }
+  #view-analytics canvas { max-height: 280px; }
+  .alert-card { border-left: 3px solid var(--text-faint); padding: 8px 10px; border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+  .alert-title { font-size: 12px; font-weight: 600; }
+  .alert-detail { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 2px; }
+  .funnel-stage { position: relative; margin: 0 auto 4px; padding: 10px 14px; text-align: center; color: #fff; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .funnel-stage:hover { opacity: .85; }
+  .funnel-conv { text-align: center; font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+  .health-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 12px; }
+  .health-row:last-child { border-bottom: none; }
+  .health-bar-bg { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .health-bar-fill { height: 100%; border-radius: 4px; }
+  .days-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: .5px solid var(--border); font-size: 12px; }
+  .days-row:last-child { border-bottom: none; }
+  .days-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .coverage-row { margin-bottom: 14px; }
+  .coverage-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .coverage-bar-bg { height: 14px; background: var(--surface2); border-radius: 7px; overflow: hidden; }
+  .coverage-bar-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--navy-lt), var(--orange)); }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .slider-row label { font-size: 12px; color: var(--text-dim); min-width: 170px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-val { font-size: 13px; font-weight: 700; color: var(--orange); min-width: 40px; text-align: right; }
+  .commission-big { font-size: 28px; font-weight: 800; color: var(--success); }
+  .commission-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 13px; }
+  .commission-row:last-child { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -277,7 +314,6 @@
   <button class="sb-icon" data-view="providers" title="Providers"><span class="sb-dot"></span><i class="ti ti-building-store"></i></button>
   <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
   <button class="sb-icon" data-view="files" title="Files"><i class="ti ti-files"></i></button>
-  <button class="sb-icon" title="Analytics" onclick="window.open('/analytics','_blank')"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="tasks" title="Tasks"><span class="sb-dot"></span><i class="ti ti-checkbox"></i></button>
   <button class="sb-icon" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="finance" title="Finance"><i class="ti ti-currency-dollar"></i></button>
@@ -373,10 +409,146 @@
     </div>
   </div>
 
-  <!-- ══════════════ ANALYTICS (placeholder) ══════════════ -->
+  <!-- ══════════════ ANALYTICS ══════════════ -->
   <div class="view" id="view-analytics">
-    <div class="card-title" style="margin-bottom:14px">📊 Analytics</div>
-    <div class="card"><div class="empty">Analytics module coming soon.</div></div>
+    <div class="card-title" style="margin-bottom:14px;justify-content:space-between;display:flex">
+      <span>📊 Analytics</span>
+      <div class="chips" id="anPeriodPills">
+        <button class="pill active" data-period="7d">7D</button>
+        <button class="pill" data-period="30d">30D</button>
+        <button class="pill" data-period="all">All time</button>
+      </div>
+    </div>
+
+    <div class="analytics-tabs" id="anTabBar">
+      <button class="analytics-tab-btn active" data-antab="overview">Overview</button>
+      <button class="analytics-tab-btn" data-antab="offers">Offers</button>
+      <button class="analytics-tab-btn" data-antab="providers">Providers</button>
+      <button class="analytics-tab-btn" data-antab="pipeline">Pipeline</button>
+      <button class="analytics-tab-btn" data-antab="business">Business</button>
+    </div>
+
+    <!-- ══════ OVERVIEW ══════ -->
+    <div class="analytics-screen active" id="antab-overview">
+      <div class="stats-row" id="anOvStats"><div class="empty">Loading…</div></div>
+      <div class="card">
+        <div class="card-title">Pipeline velocity <span class="card-sub" id="anOvVelocitySub"></span></div>
+        <div id="anOvVelocity" class="stat-num">—</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Offers built over time</div>
+          <div id="anOffersOverTimeWrap"><canvas id="anChartOffersOverTime"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Party size distribution</div>
+          <canvas id="anChartPartySize"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vertical coverage (providers &amp; offers)</div>
+        <canvas id="anChartVerticalCoverage"></canvas>
+      </div>
+    </div>
+
+    <!-- ══════ OFFERS ══════ -->
+    <div class="analytics-screen" id="antab-offers">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Discount vs grade <span class="card-sub">per provider run</span></div>
+          <div id="anDiscountGradeWrap"><canvas id="anChartDiscountGrade"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Hook type performance</div>
+          <canvas id="anChartHookType"></canvas>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">ME-class hero usage</div>
+          <div id="anMeClassWrap"><canvas id="anChartMeClass"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">WeIN vs Waffarha — top providers</div>
+          <canvas id="anChartWeinVsWaffarha"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ PROVIDERS ══════ -->
+    <div class="analytics-screen" id="antab-providers">
+      <div class="card">
+        <div class="card-title">Provider funnel</div>
+        <div id="anFunnelWrap"></div>
+        <div id="anFunnelProviderList"></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Provider health scores</div>
+          <div id="anHealthList"><div class="empty">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Days since last run</div>
+          <div id="anDaysSinceList"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ PIPELINE ══════ -->
+    <div class="analytics-screen" id="antab-pipeline">
+      <div class="stats-row" id="anPipelineKpis"><div class="empty">Loading…</div></div>
+      <div class="card">
+        <div class="card-title">Run history — grade trend</div>
+        <canvas id="anChartGradeTrend"></canvas>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Execution time trend</div>
+          <div id="anExecTimeWrap"><canvas id="anChartExecTime"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Error frequency by node</div>
+          <div id="anErrorChartWrap"><canvas id="anChartErrors"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ BUSINESS ══════ -->
+    <div class="analytics-screen" id="antab-business">
+      <div class="card">
+        <div class="card-title">Commission potential calculator</div>
+        <div class="slider-row">
+          <label for="anRedemptionsSlider">Redemptions / offer / month</label>
+          <input type="range" min="1" max="50" value="5" id="anRedemptionsSlider">
+          <span class="slider-val" id="anRedemptionsVal">5</span>
+        </div>
+        <div class="slider-row">
+          <label for="anCommissionSlider">Commission rate (%)</label>
+          <input type="range" min="5" max="25" value="15" id="anCommissionSlider">
+          <span class="slider-val" id="anCommissionVal">15%</span>
+        </div>
+        <div class="commission-big" id="anCommissionMonthly">EGP 0</div>
+        <div class="card-sub" style="margin-bottom:10px">monthly commission potential</div>
+        <div class="commission-row"><span>Annual projection</span><b id="anCommissionAnnual">EGP 0</b></div>
+        <div class="commission-row"><span>Per-provider average</span><b id="anCommissionPerProvider">EGP 0</b></div>
+        <div class="commission-row"><span>Accepted offers counted</span><b id="anCommissionCount">0</b></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Vertical coverage map <span class="card-sub">target before launch</span></div>
+          <div id="anCoverageMap"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">WeIN vs Waffarha positioning</div>
+          <div id="anPositioningSummary"></div>
+          <canvas id="anChartGapByVertical"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monthly onboarding rate <span class="card-sub">target: 5/month</span></div>
+        <canvas id="anChartOnboarding"></canvas>
+      </div>
+    </div>
   </div>
 
   <!-- ══════════════ FINANCE (placeholder) ══════════════ -->
@@ -493,6 +665,10 @@
     <div class="rp-health-row"><span>Discount violations</span><b id="rpDiscountViol" style="color:var(--success)">0</b></div>
     <div class="rp-health-row"><span>Last run</span><b id="rpLastRun">—</b></div>
   </div>
+  <div id="alerts-widget">
+    <div class="rp-section-title"><span>Pipeline alerts</span><span id="anAlertsRefreshTime" style="font-weight:400;text-transform:none;font-size:10px;color:var(--text-faint)"></span></div>
+    <div id="alerts-list"><div class="empty" style="padding:10px 0">Loading…</div></div>
+  </div>
 </div>
 </div><!-- /appShell -->
 
@@ -545,7 +721,7 @@
   <button class="nav-btn" data-view="tasks"><i class="ti ti-checkbox"></i>Tasks</button>
   <button class="nav-btn" data-view="chat"><i class="ti ti-message-bolt"></i>Chat</button>
   <button class="nav-btn" data-view="intake"><i class="ti ti-plus"></i>Add</button>
-  <button class="nav-btn" onclick="window.open('/analytics','_blank')"><i class="ti ti-chart-bar"></i>Analytics</button>
+  <button class="nav-btn" data-view="analytics"><i class="ti ti-chart-bar"></i>Analytics</button>
 </div>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
@@ -712,6 +888,7 @@ function showView(name) {
   if (name === 'offers') renderOffersView('all');
   if (name === 'files') loadFilesView();
   if (name === 'tasks') renderTasks('all');
+  if (name === 'analytics') loadAnalyticsDashboard();
   if (name === 'settings') { const el = document.getElementById('settingsRole'); if (el) el.textContent = sessionStorage.getItem('weinRole') || '—'; }
 }
 document.querySelectorAll('.nav-btn, .sb-icon').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1654,6 +1831,7 @@ function showApp(role) {
 
   if (role !== 'team') {
     loadDashboard().then(() => { updateGreeting(); loadActivity(); loadTasks(); loadStages(); loadPipelineHealth(); loadFilesSummary().then(renderProvidersView); });
+    startAnalyticsAlertsLoop();
     if (!autoRefreshInterval) {
       autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
       activityRefreshInterval = setInterval(() => { if (!document.hidden) { loadActivity(); loadTasks(); } }, 60000);
@@ -1704,6 +1882,613 @@ document.querySelectorAll('.pin-box').forEach((box, i) => {
     if (e.key === 'Backspace' && !box.value && i > 0) document.querySelectorAll('.pin-box')[i - 1].focus();
   });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// ANALYTICS TAB
+// ════════════════════════════════════════════════════════════════════
+const AN_VERTICAL_COLORS = { 'Dining': '#185FA5', 'Health & Beauty': '#1D9E75', 'Fun & Activities': '#EF9F27', 'Hotels & Aqua Park': '#9b6bd6' };
+const AN_VERTICAL_TARGETS = { 'Dining': 20, 'Health & Beauty': 10, 'Fun & Activities': 10, 'Hotels & Aqua Park': 5 };
+
+let anCurrentPeriod = '7d';
+let anCharts = {};
+let AN_DATA = { providers: [], offers: [], accepted: [], outcomes: [], submissions: [], waffarha: [] };
+let anLoaded = false;
+
+function anGetDateFilter() {
+  const days = anCurrentPeriod === '7d' ? 7 : anCurrentPeriod === '30d' ? 30 : 3650;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  return from;
+}
+
+function anDestroyChart(id) { if (anCharts[id]) { anCharts[id].destroy(); delete anCharts[id]; } }
+
+function anMakeChart(id, config) {
+  anDestroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  config.options = config.options || {};
+  config.options.plugins = config.options.plugins || {};
+  config.options.plugins.legend = config.options.plugins.legend || { labels: { color: '#9aa5b8', font: { size: 11 } } };
+  config.options.scales = config.options.scales || {};
+  for (const axis of ['x','y']) {
+    if (!config.options.scales[axis]) config.options.scales[axis] = {};
+    config.options.scales[axis].ticks = config.options.scales[axis].ticks || { color: '#9aa5b8', font: { size: 10 } };
+    config.options.scales[axis].grid = config.options.scales[axis].grid || { color: 'rgba(255,255,255,.05)' };
+  }
+  config.options.maintainAspectRatio = false;
+  anCharts[id] = new Chart(ctx, config);
+}
+
+async function anLoadAllData() {
+  const [providers, offers, accepted, outcomes, submissions, waffarha] = await Promise.all([
+    sbGet('wein_providers?select=*'),
+    sbGet('wein_offers?select=*'),
+    sbGet('wein_accepted_offers?select=*'),
+    sbGet('offer_outcomes?select=*&order=created_at.desc'),
+    sbGet('portal_submissions?select=provider_name,created_at'),
+    sbGet('waffarha_offers?select=vertical,max_discount_pct').catch(() => []),
+  ]);
+  AN_DATA = { providers, offers, accepted, outcomes, submissions, waffarha };
+}
+
+function anProviderLookup() {
+  const byId = new Map(AN_DATA.providers.map(p => [p.id, p]));
+  const byNameLower = new Map(AN_DATA.providers.map(p => [p.provider_name.toLowerCase(), p]));
+  return (providerId) => {
+    if (!providerId) return null;
+    return byId.get(providerId) || byNameLower.get(String(providerId).toLowerCase()) || null;
+  };
+}
+
+function anFilterByDate(rows, field = 'created_at') {
+  const from = anGetDateFilter();
+  if (anCurrentPeriod === 'all') return rows;
+  return rows.filter(r => r[field] && new Date(r[field]) >= from);
+}
+
+function anRenderOverview() {
+  const from = anGetDateFilter();
+  const periodOffers = anFilterByDate(AN_DATA.offers);
+  const periodOutcomes = anFilterByDate(AN_DATA.outcomes);
+
+  const totalProviders = AN_DATA.providers.length;
+  const offersBuilt = AN_DATA.offers.length;
+  const acceptedCount = AN_DATA.accepted.length;
+  const avgGrade = periodOutcomes.length
+    ? (periodOutcomes.reduce((s,o) => s + (o.offers_passing||0), 0) / periodOutcomes.length).toFixed(1)
+    : '—';
+
+  let delta = null;
+  if (anCurrentPeriod !== 'all') {
+    const days = anCurrentPeriod === '7d' ? 7 : 30;
+    const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - days);
+    const prevOffers = AN_DATA.offers.filter(o => o.created_at && new Date(o.created_at) >= prevFrom && new Date(o.created_at) < from);
+    if (prevOffers.length > 0) {
+      delta = ((periodOffers.length - prevOffers.length) / prevOffers.length * 100).toFixed(1);
+    }
+  }
+  const deltaHtml = delta !== null
+    ? `<div class="stat-delta" style="color:${delta >= 0 ? 'var(--success)' : 'var(--danger)'}">${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta)}% vs prev period</div>`
+    : '';
+
+  document.getElementById('anOvStats').innerHTML = `
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-building-store"></i></div><div class="stat-num">${totalProviders}</div><div class="stat-lbl">Total providers</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-tag"></i></div><div class="stat-num">${offersBuilt}</div><div class="stat-lbl">Offers built</div>${deltaHtml}</div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div class="stat-num">${acceptedCount}</div><div class="stat-lbl">Accepted offers</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-star"></i></div><div class="stat-num">${avgGrade}</div><div class="stat-lbl">Avg grade (period)</div></div>
+  `;
+
+  const subByName = new Map();
+  AN_DATA.submissions.forEach(s => { if (!subByName.has(s.provider_name)) subByName.set(s.provider_name, s.created_at); });
+  const lookup = anProviderLookup();
+  const velocities = [];
+  periodOutcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    const subDate = prov ? subByName.get(prov.provider_name) : null;
+    if (subDate && o.created_at) {
+      const days = (new Date(o.created_at) - new Date(subDate)) / 86400000;
+      if (days >= 0) velocities.push(days);
+    }
+  });
+  document.getElementById('anOvVelocity').textContent = velocities.length
+    ? `${(velocities.reduce((a,b)=>a+b,0)/velocities.length).toFixed(1)} days`
+    : 'No matched submissions yet';
+  document.getElementById('anOvVelocitySub').textContent = velocities.length ? `(${velocities.length} matched runs)` : '';
+
+  const byDay = new Map();
+  periodOffers.forEach(o => {
+    if (!o.created_at) return;
+    const day = o.created_at.slice(0,10);
+    byDay.set(day, (byDay.get(day)||0) + 1);
+  });
+  const days = [...byDay.keys()].sort();
+  if (days.length) {
+    document.getElementById('anOffersOverTimeWrap').innerHTML = '<canvas id="anChartOffersOverTime"></canvas>';
+    anMakeChart('anChartOffersOverTime', {
+      type: 'line',
+      data: { labels: days, datasets: [{ label: 'Offers built', data: days.map(d=>byDay.get(d)), borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,.15)', fill: true, tension: .3 }] }
+    });
+  } else {
+    anDestroyChart('anChartOffersOverTime');
+    document.getElementById('anOffersOverTimeWrap').innerHTML = '<div class="empty">No offers built in this period.</div>';
+  }
+
+  const partyCounts = {};
+  AN_DATA.offers.forEach(o => { const c = categorizeOffer(o); partyCounts[c] = (partyCounts[c]||0)+1; });
+  anMakeChart('anChartPartySize', {
+    type: 'doughnut',
+    data: { labels: Object.keys(partyCounts), datasets: [{ data: Object.values(partyCounts), backgroundColor: ['#185FA5','#1D9E75','#EF9F27','#9b6bd6','#5d6678'] }] }
+  });
+
+  const offersByProvider = new Map();
+  AN_DATA.offers.forEach(o => offersByProvider.set(o.provider_id, (offersByProvider.get(o.provider_id)||0)+1));
+  const verticals = [...new Set(AN_DATA.providers.map(p=>p.vertical).filter(Boolean))];
+  const provCounts = verticals.map(v => AN_DATA.providers.filter(p=>p.vertical===v).length);
+  const offerCounts = verticals.map(v => AN_DATA.providers.filter(p=>p.vertical===v).reduce((s,p)=>s+(offersByProvider.get(p.id)||0),0));
+  anMakeChart('anChartVerticalCoverage', {
+    type: 'bar',
+    data: { labels: verticals, datasets: [
+      { label: 'Providers', data: provCounts, backgroundColor: '#185FA5' },
+      { label: 'Offers', data: offerCounts, backgroundColor: '#F5A623' },
+    ]},
+    options: { indexAxis: 'y' }
+  });
+}
+
+function anRenderOffers() {
+  const lookup = anProviderLookup();
+  const periodOutcomes = anFilterByDate(AN_DATA.outcomes);
+
+  const avgDiscountByProvider = new Map();
+  AN_DATA.offers.forEach(o => {
+    if (!avgDiscountByProvider.has(o.provider_id)) avgDiscountByProvider.set(o.provider_id, []);
+    if (o.discount_pct != null) avgDiscountByProvider.get(o.provider_id).push(o.discount_pct);
+  });
+  const byVertical = {};
+  periodOutcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    const vertical = o.vertical || (prov && prov.vertical) || 'Unknown';
+    const discounts = prov ? (avgDiscountByProvider.get(prov.id) || []) : [];
+    if (!discounts.length || o.offers_passing == null) return;
+    const avgDiscount = discounts.reduce((a,b)=>a+b,0) / discounts.length;
+    if (!byVertical[vertical]) byVertical[vertical] = [];
+    byVertical[vertical].push({ x: avgDiscount, y: o.offers_passing });
+  });
+  const scatterDatasets = Object.entries(byVertical).map(([v, data]) => ({
+    label: v, data, backgroundColor: AN_VERTICAL_COLORS[v] || '#9aa5b8'
+  }));
+  if (scatterDatasets.length) {
+    document.getElementById('anDiscountGradeWrap').innerHTML = '<canvas id="anChartDiscountGrade"></canvas>';
+    anMakeChart('anChartDiscountGrade', {
+      type: 'scatter',
+      data: { datasets: scatterDatasets },
+      options: { scales: { x: { title: { display: true, text: 'Avg discount %', color: '#9aa5b8' } }, y: { title: { display: true, text: 'Offers passing (/20)', color: '#9aa5b8' }, min: 0, max: 20 } } }
+    });
+  } else {
+    anDestroyChart('anChartDiscountGrade');
+    document.getElementById('anDiscountGradeWrap').innerHTML = '<div class="empty">No matched discount/grade data in this period.</div>';
+  }
+
+  const hookStats = new Map();
+  AN_DATA.offers.forEach(o => {
+    if (!o.hook_type) return;
+    if (!hookStats.has(o.hook_type)) hookStats.set(o.hook_type, { count: 0, sumDiscount: 0 });
+    const s = hookStats.get(o.hook_type);
+    s.count++; s.sumDiscount += (o.discount_pct || 0);
+  });
+  const hookSorted = [...hookStats.entries()].sort((a,b) => b[1].count - a[1].count).slice(0, 10);
+  anMakeChart('anChartHookType', {
+    type: 'bar',
+    data: { labels: hookSorted.map(h=>h[0]), datasets: [{ label: 'Usage count', data: hookSorted.map(h=>h[1].count), backgroundColor: '#185FA5' }] },
+    options: { indexAxis: 'y' }
+  });
+
+  document.getElementById('anMeClassWrap').innerHTML = `<div class="empty">Not tracked at the item level in wein_offers yet — items are stored as a single free-text blob, not a structured array with me_class/bundle_role. Would need a schema change to compute this.</div>`;
+  anDestroyChart('anChartMeClass');
+
+  const waffByVertical = new Map();
+  AN_DATA.waffarha.forEach(w => { if (!waffByVertical.has(w.vertical)) waffByVertical.set(w.vertical, []); if (w.max_discount_pct != null) waffByVertical.get(w.vertical).push(w.max_discount_pct); });
+  const providerRows = AN_DATA.providers.map(p => {
+    const discounts = avgDiscountByProvider.get(p.id) || [];
+    if (!discounts.length) return null;
+    const weinAvg = discounts.reduce((a,b)=>a+b,0)/discounts.length;
+    const waffList = waffByVertical.get(p.vertical) || [];
+    const waffMax = waffList.length ? Math.max(...waffList) : null;
+    return { name: p.provider_name, weinAvg, waffMax };
+  }).filter(Boolean).sort((a,b) => b.weinAvg - a.weinAvg).slice(0, 10);
+
+  anMakeChart('anChartWeinVsWaffarha', {
+    type: 'bar',
+    data: { labels: providerRows.map(r=>r.name), datasets: [
+      { label: 'WeIN avg discount %', data: providerRows.map(r=>r.weinAvg.toFixed(1)), backgroundColor: '#F5A623' },
+      { label: 'Waffarha max discount %', data: providerRows.map(r=>r.waffMax), backgroundColor: '#5d6678' },
+    ]}
+  });
+}
+
+let anFunnelStageProviders = {};
+function anRenderProviders() {
+  const lookup = anProviderLookup();
+
+  const submittedNames = new Set(AN_DATA.submissions.map(s=>s.provider_name));
+  const ranProviderIds = new Set(AN_DATA.outcomes.map(o=>lookup(o.provider_id)?.id).filter(Boolean));
+  const offerProviderIds = new Set(AN_DATA.offers.map(o=>o.provider_id));
+  const acceptedProviderIds = new Set(AN_DATA.accepted.filter(a=>a.status==='accepted').map(a=>a.provider_id));
+  const liveProviderIds = new Set(AN_DATA.accepted.filter(a=>a.status==='live').map(a=>a.provider_id));
+
+  const stages = [
+    { key: 'submitted', label: 'Submitted', count: submittedNames.size, color: '#185FA5' },
+    { key: 'ran', label: 'Pipeline run', count: ranProviderIds.size, color: '#2a5298' },
+    { key: 'ready', label: 'Offers ready', count: offerProviderIds.size, color: '#1D9E75' },
+    { key: 'accepted', label: 'Accepted', count: acceptedProviderIds.size, color: '#F5A623' },
+    { key: 'live', label: 'Live', count: liveProviderIds.size, color: '#E24B4A' },
+  ];
+  anFunnelStageProviders = {
+    submitted: [...submittedNames],
+    ran: AN_DATA.providers.filter(p=>ranProviderIds.has(p.id)).map(p=>p.provider_name),
+    ready: AN_DATA.providers.filter(p=>offerProviderIds.has(p.id)).map(p=>p.provider_name),
+    accepted: AN_DATA.providers.filter(p=>acceptedProviderIds.has(p.id)).map(p=>p.provider_name),
+    live: AN_DATA.providers.filter(p=>liveProviderIds.has(p.id)).map(p=>p.provider_name),
+  };
+
+  const maxCount = Math.max(1, ...stages.map(s=>s.count));
+  let html = '';
+  stages.forEach((s, i) => {
+    const widthPct = 30 + (s.count / maxCount) * 70;
+    html += `<div class="funnel-stage" style="width:${widthPct}%;background:${s.color}" onclick="anShowFunnelStage('${s.key}')">${s.label}: ${s.count}</div>`;
+    if (i < stages.length - 1) {
+      const next = stages[i+1];
+      const conv = s.count > 0 ? ((next.count / s.count) * 100).toFixed(0) : 0;
+      html += `<div class="funnel-conv">${s.count} → ${next.count} (${conv}% conversion)</div>`;
+    }
+  });
+  document.getElementById('anFunnelWrap').innerHTML = html;
+  document.getElementById('anFunnelProviderList').innerHTML = '';
+}
+function anShowFunnelStage(key) {
+  const names = anFunnelStageProviders[key] || [];
+  document.getElementById('anFunnelProviderList').innerHTML = names.length
+    ? `<div class="card-sub" style="margin:10px 0 6px">${key} (${names.length}):</div><div style="font-size:12px;color:var(--text-dim)">${names.join(', ')}</div>`
+    : `<div class="empty">No providers at this stage.</div>`;
+}
+
+function anRenderHealthScores() {
+  const lookup = anProviderLookup();
+  const offersByProvider = new Map();
+  AN_DATA.offers.forEach(o => offersByProvider.set(o.provider_id, (offersByProvider.get(o.provider_id)||0)+1));
+  const outcomesByProvider = new Map();
+  AN_DATA.outcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    if (!prov) return;
+    if (!outcomesByProvider.has(prov.id)) outcomesByProvider.set(prov.id, []);
+    outcomesByProvider.get(prov.id).push(o);
+  });
+  const acceptedByProvider = new Set(AN_DATA.accepted.map(a=>a.provider_id));
+
+  const rows = AN_DATA.providers.map(p => {
+    const offerCount = offersByProvider.get(p.id) || 0;
+    const outcomes = outcomesByProvider.get(p.id) || [];
+    const avgGrade = outcomes.length ? outcomes.reduce((s,o)=>s+(o.offers_passing||0),0)/outcomes.length : 0;
+    const hasAccepted = acceptedByProvider.has(p.id);
+    const score = Math.min(100, (offerCount/20*40) + (avgGrade/20*40) + (hasAccepted?20:0));
+    return { name: p.provider_name, score };
+  }).sort((a,b) => b.score - a.score);
+
+  document.getElementById('anHealthList').innerHTML = rows.length ? rows.map(r => {
+    const tier = r.score>=80?['🟢','var(--success)']:r.score>=60?['🟡','#f5c542']:r.score>=40?['🟠','var(--warn)']:['🔴','var(--danger)'];
+    return `<div class="health-row"><span>${tier[0]}</span><span style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+      <div class="health-bar-bg"><div class="health-bar-fill" style="width:${r.score.toFixed(0)}%;background:${tier[1]}"></div></div>
+      <span style="width:32px;text-align:right">${r.score.toFixed(0)}</span></div>`;
+  }).join('') : '<div class="empty">No providers yet.</div>';
+}
+
+function anRenderDaysSinceLastRun() {
+  const lookup = anProviderLookup();
+  const lastRunByProvider = new Map();
+  AN_DATA.outcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    if (!prov || !o.created_at) return;
+    const cur = lastRunByProvider.get(prov.id);
+    if (!cur || new Date(o.created_at) > new Date(cur)) lastRunByProvider.set(prov.id, o.created_at);
+  });
+  const rows = AN_DATA.providers.map(p => {
+    const last = lastRunByProvider.get(p.id);
+    const days = last ? (Date.now() - new Date(last).getTime())/86400000 : null;
+    return { name: p.provider_name, vertical: p.vertical, days };
+  }).sort((a,b) => (b.days ?? 99999) - (a.days ?? 99999));
+
+  document.getElementById('anDaysSinceList').innerHTML = rows.length ? rows.map(r => {
+    const color = r.days == null ? '#5d6678' : r.days < 7 ? 'var(--success)' : r.days <= 14 ? 'var(--warn)' : 'var(--danger)';
+    const label = r.days == null ? 'Never run' : `${r.days.toFixed(0)}d ago`;
+    return `<div class="days-row"><span class="days-dot" style="background:${color}"></span><span style="flex:1">${r.name} <span class="card-sub">${r.vertical||''}</span></span><b style="color:${color}">${label}</b></div>`;
+  }).join('') : '<div class="empty">No providers yet.</div>';
+}
+
+function anMode(arr) {
+  if (!arr.length) return null;
+  const counts = new Map();
+  arr.forEach(v => counts.set(v, (counts.get(v)||0)+1));
+  return [...counts.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+function anRenderPipeline() {
+  const periodOutcomes = anFilterByDate(AN_DATA.outcomes);
+
+  const totalRuns = periodOutcomes.length;
+  const successCount = periodOutcomes.filter(o => o.final_grade && o.final_grade !== 'REJECT').length;
+  const successRate = totalRuns ? ((successCount/totalRuns)*100).toFixed(0) : '—';
+  const avgGrade = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.offers_passing||0),0)/totalRuns).toFixed(1) : '—';
+  const avgRetries = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.retry_count||0),0)/totalRuns).toFixed(1) : '—';
+  const discountViolations = periodOutcomes.reduce((s,o)=>s+(o.discount_violations||0),0);
+  const avgDuplicates = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.duplicate_slots||0),0)/totalRuns).toFixed(1) : '—';
+  const commonGrade = anMode(periodOutcomes.map(o=>o.final_grade).filter(Boolean)) || '—';
+
+  document.getElementById('anPipelineKpis').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${totalRuns}</div><div class="stat-lbl">Total runs</div></div>
+    <div class="stat-card"><div class="stat-num">${successRate}${totalRuns?'%':''}</div><div class="stat-lbl">Success rate</div></div>
+    <div class="stat-card"><div class="stat-num">${avgGrade}</div><div class="stat-lbl">Avg grade</div></div>
+    <div class="stat-card"><div class="stat-num">${avgRetries}</div><div class="stat-lbl">Avg retries</div></div>
+    <div class="stat-card"><div class="stat-num">${discountViolations}</div><div class="stat-lbl">Discount violations</div></div>
+    <div class="stat-card"><div class="stat-num">${avgDuplicates}</div><div class="stat-lbl">Avg duplicate slots</div></div>
+    <div class="stat-card"><div class="stat-num">${commonGrade}</div><div class="stat-lbl">Most common grade</div></div>
+  `;
+
+  const byDay = new Map();
+  periodOutcomes.forEach(o => {
+    if (!o.created_at || o.offers_passing == null) return;
+    const day = o.created_at.slice(0,10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(o.offers_passing);
+  });
+  const days = [...byDay.keys()].sort();
+  const avgByDay = days.map(d => { const v = byDay.get(d); return v.reduce((a,b)=>a+b,0)/v.length; });
+  const minByDay = days.map(d => Math.min(...byDay.get(d)));
+  const maxByDay = days.map(d => Math.max(...byDay.get(d)));
+  anMakeChart('anChartGradeTrend', {
+    type: 'line',
+    data: { labels: days, datasets: [
+      { label: 'Max grade', data: maxByDay, borderColor: 'transparent', backgroundColor: 'rgba(24,95,165,.12)', fill: '+1', pointRadius: 0 },
+      { label: 'Min grade', data: minByDay, borderColor: 'transparent', backgroundColor: 'rgba(24,95,165,.12)', fill: false, pointRadius: 0 },
+      { label: 'Avg grade', data: avgByDay, borderColor: '#185FA5', backgroundColor: 'transparent', tension: .3 },
+      { label: 'GOOD threshold', data: days.map(()=>16), borderColor: '#1D9E75', borderDash: [6,4], pointRadius: 0 },
+    ]},
+    options: { scales: { y: { min: 0, max: 20 } } }
+  });
+
+  const execByDay = new Map();
+  periodOutcomes.forEach(o => {
+    if (!o.created_at || o.execution_time_seconds == null) return;
+    const day = o.created_at.slice(0,10);
+    if (!execByDay.has(day)) execByDay.set(day, []);
+    execByDay.get(day).push(o.execution_time_seconds);
+  });
+  const execDays = [...execByDay.keys()].sort();
+  if (execDays.length) {
+    document.getElementById('anExecTimeWrap').innerHTML = '<canvas id="anChartExecTime"></canvas>';
+    const avgExec = execDays.map(d => { const v = execByDay.get(d); return v.reduce((a,b)=>a+b,0)/v.length; });
+    anMakeChart('anChartExecTime', {
+      type: 'line',
+      data: { labels: execDays, datasets: [
+        { label: 'Avg execution time (s)', data: avgExec, borderColor: '#F5A623', tension: .3 },
+        { label: 'Target (150s)', data: execDays.map(()=>150), borderColor: '#5d6678', borderDash: [6,4], pointRadius: 0 },
+      ]}
+    });
+  } else {
+    anDestroyChart('anChartExecTime');
+    document.getElementById('anExecTimeWrap').innerHTML = '<div class="empty">No execution time data recorded in this period.</div>';
+  }
+
+  const errorCounts = new Map();
+  periodOutcomes.forEach(o => { if (o.error_node) errorCounts.set(o.error_node, (errorCounts.get(o.error_node)||0)+1); });
+  const errorSorted = [...errorCounts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if (errorSorted.length) {
+    document.getElementById('anErrorChartWrap').innerHTML = '<canvas id="anChartErrors"></canvas>';
+    anMakeChart('anChartErrors', {
+      type: 'bar',
+      data: { labels: errorSorted.map(e=>e[0]), datasets: [{ label: 'Errors', data: errorSorted.map(e=>e[1]), backgroundColor: '#E24B4A' }] },
+      options: { indexAxis: 'y' }
+    });
+  } else {
+    anDestroyChart('anChartErrors');
+    document.getElementById('anErrorChartWrap').innerHTML = '<div class="empty">No errors recorded in this period.</div>';
+  }
+}
+
+function anRenderBusiness() {
+  anUpdateCommission();
+
+  const verticals = Object.keys(AN_VERTICAL_TARGETS);
+  document.getElementById('anCoverageMap').innerHTML = verticals.map(v => {
+    const count = AN_DATA.providers.filter(p=>p.vertical===v).length;
+    const target = AN_VERTICAL_TARGETS[v];
+    const pct = Math.min(100, (count/target)*100);
+    return `<div class="coverage-row"><div class="coverage-label"><span>${v}</span><span>${count}/${target}</span></div>
+      <div class="coverage-bar-bg"><div class="coverage-bar-fill" style="width:${pct}%"></div></div></div>`;
+  }).join('');
+
+  const weinAvg = AN_DATA.offers.length ? AN_DATA.offers.reduce((s,o)=>s+(o.discount_pct||0),0)/AN_DATA.offers.length : 0;
+  const waffAvg = AN_DATA.waffarha.length ? AN_DATA.waffarha.reduce((s,w)=>s+(w.max_discount_pct||0),0)/AN_DATA.waffarha.length : 0;
+  const gap = weinAvg - waffAvg;
+  document.getElementById('anPositioningSummary').innerHTML = `
+    <div class="commission-row"><span>WeIN avg discount</span><b>${weinAvg.toFixed(1)}%</b></div>
+    <div class="commission-row"><span>Waffarha avg</span><b>${waffAvg.toFixed(1)}%</b></div>
+    <div class="commission-row"><span>Gap</span><b style="color:${gap>=0?'var(--success)':'var(--danger)'}">${gap>=0?'+':''}${gap.toFixed(1)}%</b></div>
+    <div class="card-sub" style="margin-top:6px">WeIN is ${gap>=0?'beating':'trailing'} Waffarha by ${Math.abs(gap).toFixed(1)}% on average.</div>
+  `;
+
+  const waffByVertical = new Map();
+  AN_DATA.waffarha.forEach(w => { if (!waffByVertical.has(w.vertical)) waffByVertical.set(w.vertical, []); if (w.max_discount_pct!=null) waffByVertical.get(w.vertical).push(w.max_discount_pct); });
+  const weinByVertical = new Map();
+  AN_DATA.offers.forEach(o => {
+    const prov = AN_DATA.providers.find(p=>p.id===o.provider_id);
+    if (!prov || !prov.vertical) return;
+    if (!weinByVertical.has(prov.vertical)) weinByVertical.set(prov.vertical, []);
+    if (o.discount_pct != null) weinByVertical.get(prov.vertical).push(o.discount_pct);
+  });
+  const vList = [...new Set([...weinByVertical.keys(), ...waffByVertical.keys()])];
+  const gaps = vList.map(v => {
+    const w = weinByVertical.get(v) || []; const wf = waffByVertical.get(v) || [];
+    const wAvg = w.length ? w.reduce((a,b)=>a+b,0)/w.length : 0;
+    const wfAvg = wf.length ? wf.reduce((a,b)=>a+b,0)/wf.length : 0;
+    return wAvg - wfAvg;
+  });
+  anMakeChart('anChartGapByVertical', {
+    type: 'line',
+    data: { labels: vList, datasets: [{ label: 'Gap vs Waffarha (%)', data: gaps, borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,.15)', fill: true }] }
+  });
+
+  const byMonth = new Map();
+  AN_DATA.providers.forEach(p => {
+    if (!p.created_at) return;
+    const month = p.created_at.slice(0,7);
+    byMonth.set(month, (byMonth.get(month)||0)+1);
+  });
+  const months = [...byMonth.keys()].sort();
+  anMakeChart('anChartOnboarding', {
+    type: 'bar',
+    data: { labels: months, datasets: [
+      { label: 'Providers added', data: months.map(m=>byMonth.get(m)), backgroundColor: '#185FA5' },
+      { label: 'Target (5/mo)', data: months.map(()=>5), type: 'line', borderColor: '#1D9E75', borderDash: [6,4], pointRadius: 0 },
+    ]}
+  });
+}
+
+function anUpdateCommission() {
+  const redemptionsEl = document.getElementById('anRedemptionsSlider');
+  const commissionEl = document.getElementById('anCommissionSlider');
+  if (!redemptionsEl || !commissionEl) return;
+  const redemptions = parseInt(redemptionsEl.value);
+  const commissionPct = parseInt(commissionEl.value) / 100;
+  document.getElementById('anRedemptionsVal').textContent = redemptions;
+  document.getElementById('anCommissionVal').textContent = commissionPct*100 + '%';
+
+  const accepted = AN_DATA.accepted.filter(a => a.status === 'accepted');
+  const count = accepted.length;
+  const avgPromo = count ? accepted.reduce((s,a)=>s+(a.promo_egp||0),0)/count : 0;
+  const monthly = count * avgPromo * redemptions * commissionPct;
+  const providerCount = new Set(accepted.map(a=>a.provider_id)).size || 1;
+
+  document.getElementById('anCommissionMonthly').textContent = `EGP ${monthly.toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('anCommissionAnnual').textContent = `EGP ${(monthly*12).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('anCommissionPerProvider').textContent = `EGP ${(monthly/providerCount).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('anCommissionCount').textContent = count;
+}
+
+function anAlertCard(color, title, detail) {
+  return `<div class="alert-card" style="border-left-color:${color};background:${color}15">
+    <div class="alert-title" style="color:${color}">${title}</div>
+    <div class="alert-detail">${detail}</div>
+  </div>`;
+}
+
+async function anRefreshAlerts() {
+  const alerts = [];
+  const outcomesSorted = [...AN_DATA.outcomes].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  const last = outcomesSorted[0];
+
+  if (last) {
+    if ((last.discount_violations||0) > 0) {
+      alerts.push(anAlertCard('#E24B4A', '⚠️ Discount violations', `${last.discount_violations} violation(s) in last run`));
+    }
+    if (last.final_grade === 'REJECT') {
+      alerts.push(anAlertCard('#E24B4A', '❌ Last run rejected', 'Most recent pipeline run was REJECTED'));
+    }
+    const daysSinceLast = (Date.now() - new Date(last.created_at).getTime()) / 86400000;
+    if (daysSinceLast > 5) {
+      alerts.push(anAlertCard('#E24B4A', '🔴 DB inactivity risk', `Not pinged in ${daysSinceLast.toFixed(0)}+ days`));
+    }
+    if ((last.duplicate_slots||0) > 3) {
+      alerts.push(anAlertCard('#f59e0b', '🟠 Duplicate slots', `${last.duplicate_slots} duplicate slots in last run`));
+    }
+  } else {
+    alerts.push(anAlertCard('#5d6678', 'No pipeline runs yet', 'offer_outcomes has no rows — run the pipeline to populate analytics'));
+  }
+
+  const lookup = anProviderLookup();
+  const lastRunByProvider = new Map();
+  AN_DATA.outcomes.forEach(o => { const p = lookup(o.provider_id); if (p && o.created_at) { const cur = lastRunByProvider.get(p.id); if (!cur || new Date(o.created_at) > new Date(cur)) lastRunByProvider.set(p.id, o.created_at); } });
+  const staleCount = AN_DATA.providers.filter(p => { const last = lastRunByProvider.get(p.id); return !last || (Date.now() - new Date(last).getTime())/86400000 > 7; }).length;
+  if (staleCount > 0) alerts.push(anAlertCard('#f59e0b', '🟠 Stale providers', `${staleCount} provider(s) haven't run in 7+ days`));
+
+  const recent3 = outcomesSorted.slice(0,3).map(o=>o.offers_passing||0);
+  const prev3 = outcomesSorted.slice(3,6).map(o=>o.offers_passing||0);
+  if (recent3.length === 3 && prev3.length === 3) {
+    const recentAvg = recent3.reduce((a,b)=>a+b,0)/3, prevAvg = prev3.reduce((a,b)=>a+b,0)/3;
+    if (prevAvg > 0 && (recentAvg - prevAvg)/prevAvg < -0.1) alerts.push(anAlertCard('#f59e0b', '🟠 Grade trending down', `Recent avg ${recentAvg.toFixed(1)} vs prior ${prevAvg.toFixed(1)}`));
+  }
+
+  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7);
+  const last7 = AN_DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= sevenDaysAgo);
+  const violations7 = last7.reduce((s,o)=>s+(o.discount_violations||0),0);
+  if (last7.length && violations7 === 0) alerts.push(anAlertCard('#1D9E75', '✅ Discount caps clean', '0 violations in the last 7 days'));
+
+  const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate()-3);
+  const last3 = AN_DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= threeDaysAgo);
+  if (last3.length) {
+    const avg3 = last3.reduce((s,o)=>s+(o.offers_passing||0),0)/last3.length;
+    if (avg3 >= 16) alerts.push(anAlertCard('#1D9E75', '✅ Pipeline healthy', 'GOOD baseline maintained (last 3 days)'));
+  }
+
+  const alertsListEl = document.getElementById('alerts-list');
+  if (alertsListEl) alertsListEl.innerHTML = alerts.length ? alerts.join('') : '<div class="empty">No alerts.</div>';
+  const refreshTimeEl = document.getElementById('anAlertsRefreshTime');
+  if (refreshTimeEl) refreshTimeEl.textContent = new Date().toLocaleTimeString();
+}
+
+function anRenderActiveTab() {
+  const activeBtn = document.querySelector('.analytics-tab-btn.active');
+  if (!activeBtn) return;
+  const active = activeBtn.dataset.antab;
+  if (active === 'overview') anRenderOverview();
+  if (active === 'offers') anRenderOffers();
+  if (active === 'providers') { anRenderProviders(); anRenderHealthScores(); anRenderDaysSinceLastRun(); }
+  if (active === 'pipeline') anRenderPipeline();
+  if (active === 'business') anRenderBusiness();
+}
+
+document.querySelectorAll('.analytics-tab-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.analytics-tab-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.analytics-screen').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('antab-' + b.dataset.antab).classList.add('active');
+  anRenderActiveTab();
+}));
+
+document.querySelectorAll('#anPeriodPills .pill').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#anPeriodPills .pill').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  anCurrentPeriod = b.dataset.period;
+  anRenderActiveTab();
+}));
+
+document.getElementById('anRedemptionsSlider')?.addEventListener('input', anUpdateCommission);
+document.getElementById('anCommissionSlider')?.addEventListener('input', anUpdateCommission);
+
+let anAlertsInterval = null;
+async function anEnsureDataLoaded() {
+  await anLoadAllData();
+  anLoaded = true;
+}
+async function loadAnalyticsDashboard() {
+  try {
+    await anEnsureDataLoaded();
+    anRenderActiveTab();
+    await anRefreshAlerts();
+  } catch (e) {
+    console.error('Analytics load failed:', e);
+  }
+}
+// Alerts are visible from any screen, so load + refresh independently of which tab is open.
+async function startAnalyticsAlertsLoop() {
+  try { await anEnsureDataLoaded(); await anRefreshAlerts(); } catch (e) { console.error(e); }
+  if (!anAlertsInterval) {
+    anAlertsInterval = setInterval(async () => {
+      if (document.hidden) return;
+      try { await anLoadAllData(); await anRefreshAlerts(); } catch (e) { /* keep trying */ }
+    }, 60000);
+  }
+}
 
 // ════════════════════════════════════════════════════════════════════
 // INIT
