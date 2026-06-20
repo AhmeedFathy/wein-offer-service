@@ -111,6 +111,7 @@
   .chat-input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .chip { font-size: 12px; padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: #fff; color: var(--navy); }
+  .offer-tab.active-tab { background: var(--navy); color: #fff; border-color: var(--navy); }
 
   /* ── Form fields (intake) ── */
   .field { margin-bottom: 12px; }
@@ -528,6 +529,55 @@ function renderProviderList() {
 // ════════════════════════════════════════════════════════════════════
 // PROVIDER DETAIL MODAL
 // ════════════════════════════════════════════════════════════════════
+function categorizeOffer(o) {
+  const t = `${o.title||''} ${o.hook_type||''}`.toLowerCase();
+  const termsStr = (o.terms||[]).join(' ').toLowerCase();
+  if (t.includes('family')) return 'Family';
+  if (t.includes('solo') || t.includes('for one') || termsStr.includes('valid for 1 person')) return 'Solo';
+  if (t.includes('couple') || t.includes('for two') || termsStr.includes('valid for 2 person')) return 'Couple';
+  const personsMatch = termsStr.match(/valid for (\d+) person/);
+  if (personsMatch) {
+    const n = parseInt(personsMatch[1]);
+    if (n === 1) return 'Solo';
+    if (n === 2) return 'Couple';
+    if (n >= 5) return 'Family';
+    return 'Group';
+  }
+  if (t.includes('group') || t.includes('for three') || t.includes('for four')) return 'Group';
+  return 'Other';
+}
+
+let modalOffersState = { offers: [], name: '', vertical: '', acceptedTitles: new Set() };
+
+function buildOfferCardHtml(o, name, vertical, isAccepted) {
+  return `
+    <div class="offer-card ${isAccepted ? 'accepted' : ''}" data-offer-id="${o.id}">
+      <div style="font-size:10px;font-weight:700;color:var(--navy-lt);text-transform:uppercase;margin-bottom:4px">${categorizeOffer(o)}</div>
+      <div class="offer-title">${o.title}</div>
+      <div class="offer-hook">${o.hook || ''}</div>
+      <div class="offer-prices">
+        <span class="offer-old">EGP ${o.regular_egp || 0}</span>
+        <span class="offer-new">EGP ${o.promo_egp || 0}</span>
+        <span class="offer-disc">-${o.discount_pct || 0}%</span>
+      </div>
+      <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
+        onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${vertical.replace(/'/g,"\\'")}', ${isAccepted})"
+        title="${isAccepted ? 'Click to undo' : 'Click to accept'}">
+        ${isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer'}
+      </button>
+    </div>`;
+}
+
+function renderModalOffers(filter) {
+  document.querySelectorAll('.offer-tab').forEach(b => b.classList.toggle('active-tab', b.dataset.filter === filter));
+  const { offers, name, vertical, acceptedTitles } = modalOffersState;
+  const filtered = filter === 'All' ? offers : offers.filter(o => categorizeOffer(o) === filter);
+  const el = document.getElementById('modalOffers');
+  el.innerHTML = filtered.length === 0
+    ? '<div class="empty">No offers in this category.</div>'
+    : filtered.map(o => buildOfferCardHtml(o, name, vertical, acceptedTitles.has(o.title))).join('');
+}
+
 async function openProvider(name, providerId, submissionId) {
   document.getElementById('providerModal').classList.add('active');
   const content = document.getElementById('modalContent');
@@ -563,26 +613,19 @@ async function openProvider(name, providerId, submissionId) {
       </div>
 
       <div class="card-title">Generated Offers (${offers.length})</div>
-      <div id="modalOffers">
-        ${offers.length === 0 ? '<div class="empty">No offers generated yet.</div>' : offers.map(o => {
-          const isAccepted = acceptedTitles.has(o.title);
-          return `
-          <div class="offer-card ${isAccepted ? 'accepted' : ''}" data-offer-id="${o.id}">
-            <div class="offer-title">${o.title}</div>
-            <div class="offer-hook">${o.hook || ''}</div>
-            <div class="offer-prices">
-              <span class="offer-old">EGP ${o.regular_egp || 0}</span>
-              <span class="offer-new">EGP ${o.promo_egp || 0}</span>
-              <span class="offer-disc">-${o.discount_pct || 0}%</span>
-            </div>
-            <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
-              onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}', ${isAccepted})"
-              title="${isAccepted ? 'Click to undo' : 'Click to accept'}">
-              ${isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer'}
-            </button>
-          </div>`;
+      ${offers.length > 0 ? `
+      <div class="chips" id="offerTabs">
+        ${['All','Solo','Couple','Group','Family','Other'].map(cat => {
+          const count = cat === 'All' ? offers.length : offers.filter(o => categorizeOffer(o) === cat).length;
+          return count > 0 || cat === 'All' ? `<button class="chip offer-tab" data-filter="${cat}" onclick="renderModalOffers('${cat}')">${cat} (${count})</button>` : '';
         }).join('')}
+      </div>` : ''}
+      <div id="modalOffers">
+        ${offers.length === 0 ? '<div class="empty">No offers generated yet.</div>' : ''}
       </div>`;
+
+    modalOffersState = { offers, name, vertical: (prof.vertical || sub.vertical || ''), acceptedTitles };
+    if (offers.length > 0) renderModalOffers('All');
   } catch (e) {
     content.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
   }
