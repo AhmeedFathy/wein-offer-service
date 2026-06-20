@@ -277,6 +277,7 @@
   <button class="sb-icon" data-view="providers" title="Providers"><span class="sb-dot"></span><i class="ti ti-building-store"></i></button>
   <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
   <button class="sb-icon" data-view="files" title="Files"><i class="ti ti-files"></i></button>
+  <button class="sb-icon" title="Analytics" onclick="window.open('/analytics','_blank')"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="tasks" title="Tasks"><span class="sb-dot"></span><i class="ti ti-checkbox"></i></button>
   <button class="sb-icon" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="finance" title="Finance"><i class="ti ti-currency-dollar"></i></button>
@@ -544,6 +545,7 @@
   <button class="nav-btn" data-view="tasks"><i class="ti ti-checkbox"></i>Tasks</button>
   <button class="nav-btn" data-view="chat"><i class="ti ti-message-bolt"></i>Chat</button>
   <button class="nav-btn" data-view="intake"><i class="ti ti-plus"></i>Add</button>
+  <button class="nav-btn" onclick="window.open('/analytics','_blank')"><i class="ti ti-chart-bar"></i>Analytics</button>
 </div>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
@@ -700,6 +702,7 @@ async function runPipelineFromCard(name, vertical) {
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
 function showView(name) {
+  if (!name) return;
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.sb-icon').forEach(b => b.classList.toggle('active', b.dataset.view === name));

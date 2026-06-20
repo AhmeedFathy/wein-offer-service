@@ -217,6 +217,13 @@ def intake():
     return _serve_portal()
 
 
+@app.route("/analytics")
+def analytics():
+    analytics_path = os.path.join(os.path.dirname(__file__), "portal", "analytics.html")
+    with open(analytics_path, "r", encoding="utf-8") as f:
+        return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
 CHAT_SYSTEM_PROMPT = """You are the WeIN pipeline controller for a premium lifestyle marketplace in Sharm El Sheikh, Egypt.
 
 You help control the offer generation pipeline through natural language.

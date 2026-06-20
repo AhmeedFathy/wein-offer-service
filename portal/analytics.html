@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeIN Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #1B3A6B; --navy-lt: #2a5298; --orange: #F5A623; --orange-dk: #d4891a; --teal: #2E7D6F;
+    --bg: #0a0f1e; --surface: #0d1426; --surface2: #111a30; --card: #0d1426;
+    --text: #e8ecf4; --text-dim: #9aa5b8; --muted: #9aa5b8; --text-faint: #5d6678;
+    --border: rgba(255,255,255,.07);
+    --success: #1D9E75; --danger: #E24B4A; --warn: #f59e0b;
+    --radius: 14px; --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  button { font-family: inherit; cursor: pointer; }
+  a { color: var(--orange); text-decoration: none; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+
+  select, input[type="text"], input[type="range"] {
+    background: var(--surface2); color: var(--text); border: .5px solid var(--border);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px; font-family: inherit; outline: none;
+  }
+
+  #appShell { display: flex; height: 100vh; overflow: hidden; }
+  #sidebar {
+    width: 52px; flex-shrink: 0; background: var(--surface); border-right: .5px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding: 16px 0; gap: 4px;
+  }
+  .sb-logo { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); margin-bottom: 16px; flex-shrink: 0; overflow: hidden; }
+  .sb-logo:not(:has(img)) { background: var(--orange); }
+  .sb-icon {
+    position: relative; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; color: var(--text-faint); font-size: 18px; background: transparent; border: none; flex-shrink: 0;
+    transition: background .15s, color .15s; text-decoration: none;
+  }
+  .sb-icon:hover { background: rgba(255,255,255,.04); color: var(--text-dim); }
+  .sb-icon.active { background: rgba(245,166,35,.12); color: var(--orange); }
+  .sb-sep { width: 28px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
+  .sb-spacer { flex: 1; }
+
+  #mainArea { flex: 1; overflow-y: auto; min-width: 0; padding: 24px 28px; }
+  #rightPanel {
+    width: 240px; flex-shrink: 0; background: var(--surface); border-left: .5px solid var(--border);
+    display: flex; flex-direction: column; padding: 16px; gap: 16px; overflow-y: auto;
+  }
+  .rp-section-title { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+  .page-title { font-size: 20px; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+  .pill-group { display: flex; gap: 6px; }
+  .pill { font-size: 12px; padding: 6px 14px; border-radius: 16px; border: .5px solid var(--border); background: var(--surface2); color: var(--text-dim); }
+  .pill.active { background: var(--orange); color: #1a1208; border-color: var(--orange); font-weight: 700; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: .5px solid var(--border); overflow-x: auto; }
+  .tab-btn { font-size: 13px; padding: 10px 16px; background: none; border: none; color: var(--text-faint); font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; color: var(--text); margin-bottom: 12px; font-size: 14px; }
+  .card-sub { font-size: 11px; color: var(--text-faint); font-weight: 400; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+
+  .stats-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 700px) { .stats-row { grid-template-columns: repeat(4,1fr); } }
+  .stat-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-icon { color: var(--orange); font-size: 16px; margin-bottom: 8px; }
+  .stat-num { font-size: 24px; font-weight: 800; color: var(--text); }
+  .stat-lbl { font-size: 11px; color: var(--text-faint); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+  .stat-delta { font-size: 12px; font-weight: 700; margin-top: 4px; }
+
+  canvas { max-height: 280px; }
+
+  .empty { text-align: center; padding: 30px 10px; color: var(--text-faint); font-size: 13px; }
+
+  .alert-card { border-left: 3px solid var(--text-faint); padding: 8px 10px; border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+  .alert-title { font-size: 12px; font-weight: 600; }
+  .alert-detail { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 2px; }
+
+  .funnel-stage { position: relative; margin: 0 auto 4px; padding: 10px 14px; text-align: center; color: #fff; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .funnel-stage:hover { opacity: .85; }
+  .funnel-conv { text-align: center; font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+
+  .health-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 12px; }
+  .health-row:last-child { border-bottom: none; }
+  .health-bar-bg { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .health-bar-fill { height: 100%; border-radius: 4px; }
+
+  .days-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: .5px solid var(--border); font-size: 12px; }
+  .days-row:last-child { border-bottom: none; }
+  .days-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .coverage-row { margin-bottom: 14px; }
+  .coverage-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .coverage-bar-bg { height: 14px; background: var(--surface2); border-radius: 7px; overflow: hidden; }
+  .coverage-bar-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--navy-lt), var(--orange)); }
+
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .slider-row label { font-size: 12px; color: var(--text-dim); min-width: 170px; }
+  .slider-row input[type="range"] { flex: 1; }
+  .slider-val { font-size: 13px; font-weight: 700; color: var(--orange); min-width: 40px; text-align: right; }
+
+  .commission-big { font-size: 28px; font-weight: 800; color: var(--success); }
+  .commission-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 13px; }
+  .commission-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div id="appShell">
+  <div id="sidebar">
+    <div class="sb-logo"><img src="https://wein-eg.com/images/wein-logo.svg" alt="W" style="width:20px;height:20px;border-radius:6px" onerror="this.parentElement.textContent='W'"></div>
+    <a class="sb-icon" href="/portal" title="Dashboard"><i class="ti ti-layout-dashboard"></i></a>
+    <a class="sb-icon" href="/portal" title="Providers"><i class="ti ti-building-store"></i></a>
+    <a class="sb-icon" href="/portal" title="Offers"><i class="ti ti-tag"></i></a>
+    <a class="sb-icon" href="/portal" title="Files"><i class="ti ti-files"></i></a>
+    <a class="sb-icon active" href="/analytics" title="Analytics"><i class="ti ti-chart-bar"></i></a>
+    <a class="sb-icon" href="/portal" title="Tasks"><i class="ti ti-checkbox"></i></a>
+    <div class="sb-sep"></div>
+    <a class="sb-icon" href="/portal" title="Back to Portal"><i class="ti ti-arrow-back"></i></a>
+    <div class="sb-spacer"></div>
+  </div>
+
+  <div id="mainArea">
+    <div class="page-title">
+      <span>📊 Analytics</span>
+      <div class="pill-group" id="periodPills">
+        <button class="pill active" data-period="7d">7D</button>
+        <button class="pill" data-period="30d">30D</button>
+        <button class="pill" data-period="all">All time</button>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabBar">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="offers">Offers</button>
+      <button class="tab-btn" data-tab="providers">Providers</button>
+      <button class="tab-btn" data-tab="pipeline">Pipeline</button>
+      <button class="tab-btn" data-tab="business">Business</button>
+    </div>
+
+    <!-- ══════ OVERVIEW ══════ -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="stats-row" id="ovStats"><div class="empty">Loading…</div></div>
+      <div class="card">
+        <div class="card-title">Pipeline velocity <span class="card-sub" id="ovVelocitySub"></span></div>
+        <div id="ovVelocity" class="stat-num">—</div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Offers built over time</div>
+          <div id="offersOverTimeWrap"><canvas id="chartOffersOverTime"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Party size distribution</div>
+          <canvas id="chartPartySize"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vertical coverage (providers &amp; offers)</div>
+        <canvas id="chartVerticalCoverage"></canvas>
+      </div>
+    </div>
+
+    <!-- ══════ OFFERS ══════ -->
+    <div class="tab-content" id="tab-offers">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Discount vs grade <span class="card-sub">per provider run</span></div>
+          <div id="discountGradeWrap"><canvas id="chartDiscountGrade"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Hook type performance</div>
+          <canvas id="chartHookType"></canvas>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">ME-class hero usage</div>
+          <div id="meClassWrap"><canvas id="chartMeClass"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">WeIN vs Waffarha — top providers</div>
+          <canvas id="chartWeinVsWaffarha"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ PROVIDERS ══════ -->
+    <div class="tab-content" id="tab-providers">
+      <div class="card">
+        <div class="card-title">Provider funnel</div>
+        <div id="funnelWrap"></div>
+        <div id="funnelProviderList"></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Provider health scores</div>
+          <div id="healthList"><div class="empty">Loading…</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Days since last run</div>
+          <div id="daysSinceList"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ PIPELINE ══════ -->
+    <div class="tab-content" id="tab-pipeline">
+      <div class="stats-row" id="pipelineKpis"><div class="empty">Loading…</div></div>
+      <div class="card">
+        <div class="card-title">Run history — grade trend</div>
+        <canvas id="chartGradeTrend"></canvas>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Execution time trend</div>
+          <div id="execTimeWrap"><canvas id="chartExecTime"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Error frequency by node</div>
+          <div id="errorChartWrap"><canvas id="chartErrors"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ BUSINESS ══════ -->
+    <div class="tab-content" id="tab-business">
+      <div class="card">
+        <div class="card-title">Commission potential calculator</div>
+        <div class="slider-row">
+          <label for="redemptionsSlider">Redemptions / offer / month</label>
+          <input type="range" min="1" max="50" value="5" id="redemptionsSlider">
+          <span class="slider-val" id="redemptionsVal">5</span>
+        </div>
+        <div class="slider-row">
+          <label for="commissionSlider">Commission rate (%)</label>
+          <input type="range" min="5" max="25" value="15" id="commissionSlider">
+          <span class="slider-val" id="commissionVal">15%</span>
+        </div>
+        <div class="commission-big" id="commissionMonthly">EGP 0</div>
+        <div class="card-sub" style="margin-bottom:10px">monthly commission potential</div>
+        <div class="commission-row"><span>Annual projection</span><b id="commissionAnnual">EGP 0</b></div>
+        <div class="commission-row"><span>Per-provider average</span><b id="commissionPerProvider">EGP 0</b></div>
+        <div class="commission-row"><span>Accepted offers counted</span><b id="commissionCount">0</b></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Vertical coverage map <span class="card-sub">target before launch</span></div>
+          <div id="coverageMap"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">WeIN vs Waffarha positioning</div>
+          <div id="positioningSummary"></div>
+          <canvas id="chartGapByVertical"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monthly onboarding rate <span class="card-sub">target: 5/month</span></div>
+        <canvas id="chartOnboarding"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div id="rightPanel">
+    <div>
+      <div class="rp-section-title">Alerts <span id="alertsRefreshTime" style="font-weight:400;text-transform:none"></span></div>
+      <div id="alertsList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
+const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON };
+
+async function sbGet(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase GET failed: ${r.status} ${path}`);
+  return r.json();
+}
+
+const VERTICAL_COLORS = { 'Dining': '#185FA5', 'Health & Beauty': '#1D9E75', 'Fun & Activities': '#EF9F27', 'Hotels & Aqua Park': '#9b6bd6' };
+const VERTICAL_TARGETS = { 'Dining': 20, 'Health & Beauty': 10, 'Fun & Activities': 10, 'Hotels & Aqua Park': 5 };
+
+let currentPeriod = '7d';
+let charts = {};
+let DATA = { providers: [], offers: [], accepted: [], outcomes: [], submissions: [], waffarha: [] };
+
+function getDateFilter() {
+  const days = currentPeriod === '7d' ? 7 : currentPeriod === '30d' ? 30 : 3650;
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+  return from;
+}
+
+function categorizeOffer(o) {
+  const t = `${o.title||''} ${o.hook_type||''}`.toLowerCase();
+  const termsStr = (o.terms||[]).join ? (o.terms||[]).join(' ').toLowerCase() : String(o.terms||'').toLowerCase();
+  if (t.includes('family')) return 'Family';
+  if (t.includes('solo') || t.includes('for one') || termsStr.includes('valid for 1 person')) return 'Solo';
+  if (t.includes('couple') || t.includes('for two') || termsStr.includes('valid for 2 person')) return 'Couple';
+  const personsMatch = termsStr.match(/valid for (\d+) person/);
+  if (personsMatch) {
+    const n = parseInt(personsMatch[1]);
+    if (n === 1) return 'Solo';
+    if (n === 2) return 'Couple';
+    if (n >= 5) return 'Family';
+    return 'Group';
+  }
+  if (t.includes('group') || t.includes('for three') || t.includes('for four')) return 'Group';
+  return 'Other';
+}
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function makeChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const defaults = { color: '#9aa5b8', borderColor: 'rgba(255,255,255,.07)' };
+  config.options = config.options || {};
+  config.options.plugins = config.options.plugins || {};
+  config.options.plugins.legend = config.options.plugins.legend || { labels: { color: '#9aa5b8', font: { size: 11 } } };
+  config.options.scales = config.options.scales || {};
+  for (const axis of ['x','y']) {
+    if (!config.options.scales[axis]) config.options.scales[axis] = {};
+    config.options.scales[axis].ticks = config.options.scales[axis].ticks || { color: '#9aa5b8', font: { size: 10 } };
+    config.options.scales[axis].grid = config.options.scales[axis].grid || { color: 'rgba(255,255,255,.05)' };
+  }
+  config.options.maintainAspectRatio = false;
+  charts[id] = new Chart(ctx, config);
+}
+
+// ════════════════════════════════════════════════════════════
+// DATA LOADING
+// ════════════════════════════════════════════════════════════
+async function loadAllData() {
+  const [providers, offers, accepted, outcomes, submissions, waffarha] = await Promise.all([
+    sbGet('wein_providers?select=*'),
+    sbGet('wein_offers?select=*'),
+    sbGet('wein_accepted_offers?select=*'),
+    sbGet('offer_outcomes?select=*&order=created_at.desc'),
+    sbGet('portal_submissions?select=provider_name,created_at'),
+    sbGet('waffarha_offers?select=vertical,max_discount_pct'),
+  ]);
+  DATA = { providers, offers, accepted, outcomes, submissions, waffarha };
+}
+
+function providerLookup() {
+  const byId = new Map(DATA.providers.map(p => [p.id, p]));
+  const byNameLower = new Map(DATA.providers.map(p => [p.provider_name.toLowerCase(), p]));
+  return (providerId) => {
+    if (!providerId) return null;
+    return byId.get(providerId) || byNameLower.get(String(providerId).toLowerCase()) || null;
+  };
+}
+
+function filterByDate(rows, field = 'created_at') {
+  const from = getDateFilter();
+  if (currentPeriod === 'all') return rows;
+  return rows.filter(r => r[field] && new Date(r[field]) >= from);
+}
+
+// ════════════════════════════════════════════════════════════
+// OVERVIEW TAB
+// ════════════════════════════════════════════════════════════
+function renderOverview() {
+  const from = getDateFilter();
+  const periodOffers = filterByDate(DATA.offers);
+  const periodOutcomes = filterByDate(DATA.outcomes);
+
+  const totalProviders = DATA.providers.length;
+  const offersBuilt = DATA.offers.length;
+  const acceptedCount = DATA.accepted.length;
+  const avgGrade = periodOutcomes.length
+    ? (periodOutcomes.reduce((s,o) => s + (o.offers_passing||0), 0) / periodOutcomes.length).toFixed(1)
+    : '—';
+
+  // trend deltas: current period vs equal-length previous period (offers built)
+  let delta = null;
+  if (currentPeriod !== 'all') {
+    const days = currentPeriod === '7d' ? 7 : 30;
+    const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - days);
+    const prevOffers = DATA.offers.filter(o => o.created_at && new Date(o.created_at) >= prevFrom && new Date(o.created_at) < from);
+    if (prevOffers.length > 0) {
+      delta = ((periodOffers.length - prevOffers.length) / prevOffers.length * 100).toFixed(1);
+    }
+  }
+  const deltaHtml = delta !== null
+    ? `<div class="stat-delta" style="color:${delta >= 0 ? 'var(--success)' : 'var(--danger)'}">${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta)}% vs prev period</div>`
+    : '';
+
+  document.getElementById('ovStats').innerHTML = `
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-building-store"></i></div><div class="stat-num">${totalProviders}</div><div class="stat-lbl">Total providers</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-tag"></i></div><div class="stat-num">${offersBuilt}</div><div class="stat-lbl">Offers built</div>${deltaHtml}</div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div class="stat-num">${acceptedCount}</div><div class="stat-lbl">Accepted offers</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-star"></i></div><div class="stat-num">${avgGrade}</div><div class="stat-lbl">Avg grade (period)</div></div>
+  `;
+
+  // pipeline velocity: avg days from submission to outcome, matched by provider name
+  const subByName = new Map();
+  DATA.submissions.forEach(s => { if (!subByName.has(s.provider_name)) subByName.set(s.provider_name, s.created_at); });
+  const lookup = providerLookup();
+  const velocities = [];
+  periodOutcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    const subDate = prov ? subByName.get(prov.provider_name) : null;
+    if (subDate && o.created_at) {
+      const days = (new Date(o.created_at) - new Date(subDate)) / 86400000;
+      if (days >= 0) velocities.push(days);
+    }
+  });
+  document.getElementById('ovVelocity').textContent = velocities.length
+    ? `${(velocities.reduce((a,b)=>a+b,0)/velocities.length).toFixed(1)} days`
+    : 'No matched submissions yet';
+  document.getElementById('ovVelocitySub').textContent = velocities.length ? `(${velocities.length} matched runs)` : '';
+
+  // chart 1: offers built over time (daily)
+  const byDay = new Map();
+  periodOffers.forEach(o => {
+    if (!o.created_at) return;
+    const day = o.created_at.slice(0,10);
+    byDay.set(day, (byDay.get(day)||0) + 1);
+  });
+  const days = [...byDay.keys()].sort();
+  if (days.length) {
+    document.getElementById('offersOverTimeWrap').innerHTML = '<canvas id="chartOffersOverTime"></canvas>';
+    makeChart('chartOffersOverTime', {
+      type: 'line',
+      data: { labels: days, datasets: [{ label: 'Offers built', data: days.map(d=>byDay.get(d)), borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,.15)', fill: true, tension: .3 }] }
+    });
+  } else {
+    destroyChart('chartOffersOverTime');
+    document.getElementById('offersOverTimeWrap').innerHTML = '<div class="empty">No offers built in this period.</div>';
+  }
+
+  // chart 2: party size distribution (donut) — derived client-side since wein_offers has no party_size column
+  const partyCounts = {};
+  DATA.offers.forEach(o => { const c = categorizeOffer(o); partyCounts[c] = (partyCounts[c]||0)+1; });
+  makeChart('chartPartySize', {
+    type: 'doughnut',
+    data: { labels: Object.keys(partyCounts), datasets: [{ data: Object.values(partyCounts), backgroundColor: ['#185FA5','#1D9E75','#EF9F27','#9b6bd6','#5d6678'] }] }
+  });
+
+  // chart 3: vertical coverage (providers & offers)
+  const offersByProvider = new Map();
+  DATA.offers.forEach(o => offersByProvider.set(o.provider_id, (offersByProvider.get(o.provider_id)||0)+1));
+  const verticals = [...new Set(DATA.providers.map(p=>p.vertical).filter(Boolean))];
+  const provCounts = verticals.map(v => DATA.providers.filter(p=>p.vertical===v).length);
+  const offerCounts = verticals.map(v => DATA.providers.filter(p=>p.vertical===v).reduce((s,p)=>s+(offersByProvider.get(p.id)||0),0));
+  makeChart('chartVerticalCoverage', {
+    type: 'bar',
+    data: { labels: verticals, datasets: [
+      { label: 'Providers', data: provCounts, backgroundColor: '#185FA5' },
+      { label: 'Offers', data: offerCounts, backgroundColor: '#F5A623' },
+    ]},
+    options: { indexAxis: 'y' }
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// OFFERS TAB
+// ════════════════════════════════════════════════════════════
+function renderOffers() {
+  const lookup = providerLookup();
+  const periodOutcomes = filterByDate(DATA.outcomes);
+
+  // chart 1: discount vs grade scatter, one point per outcome row, x = that provider's overall avg discount
+  const avgDiscountByProvider = new Map();
+  DATA.offers.forEach(o => {
+    if (!avgDiscountByProvider.has(o.provider_id)) avgDiscountByProvider.set(o.provider_id, []);
+    if (o.discount_pct != null) avgDiscountByProvider.get(o.provider_id).push(o.discount_pct);
+  });
+  const byVertical = {};
+  periodOutcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    const vertical = o.vertical || (prov && prov.vertical) || 'Unknown';
+    const discounts = prov ? (avgDiscountByProvider.get(prov.id) || []) : [];
+    if (!discounts.length || o.offers_passing == null) return;
+    const avgDiscount = discounts.reduce((a,b)=>a+b,0) / discounts.length;
+    if (!byVertical[vertical]) byVertical[vertical] = [];
+    byVertical[vertical].push({ x: avgDiscount, y: o.offers_passing });
+  });
+  const scatterDatasets = Object.entries(byVertical).map(([v, data]) => ({
+    label: v, data, backgroundColor: VERTICAL_COLORS[v] || '#9aa5b8'
+  }));
+  if (scatterDatasets.length) {
+    document.getElementById('discountGradeWrap').innerHTML = '<canvas id="chartDiscountGrade"></canvas>';
+    makeChart('chartDiscountGrade', {
+      type: 'scatter',
+      data: { datasets: scatterDatasets },
+      options: { scales: { x: { title: { display: true, text: 'Avg discount %', color: '#9aa5b8' } }, y: { title: { display: true, text: 'Offers passing (/20)', color: '#9aa5b8' }, min: 0, max: 20 } } }
+    });
+  } else {
+    destroyChart('chartDiscountGrade');
+    document.getElementById('discountGradeWrap').innerHTML = '<div class="empty">No matched discount/grade data in this period.</div>';
+  }
+
+  // chart 2: hook type performance
+  const hookStats = new Map();
+  DATA.offers.forEach(o => {
+    if (!o.hook_type) return;
+    if (!hookStats.has(o.hook_type)) hookStats.set(o.hook_type, { count: 0, sumDiscount: 0 });
+    const s = hookStats.get(o.hook_type);
+    s.count++; s.sumDiscount += (o.discount_pct || 0);
+  });
+  const hookSorted = [...hookStats.entries()].sort((a,b) => b[1].count - a[1].count).slice(0, 10);
+  makeChart('chartHookType', {
+    type: 'bar',
+    data: { labels: hookSorted.map(h=>h[0]), datasets: [{ label: 'Usage count', data: hookSorted.map(h=>h[1].count), backgroundColor: '#185FA5' }] },
+    options: { indexAxis: 'y' }
+  });
+
+  // chart 3: ME-class hero usage — not computable, wein_offers.items has no per-item me_class data
+  document.getElementById('meClassWrap').innerHTML = `<div class="empty">Not tracked at the item level in wein_offers yet — items are stored as a single free-text blob, not a structured array with me_class/bundle_role. Would need a schema change to compute this.</div>`;
+  destroyChart('chartMeClass');
+
+  // chart 4: WeIN vs Waffarha per provider (top 10 by wein avg discount)
+  const waffByVertical = new Map();
+  DATA.waffarha.forEach(w => { if (!waffByVertical.has(w.vertical)) waffByVertical.set(w.vertical, []); if (w.max_discount_pct != null) waffByVertical.get(w.vertical).push(w.max_discount_pct); });
+  const providerRows = DATA.providers.map(p => {
+    const discounts = avgDiscountByProvider.get(p.id) || [];
+    if (!discounts.length) return null;
+    const weinAvg = discounts.reduce((a,b)=>a+b,0)/discounts.length;
+    const waffList = waffByVertical.get(p.vertical) || [];
+    const waffMax = waffList.length ? Math.max(...waffList) : null;
+    return { name: p.provider_name, weinAvg, waffMax };
+  }).filter(Boolean).sort((a,b) => b.weinAvg - a.weinAvg).slice(0, 10);
+
+  makeChart('chartWeinVsWaffarha', {
+    type: 'bar',
+    data: { labels: providerRows.map(r=>r.name), datasets: [
+      { label: 'WeIN avg discount %', data: providerRows.map(r=>r.weinAvg.toFixed(1)), backgroundColor: '#F5A623' },
+      { label: 'Waffarha max discount %', data: providerRows.map(r=>r.waffMax), backgroundColor: '#5d6678' },
+    ]}
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// PROVIDERS TAB
+// ════════════════════════════════════════════════════════════
+let funnelStageProviders = {};
+function renderProviders() {
+  const lookup = providerLookup();
+
+  const submittedNames = new Set(DATA.submissions.map(s=>s.provider_name));
+  const ranProviderIds = new Set(DATA.outcomes.map(o=>lookup(o.provider_id)?.id).filter(Boolean));
+  const offerProviderIds = new Set(DATA.offers.map(o=>o.provider_id));
+  const acceptedProviderIds = new Set(DATA.accepted.filter(a=>a.status==='accepted').map(a=>a.provider_id));
+  const liveProviderIds = new Set(DATA.accepted.filter(a=>a.status==='live').map(a=>a.provider_id));
+
+  const stages = [
+    { key: 'submitted', label: 'Submitted', count: submittedNames.size, color: '#185FA5' },
+    { key: 'ran', label: 'Pipeline run', count: ranProviderIds.size, color: '#2a5298' },
+    { key: 'ready', label: 'Offers ready', count: offerProviderIds.size, color: '#1D9E75' },
+    { key: 'accepted', label: 'Accepted', count: acceptedProviderIds.size, color: '#F5A623' },
+    { key: 'live', label: 'Live', count: liveProviderIds.size, color: '#E24B4A' },
+  ];
+  funnelStageProviders = {
+    submitted: [...submittedNames],
+    ran: DATA.providers.filter(p=>ranProviderIds.has(p.id)).map(p=>p.provider_name),
+    ready: DATA.providers.filter(p=>offerProviderIds.has(p.id)).map(p=>p.provider_name),
+    accepted: DATA.providers.filter(p=>acceptedProviderIds.has(p.id)).map(p=>p.provider_name),
+    live: DATA.providers.filter(p=>liveProviderIds.has(p.id)).map(p=>p.provider_name),
+  };
+
+  const maxCount = Math.max(1, ...stages.map(s=>s.count));
+  let html = '';
+  stages.forEach((s, i) => {
+    const widthPct = 30 + (s.count / maxCount) * 70;
+    html += `<div class="funnel-stage" style="width:${widthPct}%;background:${s.color}" onclick="showFunnelStage('${s.key}')">${s.label}: ${s.count}</div>`;
+    if (i < stages.length - 1) {
+      const next = stages[i+1];
+      const conv = s.count > 0 ? ((next.count / s.count) * 100).toFixed(0) : 0;
+      html += `<div class="funnel-conv">${s.count} → ${next.count} (${conv}% conversion)</div>`;
+    }
+  });
+  document.getElementById('funnelWrap').innerHTML = html;
+  document.getElementById('funnelProviderList').innerHTML = '';
+}
+function showFunnelStage(key) {
+  const names = funnelStageProviders[key] || [];
+  document.getElementById('funnelProviderList').innerHTML = names.length
+    ? `<div class="card-sub" style="margin:10px 0 6px">${key} (${names.length}):</div><div style="font-size:12px;color:var(--text-dim)">${names.join(', ')}</div>`
+    : `<div class="empty">No providers at this stage.</div>`;
+}
+
+function renderHealthScores() {
+  const lookup = providerLookup();
+  const offersByProvider = new Map();
+  DATA.offers.forEach(o => offersByProvider.set(o.provider_id, (offersByProvider.get(o.provider_id)||0)+1));
+  const outcomesByProvider = new Map();
+  DATA.outcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    if (!prov) return;
+    if (!outcomesByProvider.has(prov.id)) outcomesByProvider.set(prov.id, []);
+    outcomesByProvider.get(prov.id).push(o);
+  });
+  const acceptedByProvider = new Set(DATA.accepted.map(a=>a.provider_id));
+
+  const rows = DATA.providers.map(p => {
+    const offerCount = offersByProvider.get(p.id) || 0;
+    const outcomes = outcomesByProvider.get(p.id) || [];
+    const avgGrade = outcomes.length ? outcomes.reduce((s,o)=>s+(o.offers_passing||0),0)/outcomes.length : 0;
+    const hasAccepted = acceptedByProvider.has(p.id);
+    const score = Math.min(100, (offerCount/20*40) + (avgGrade/20*40) + (hasAccepted?20:0));
+    return { name: p.provider_name, score };
+  }).sort((a,b) => b.score - a.score);
+
+  document.getElementById('healthList').innerHTML = rows.length ? rows.map(r => {
+    const tier = r.score>=80?['🟢','var(--success)']:r.score>=60?['🟡','#f5c542']:r.score>=40?['🟠','var(--warn)']:['🔴','var(--danger)'];
+    return `<div class="health-row"><span>${tier[0]}</span><span style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+      <div class="health-bar-bg"><div class="health-bar-fill" style="width:${r.score.toFixed(0)}%;background:${tier[1]}"></div></div>
+      <span style="width:32px;text-align:right">${r.score.toFixed(0)}</span></div>`;
+  }).join('') : '<div class="empty">No providers yet.</div>';
+}
+
+function renderDaysSinceLastRun() {
+  const lookup = providerLookup();
+  const lastRunByProvider = new Map();
+  DATA.outcomes.forEach(o => {
+    const prov = lookup(o.provider_id);
+    if (!prov || !o.created_at) return;
+    const cur = lastRunByProvider.get(prov.id);
+    if (!cur || new Date(o.created_at) > new Date(cur)) lastRunByProvider.set(prov.id, o.created_at);
+  });
+  const rows = DATA.providers.map(p => {
+    const last = lastRunByProvider.get(p.id);
+    const days = last ? (Date.now() - new Date(last).getTime())/86400000 : null;
+    return { name: p.provider_name, vertical: p.vertical, days };
+  }).sort((a,b) => (b.days ?? 99999) - (a.days ?? 99999));
+
+  document.getElementById('daysSinceList').innerHTML = rows.length ? rows.map(r => {
+    const color = r.days == null ? '#5d6678' : r.days < 7 ? 'var(--success)' : r.days <= 14 ? 'var(--warn)' : 'var(--danger)';
+    const label = r.days == null ? 'Never run' : `${r.days.toFixed(0)}d ago`;
+    return `<div class="days-row"><span class="days-dot" style="background:${color}"></span><span style="flex:1">${r.name} <span class="card-sub">${r.vertical||''}</span></span><b style="color:${color}">${label}</b></div>`;
+  }).join('') : '<div class="empty">No providers yet.</div>';
+}
+
+// ════════════════════════════════════════════════════════════
+// PIPELINE TAB
+// ════════════════════════════════════════════════════════════
+function mode(arr) {
+  if (!arr.length) return null;
+  const counts = new Map();
+  arr.forEach(v => counts.set(v, (counts.get(v)||0)+1));
+  return [...counts.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+function renderPipeline() {
+  const periodOutcomes = filterByDate(DATA.outcomes);
+
+  const totalRuns = periodOutcomes.length;
+  const successCount = periodOutcomes.filter(o => o.final_grade && o.final_grade !== 'REJECT').length;
+  const successRate = totalRuns ? ((successCount/totalRuns)*100).toFixed(0) : '—';
+  const avgGrade = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.offers_passing||0),0)/totalRuns).toFixed(1) : '—';
+  const avgRetries = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.retry_count||0),0)/totalRuns).toFixed(1) : '—';
+  const discountViolations = periodOutcomes.reduce((s,o)=>s+(o.discount_violations||0),0);
+  const avgDuplicates = totalRuns ? (periodOutcomes.reduce((s,o)=>s+(o.duplicate_slots||0),0)/totalRuns).toFixed(1) : '—';
+  const commonGrade = mode(periodOutcomes.map(o=>o.final_grade).filter(Boolean)) || '—';
+
+  document.getElementById('pipelineKpis').innerHTML = `
+    <div class="stat-card"><div class="stat-num">${totalRuns}</div><div class="stat-lbl">Total runs</div></div>
+    <div class="stat-card"><div class="stat-num">${successRate}${totalRuns?'%':''}</div><div class="stat-lbl">Success rate</div></div>
+    <div class="stat-card"><div class="stat-num">${avgGrade}</div><div class="stat-lbl">Avg grade</div></div>
+    <div class="stat-card"><div class="stat-num">${avgRetries}</div><div class="stat-lbl">Avg retries</div></div>
+    <div class="stat-card"><div class="stat-num">${discountViolations}</div><div class="stat-lbl">Discount violations</div></div>
+    <div class="stat-card"><div class="stat-num">${avgDuplicates}</div><div class="stat-lbl">Avg duplicate slots</div></div>
+    <div class="stat-card"><div class="stat-num">${commonGrade}</div><div class="stat-lbl">Most common grade</div></div>
+  `;
+
+  // chart 1: grade trend
+  const byDay = new Map();
+  periodOutcomes.forEach(o => {
+    if (!o.created_at || o.offers_passing == null) return;
+    const day = o.created_at.slice(0,10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(o.offers_passing);
+  });
+  const days = [...byDay.keys()].sort();
+  const avgByDay = days.map(d => { const v = byDay.get(d); return v.reduce((a,b)=>a+b,0)/v.length; });
+  const minByDay = days.map(d => Math.min(...byDay.get(d)));
+  const maxByDay = days.map(d => Math.max(...byDay.get(d)));
+  makeChart('chartGradeTrend', {
+    type: 'line',
+    data: { labels: days, datasets: [
+      { label: 'Max grade', data: maxByDay, borderColor: 'transparent', backgroundColor: 'rgba(24,95,165,.12)', fill: '+1', pointRadius: 0 },
+      { label: 'Min grade', data: minByDay, borderColor: 'transparent', backgroundColor: 'rgba(24,95,165,.12)', fill: false, pointRadius: 0 },
+      { label: 'Avg grade', data: avgByDay, borderColor: '#185FA5', backgroundColor: 'transparent', tension: .3 },
+      { label: 'GOOD threshold', data: days.map(()=>16), borderColor: '#1D9E75', borderDash: [6,4], pointRadius: 0 },
+    ]},
+    options: { scales: { y: { min: 0, max: 20 } } }
+  });
+
+  // chart 2: execution time trend
+  const execByDay = new Map();
+  periodOutcomes.forEach(o => {
+    if (!o.created_at || o.execution_time_seconds == null) return;
+    const day = o.created_at.slice(0,10);
+    if (!execByDay.has(day)) execByDay.set(day, []);
+    execByDay.get(day).push(o.execution_time_seconds);
+  });
+  const execDays = [...execByDay.keys()].sort();
+  if (execDays.length) {
+    document.getElementById('execTimeWrap').innerHTML = '<canvas id="chartExecTime"></canvas>';
+    const avgExec = execDays.map(d => { const v = execByDay.get(d); return v.reduce((a,b)=>a+b,0)/v.length; });
+    makeChart('chartExecTime', {
+      type: 'line',
+      data: { labels: execDays, datasets: [
+        { label: 'Avg execution time (s)', data: avgExec, borderColor: '#F5A623', tension: .3 },
+        { label: 'Target (150s)', data: execDays.map(()=>150), borderColor: '#5d6678', borderDash: [6,4], pointRadius: 0 },
+      ]}
+    });
+  } else {
+    destroyChart('chartExecTime');
+    document.getElementById('execTimeWrap').innerHTML = '<div class="empty">No execution time data recorded in this period.</div>';
+  }
+
+  // chart 3: error frequency by node
+  const errorCounts = new Map();
+  periodOutcomes.forEach(o => { if (o.error_node) errorCounts.set(o.error_node, (errorCounts.get(o.error_node)||0)+1); });
+  const errorSorted = [...errorCounts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if (errorSorted.length) {
+    document.getElementById('errorChartWrap').innerHTML = '<canvas id="chartErrors"></canvas>';
+    makeChart('chartErrors', {
+      type: 'bar',
+      data: { labels: errorSorted.map(e=>e[0]), datasets: [{ label: 'Errors', data: errorSorted.map(e=>e[1]), backgroundColor: '#E24B4A' }] },
+      options: { indexAxis: 'y' }
+    });
+  } else {
+    destroyChart('chartErrors');
+    document.getElementById('errorChartWrap').innerHTML = '<div class="empty">No errors recorded in this period.</div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// BUSINESS TAB
+// ════════════════════════════════════════════════════════════
+function renderBusiness() {
+  updateCommission();
+
+  // vertical coverage map
+  const verticals = Object.keys(VERTICAL_TARGETS);
+  document.getElementById('coverageMap').innerHTML = verticals.map(v => {
+    const count = DATA.providers.filter(p=>p.vertical===v).length;
+    const target = VERTICAL_TARGETS[v];
+    const pct = Math.min(100, (count/target)*100);
+    return `<div class="coverage-row"><div class="coverage-label"><span>${v}</span><span>${count}/${target}</span></div>
+      <div class="coverage-bar-bg"><div class="coverage-bar-fill" style="width:${pct}%"></div></div></div>`;
+  }).join('');
+
+  // WeIN vs Waffarha positioning
+  const weinAvg = DATA.offers.length ? DATA.offers.reduce((s,o)=>s+(o.discount_pct||0),0)/DATA.offers.length : 0;
+  const waffAvg = DATA.waffarha.length ? DATA.waffarha.reduce((s,w)=>s+(w.max_discount_pct||0),0)/DATA.waffarha.length : 0;
+  const gap = weinAvg - waffAvg;
+  document.getElementById('positioningSummary').innerHTML = `
+    <div class="commission-row"><span>WeIN avg discount</span><b>${weinAvg.toFixed(1)}%</b></div>
+    <div class="commission-row"><span>Waffarha avg</span><b>${waffAvg.toFixed(1)}%</b></div>
+    <div class="commission-row"><span>Gap</span><b style="color:${gap>=0?'var(--success)':'var(--danger)'}">${gap>=0?'+':''}${gap.toFixed(1)}%</b></div>
+    <div class="card-sub" style="margin-top:6px">WeIN is ${gap>=0?'beating':'trailing'} Waffarha by ${Math.abs(gap).toFixed(1)}% on average.</div>
+  `;
+
+  const waffByVertical = new Map();
+  DATA.waffarha.forEach(w => { if (!waffByVertical.has(w.vertical)) waffByVertical.set(w.vertical, []); if (w.max_discount_pct!=null) waffByVertical.get(w.vertical).push(w.max_discount_pct); });
+  const weinByVertical = new Map();
+  const lookup = providerLookup();
+  DATA.offers.forEach(o => {
+    const prov = DATA.providers.find(p=>p.id===o.provider_id);
+    if (!prov || !prov.vertical) return;
+    if (!weinByVertical.has(prov.vertical)) weinByVertical.set(prov.vertical, []);
+    if (o.discount_pct != null) weinByVertical.get(prov.vertical).push(o.discount_pct);
+  });
+  const vList = [...new Set([...weinByVertical.keys(), ...waffByVertical.keys()])];
+  const gaps = vList.map(v => {
+    const w = weinByVertical.get(v) || []; const wf = waffByVertical.get(v) || [];
+    const wAvg = w.length ? w.reduce((a,b)=>a+b,0)/w.length : 0;
+    const wfAvg = wf.length ? wf.reduce((a,b)=>a+b,0)/wf.length : 0;
+    return wAvg - wfAvg;
+  });
+  makeChart('chartGapByVertical', {
+    type: 'line',
+    data: { labels: vList, datasets: [{ label: 'Gap vs Waffarha (%)', data: gaps, borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,.15)', fill: true }] }
+  });
+
+  // monthly onboarding rate
+  const byMonth = new Map();
+  DATA.providers.forEach(p => {
+    if (!p.created_at) return;
+    const month = p.created_at.slice(0,7);
+    byMonth.set(month, (byMonth.get(month)||0)+1);
+  });
+  const months = [...byMonth.keys()].sort();
+  makeChart('chartOnboarding', {
+    type: 'bar',
+    data: { labels: months, datasets: [
+      { label: 'Providers added', data: months.map(m=>byMonth.get(m)), backgroundColor: '#185FA5' },
+      { label: 'Target (5/mo)', data: months.map(()=>5), type: 'line', borderColor: '#1D9E75', borderDash: [6,4], pointRadius: 0 },
+    ]}
+  });
+}
+
+function updateCommission() {
+  const redemptions = parseInt(document.getElementById('redemptionsSlider').value);
+  const commissionPct = parseInt(document.getElementById('commissionSlider').value) / 100;
+  document.getElementById('redemptionsVal').textContent = redemptions;
+  document.getElementById('commissionVal').textContent = commissionPct*100 + '%';
+
+  const accepted = DATA.accepted.filter(a => a.status === 'accepted');
+  const count = accepted.length;
+  const avgPromo = count ? accepted.reduce((s,a)=>s+(a.promo_egp||0),0)/count : 0;
+  const monthly = count * avgPromo * redemptions * commissionPct;
+  const providerCount = new Set(accepted.map(a=>a.provider_id)).size || 1;
+
+  document.getElementById('commissionMonthly').textContent = `EGP ${monthly.toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('commissionAnnual').textContent = `EGP ${(monthly*12).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('commissionPerProvider').textContent = `EGP ${(monthly/providerCount).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  document.getElementById('commissionCount').textContent = count;
+}
+
+// ════════════════════════════════════════════════════════════
+// ALERTS PANEL
+// ════════════════════════════════════════════════════════════
+function alertCard(color, title, detail) {
+  return `<div class="alert-card" style="border-left-color:${color};background:${color}15">
+    <div class="alert-title" style="color:${color}">${title}</div>
+    <div class="alert-detail">${detail}</div>
+  </div>`;
+}
+
+async function refreshAlerts() {
+  const alerts = [];
+  const outcomesSorted = [...DATA.outcomes].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  const last = outcomesSorted[0];
+
+  if (last) {
+    if ((last.discount_violations||0) > 0) {
+      alerts.push(alertCard('#E24B4A', '⚠️ Discount violations', `${last.discount_violations} violation(s) in last run`));
+    }
+    if (last.final_grade === 'REJECT') {
+      alerts.push(alertCard('#E24B4A', '❌ Last run rejected', 'Most recent pipeline run was REJECTED'));
+    }
+    const daysSinceLast = (Date.now() - new Date(last.created_at).getTime()) / 86400000;
+    if (daysSinceLast > 5) {
+      alerts.push(alertCard('#E24B4A', '🔴 DB inactivity risk', `Not pinged in ${daysSinceLast.toFixed(0)}+ days`));
+    }
+    if ((last.duplicate_slots||0) > 3) {
+      alerts.push(alertCard('#f59e0b', '🟠 Duplicate slots', `${last.duplicate_slots} duplicate slots in last run`));
+    }
+  } else {
+    alerts.push(alertCard('#5d6678', 'No pipeline runs yet', 'offer_outcomes has no rows — run the pipeline to populate analytics'));
+  }
+
+  const lookup = providerLookup();
+  const lastRunByProvider = new Map();
+  DATA.outcomes.forEach(o => { const p = lookup(o.provider_id); if (p && o.created_at) { const cur = lastRunByProvider.get(p.id); if (!cur || new Date(o.created_at) > new Date(cur)) lastRunByProvider.set(p.id, o.created_at); } });
+  const staleCount = DATA.providers.filter(p => { const last = lastRunByProvider.get(p.id); return !last || (Date.now() - new Date(last).getTime())/86400000 > 7; }).length;
+  if (staleCount > 0) alerts.push(alertCard('#f59e0b', '🟠 Stale providers', `${staleCount} provider(s) haven't run in 7+ days`));
+
+  const recent3 = outcomesSorted.slice(0,3).map(o=>o.offers_passing||0);
+  const prev3 = outcomesSorted.slice(3,6).map(o=>o.offers_passing||0);
+  if (recent3.length === 3 && prev3.length === 3) {
+    const recentAvg = recent3.reduce((a,b)=>a+b,0)/3, prevAvg = prev3.reduce((a,b)=>a+b,0)/3;
+    if (prevAvg > 0 && (recentAvg - prevAvg)/prevAvg < -0.1) alerts.push(alertCard('#f59e0b', '🟠 Grade trending down', `Recent avg ${recentAvg.toFixed(1)} vs prior ${prevAvg.toFixed(1)}`));
+  }
+
+  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7);
+  const last7 = DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= sevenDaysAgo);
+  const violations7 = last7.reduce((s,o)=>s+(o.discount_violations||0),0);
+  if (last7.length && violations7 === 0) alerts.push(alertCard('#1D9E75', '✅ Discount caps clean', '0 violations in the last 7 days'));
+
+  const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate()-3);
+  const last3 = DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= threeDaysAgo);
+  if (last3.length) {
+    const avg3 = last3.reduce((s,o)=>s+(o.offers_passing||0),0)/last3.length;
+    if (avg3 >= 16) alerts.push(alertCard('#1D9E75', '✅ Pipeline healthy', 'GOOD baseline maintained (last 3 days)'));
+  }
+
+  document.getElementById('alertsList').innerHTML = alerts.length ? alerts.join('') : '<div class="empty">No alerts.</div>';
+  document.getElementById('alertsRefreshTime').textContent = new Date().toLocaleTimeString();
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB / PERIOD SWITCHING + INIT
+// ════════════════════════════════════════════════════════════
+function renderActiveTab() {
+  const active = document.querySelector('.tab-btn.active').dataset.tab;
+  if (active === 'overview') renderOverview();
+  if (active === 'offers') renderOffers();
+  if (active === 'providers') { renderProviders(); renderHealthScores(); renderDaysSinceLastRun(); }
+  if (active === 'pipeline') renderPipeline();
+  if (active === 'business') renderBusiness();
+}
+
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+  renderActiveTab();
+}));
+
+document.querySelectorAll('#periodPills .pill').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#periodPills .pill').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  currentPeriod = b.dataset.period;
+  renderActiveTab();
+}));
+
+document.getElementById('redemptionsSlider').addEventListener('input', updateCommission);
+document.getElementById('commissionSlider').addEventListener('input', updateCommission);
+
+async function init() {
+  try {
+    await loadAllData();
+    renderActiveTab();
+    await refreshAlerts();
+    setInterval(async () => { await loadAllData(); refreshAlerts(); }, 60000);
+  } catch (e) {
+    document.getElementById('mainArea').insertAdjacentHTML('afterbegin', `<div class="empty" style="color:var(--danger)">Failed to load analytics data: ${e.message}</div>`);
+    console.error(e);
+  }
+}
+init();
+</script>
+</body>
+</html>
