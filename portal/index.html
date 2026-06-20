@@ -351,20 +351,23 @@ async function loadDashboard() {
 
 function renderProviderList() {
   const listEl = document.getElementById('providerList');
-  // Merge: built providers + pending/rejected submissions not yet built
+  // Merge: built providers + pending/rejected submissions not yet built.
+  // Key is case-insensitive so "almayass" (a submission) and "Almayass"
+  // (the built provider) collapse into one entry instead of duplicating.
   const byName = new Map();
   cachedProviders.forEach(p => {
     const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
-    const acceptedCount = cachedAccepted.filter(a => a.provider_name === p.provider_name).length;
-    byName.set(p.provider_name, {
+    const acceptedCount = cachedAccepted.filter(a => (a.provider_name||'').toLowerCase() === p.provider_name.toLowerCase()).length;
+    byName.set(p.provider_name.toLowerCase(), {
       name: p.provider_name, vertical: p.vertical, id: p.id,
       status: offerCount > 0 ? 'done' : 'running',
       offerCount, acceptedCount, created: p.created_at
     });
   });
   cachedSubmissions.forEach(s => {
-    if (!byName.has(s.provider_name)) {
-      byName.set(s.provider_name, {
+    const key = (s.provider_name||'').toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, {
         name: s.provider_name, vertical: s.vertical, id: null,
         status: s.status === 'pending' ? 'pending' : s.status === 'rejected' ? 'rejected' : 'running',
         offerCount: 0, acceptedCount: 0, created: s.created_at, submissionId: s.id
