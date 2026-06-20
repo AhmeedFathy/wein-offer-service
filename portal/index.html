@@ -138,6 +138,9 @@
   .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 13px; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  .health-dot.pulsing { animation: pulse 1s infinite; }
+  .card-run-btn { font-size: 11px; padding: 4px 10px; margin-left: 8px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -282,6 +285,18 @@
   <button class="nav-btn" data-view="activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity</button>
 </div>
 
+<!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
+<div id="pipelineProgress" style="display:none;position:fixed;bottom:60px;left:0;right:0;background:var(--navy);padding:12px 16px;z-index:300;box-shadow:0 -2px 12px rgba(0,0,0,.15)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="color:#fff;font-size:13px;font-weight:600" id="progressProvider">Running...</span>
+    <span style="color:rgba(255,255,255,.6);font-size:12px" id="progressEta">~2 min</span>
+  </div>
+  <div style="background:rgba(255,255,255,.2);border-radius:4px;height:4px;overflow:hidden">
+    <div id="progressBarFill" style="background:var(--orange);height:100%;width:0%;transition:width .8s ease;border-radius:4px"></div>
+  </div>
+  <div style="color:rgba(255,255,255,.7);font-size:11px;margin-top:6px" id="progressStep">Starting...</div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════════════════════════
 // CONFIG
@@ -308,6 +323,116 @@ async function sbPatch(path, body) {
 async function sbDelete(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'DELETE', headers: SB_HEADERS });
   return r.ok;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PIPELINE RUN TRACKING + PROGRESS BAR
+// ════════════════════════════════════════════════════════════════════
+let runningPipelines = {};   // { providerName: 'running' | 'just_done' }
+let progressTimer = null;
+
+const PIPELINE_STEPS = [
+  { name: 'Extracting menu items from PDF', cumulative: 15 },
+  { name: 'Running WeIN + Waffarha recall', cumulative: 25 },
+  { name: 'Generating 20 offer concepts', cumulative: 45 },
+  { name: 'Scoring and ranking concepts', cumulative: 60 },
+  { name: 'Building 20 complete offers', cumulative: 95 },
+  { name: 'Reviewing offer quality', cumulative: 115 },
+  { name: 'Generating location-aware titles', cumulative: 125 },
+  { name: 'Creating Excel + PDF files', cumulative: 140 },
+  { name: 'Uploading to Google Drive', cumulative: 145 },
+  { name: 'Done! Check Drive for files', cumulative: 150 },
+];
+
+function startProgressBar(providerName) {
+  const el = document.getElementById('pipelineProgress');
+  const fill = document.getElementById('progressBarFill');
+  const step = document.getElementById('progressStep');
+  const eta = document.getElementById('progressEta');
+  const prov = document.getElementById('progressProvider');
+  el.style.background = 'var(--navy)';
+  el.style.display = 'block';
+  prov.textContent = `Running ${providerName}...`;
+  fill.style.width = '0%';
+
+  if (progressTimer) clearInterval(progressTimer);
+  let elapsed = 0;
+  const totalTime = 150;
+  progressTimer = setInterval(() => {
+    elapsed++;
+    const pct = Math.min((elapsed / totalTime) * 100, 98);
+    fill.style.width = pct + '%';
+    const s = PIPELINE_STEPS.find(s => elapsed <= s.cumulative) || PIPELINE_STEPS[PIPELINE_STEPS.length - 1];
+    step.textContent = s.name;
+    const remaining = Math.max(totalTime - elapsed, 0);
+    eta.textContent = remaining > 60 ? `~${Math.ceil(remaining / 60)} min` : remaining > 0 ? `~${remaining}s` : 'Almost done...';
+  }, 1000);
+}
+
+function completeProgressBar() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  const fill = document.getElementById('progressBarFill');
+  const step = document.getElementById('progressStep');
+  const eta = document.getElementById('progressEta');
+  fill.style.width = '100%';
+  step.textContent = '✅ Done! Files uploaded to Drive.';
+  eta.textContent = '';
+  setTimeout(() => { document.getElementById('pipelineProgress').style.display = 'none'; fill.style.width = '0%'; }, 4000);
+}
+
+function failProgressBar(error) {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  const el = document.getElementById('pipelineProgress');
+  el.style.background = 'var(--danger)';
+  document.getElementById('progressStep').textContent = '❌ ' + (error || 'Pipeline failed');
+  document.getElementById('progressEta').textContent = 'Check Telegram for details';
+  setTimeout(() => { el.style.display = 'none'; el.style.background = 'var(--navy)'; }, 5000);
+}
+
+async function pollPipelineCompletion(providerName, providerId) {
+  let initialCount = 0;
+  if (providerId) {
+    try { initialCount = (await sbGet(`wein_offers?provider_id=eq.${providerId}&select=id`)).length; } catch (e) {}
+  }
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    try {
+      await loadDashboard();
+      const p = cachedProviders.find(p => p.provider_name.toLowerCase() === providerName.toLowerCase());
+      const newCount = p ? cachedOffers.filter(o => o.provider_id === p.id).length : 0;
+      if (newCount > initialCount || attempts > 24) {
+        clearInterval(poll);
+        if (newCount > initialCount) {
+          runningPipelines[providerName] = 'just_done';
+          completeProgressBar();
+          renderProviderList();
+          appendChatMsg(`✅ Pipeline complete for ${providerName}! ${newCount} offers generated. Click the provider card to review.`, 'bot');
+          setTimeout(() => { delete runningPipelines[providerName]; renderProviderList(); }, 4000);
+        } else {
+          delete runningPipelines[providerName];
+          failProgressBar('Timeout — check Telegram');
+          renderProviderList();
+        }
+      }
+    } catch (e) { /* keep polling */ }
+  }, 15000);
+}
+
+async function runPipelineFromCard(name, vertical) {
+  runningPipelines[name] = 'running';
+  renderProviderList();
+  startProgressBar(name);
+  try {
+    await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ provider_name: name, vertical: vertical || '' }) });
+    const p = cachedProviders.find(p => p.provider_name.toLowerCase() === name.toLowerCase());
+    pollPipelineCompletion(name, p ? p.id : null);
+  } catch (e) {
+    delete runningPipelines[name];
+    failProgressBar(e.message);
+    renderProviderList();
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -379,17 +504,23 @@ function renderProviderList() {
   if (!list.length) { listEl.innerHTML = '<div class="empty">No providers yet.</div>'; return; }
 
   listEl.innerHTML = list.map(p => {
-    const dot = p.acceptedCount > 0 ? 'dot-green' : p.offerCount > 0 ? 'dot-orange' : p.status === 'pending' ? 'dot-yellow' : 'dot-gray';
-    const badgeClass = p.status === 'done' ? 'badge-done' : p.status === 'pending' ? 'badge-pending' : p.status === 'rejected' ? 'badge-rejected' : 'badge-running';
-    const label = p.status === 'done' ? 'Done' : p.status === 'pending' ? 'Pending' : p.status === 'rejected' ? 'Rejected' : 'Running';
+    const liveState = runningPipelines[p.name];
+    const dot = liveState === 'running' ? 'dot-orange pulsing' : liveState === 'just_done' || p.acceptedCount > 0 ? 'dot-green' : p.offerCount > 0 ? 'dot-orange' : p.status === 'pending' ? 'dot-yellow' : 'dot-gray';
+    const badgeClass = liveState === 'running' ? 'badge-running' : liveState === 'just_done' ? 'badge-done' : p.status === 'done' ? 'badge-done' : p.status === 'pending' ? 'badge-pending' : p.status === 'rejected' ? 'badge-rejected' : 'badge-running';
+    const label = liveState === 'running' ? 'Running…' : liveState === 'just_done' ? 'Just done!' : p.status === 'done' ? 'Done' : p.status === 'pending' ? 'Pending' : p.status === 'rejected' ? 'Rejected' : 'Running';
+    const nameEsc = p.name.replace(/'/g,"\\'");
+    const vertEsc = (p.vertical||'').replace(/'/g,"\\'");
     return `
-      <div class="provider-card" onclick="openProvider('${p.name.replace(/'/g,"\\'")}', ${p.id ? `'${p.id}'` : 'null'}, '${(p.submissionId||'')}')">
+      <div class="provider-card" onclick="openProvider('${nameEsc}', ${p.id ? `'${p.id}'` : 'null'}, '${(p.submissionId||'')}')">
         <div class="health-dot ${dot}"></div>
         <div class="provider-info">
           <div class="provider-name">${p.name}</div>
           <div class="provider-meta">${p.vertical || '—'} · ${p.offerCount} offers · ${new Date(p.created).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</div>
         </div>
         <span class="badge ${badgeClass}">${label}</span>
+        <button class="btn btn-ghost card-run-btn" onclick="event.stopPropagation(); runPipelineFromCard('${nameEsc}','${vertEsc}')" ${liveState === 'running' ? 'disabled' : ''}>
+          ${liveState === 'running' ? '…' : '▶ Run'}
+        </button>
       </div>`;
   }).join('');
 }
@@ -570,10 +701,22 @@ async function dispatchAction(action) {
       if (params?.tiers) descBits.push(params.tiers.join('+'));
       if (params?.group_size) descBits.push(`${params.group_size} people`);
       if (params?.theme) descBits.push(`${params.theme} theme`);
-      appendChatMsg(`🚀 Running pipeline for ${action.provider}${descBits.length ? ' (' + descBits.join(' · ') + ')' : ''}…`, 'bot');
-      await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical || '', pipeline_params: params }) });
-      appendChatMsg(`✅ Pipeline started for ${action.provider}. Check Telegram for the completion notification.`, 'bot');
+      await loadDashboard();
+      runningPipelines[action.provider] = 'running';
+      showView('dashboard');
+      startProgressBar(action.provider);
+      appendChatMsg(`🚀 Pipeline started for ${action.provider}${descBits.length ? ' (' + descBits.join(' · ') + ')' : ''}. Dashboard updated — progress bar at bottom.`, 'bot');
+      try {
+        await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical || '', pipeline_params: params }) });
+        const p = cachedProviders.find(p => p.provider_name.toLowerCase() === action.provider.toLowerCase());
+        pollPipelineCompletion(action.provider, p ? p.id : null);
+      } catch (e) {
+        delete runningPipelines[action.provider];
+        failProgressBar(e.message);
+        appendChatMsg(`❌ Failed to start: ${e.message}`, 'bot');
+      }
+      renderProviderList();
     } else if (action.action === 'show_provider' || action.action === 'show_offers') {
       await loadDashboard();
       const p = cachedProviders.find(p => p.provider_name.toLowerCase() === (action.provider||'').toLowerCase());
@@ -591,7 +734,8 @@ async function dispatchAction(action) {
           upgrade_tier: full.upgrade_tier, items: full.items, terms: full.terms,
           status: 'accepted', accepted_date: new Date().toISOString().split('T')[0] });
       }
-      appendChatMsg(`✅ Accepted ${offers.length} offer(s) for ${action.provider}.`, 'bot');
+      await loadDashboard();
+      appendChatMsg(`✅ Accepted ${offers.length} offer(s) for ${action.provider}. Dashboard updated.`, 'bot');
     } else if (action.action === 'show_stats') {
       await loadDashboard();
       appendChatMsg(`📊 Providers: ${cachedProviders.length} · Offers: ${cachedOffers.length} · Pending: ${cachedSubmissions.filter(s=>s.status==='pending').length} · Accepted: ${cachedAccepted.length}`, 'bot');
@@ -650,6 +794,9 @@ async function submitIntake() {
   try {
     await fetch(`${N8N}/portal-intake-save`, { method: 'POST', body: fd });
     showAlertEl('alertIntake3', `✅ Submitted! The WeIN team will review "${name}" shortly.`, 'success');
+    const pendEl = document.getElementById('statPending');
+    if (pendEl) pendEl.textContent = (parseInt(pendEl.textContent) || 0) + 1;
+    loadDashboard();
     setTimeout(() => { resetIntakeForm(); intakeGoStep(1); }, 2500);
   } catch (e) {
     showAlertEl('alertIntake3', 'Failed: ' + e.message, 'error');
@@ -672,30 +819,61 @@ function showAlertEl(id, msg, type) {
 // ════════════════════════════════════════════════════════════════════
 // ACTIVITY FEED
 // ════════════════════════════════════════════════════════════════════
+function formatActivityTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 async function loadActivity() {
   const el = document.getElementById('activityList');
   el.innerHTML = '<div class="empty">Loading…</div>';
   try {
-    const outcomes = await sbGet('offer_outcomes?select=*&order=created_at.desc&limit=20');
-    if (!outcomes.length) { el.innerHTML = '<div class="empty">No activity yet.</div>'; return; }
-    const providerIds = [...new Set(outcomes.map(o => o.provider_id))].filter(Boolean);
-    let providers = [];
-    if (providerIds.length) providers = await sbGet(`wein_providers?id=in.(${providerIds.join(',')})&select=id,provider_name`);
+    const [outcomes, accepted, submissions, providers] = await Promise.all([
+      sbGet('offer_outcomes?select=provider_id,final_grade,verdict,created_at&order=created_at.desc&limit=20').catch(() => []),
+      sbGet('wein_accepted_offers?select=provider_name,offer_title,accepted_date,created_at&order=created_at.desc&limit=20').catch(() => []),
+      sbGet('portal_submissions?select=provider_name,vertical,status,created_at&order=created_at.desc&limit=20').catch(() => []),
+      sbGet('wein_providers?select=id,provider_name').catch(() => [])
+    ]);
     const nameById = new Map(providers.map(p => [p.id, p.provider_name]));
 
-    el.innerHTML = outcomes.map(o => {
-      const gradeColor = (o.final_grade||'').toLowerCase().includes('excellent') ? 'var(--success)' :
-                         (o.final_grade||'').toLowerCase().includes('good') ? 'var(--teal)' :
-                         (o.final_grade||'').toLowerCase().includes('needs') ? 'var(--warn)' : 'var(--muted)';
-      return `
-        <div class="provider-card" style="cursor:default">
-          <div class="health-dot" style="background:${gradeColor}"></div>
-          <div class="provider-info">
-            <div class="provider-name">${nameById.get(o.provider_id) || 'Provider #' + o.provider_id}</div>
-            <div class="provider-meta">${o.final_grade || o.verdict || '—'} · ${new Date(o.created_at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
-          </div>
-        </div>`;
-    }).join('');
+    const allActivity = [
+      ...outcomes.map(o => ({
+        dot: (o.final_grade||'').toLowerCase().includes('excellent') ? 'var(--success)' :
+             (o.final_grade||'').toLowerCase().includes('good') ? 'var(--teal)' :
+             (o.final_grade||'').toLowerCase().includes('needs') ? 'var(--warn)' : 'var(--muted)',
+        provider: nameById.get(o.provider_id) || `Provider #${o.provider_id}`,
+        title: `Pipeline run — Grade: ${o.final_grade || o.verdict || 'GOOD'}`,
+        time: o.created_at
+      })),
+      ...accepted.map(a => ({
+        dot: 'var(--success)',
+        provider: a.provider_name,
+        title: `Offer accepted: ${a.offer_title || 'Unknown offer'}`,
+        time: a.created_at || a.accepted_date
+      })),
+      ...submissions.map(s => ({
+        dot: 'var(--orange)',
+        provider: s.provider_name,
+        title: `New provider submitted (${s.status})`,
+        time: s.created_at
+      })),
+    ].filter(a => a.time).sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 30);
+
+    if (!allActivity.length) { el.innerHTML = '<div class="empty">No activity yet.</div>'; return; }
+
+    el.innerHTML = allActivity.map(a => `
+      <div class="provider-card" style="cursor:default">
+        <div class="health-dot" style="background:${a.dot}"></div>
+        <div class="provider-info">
+          <div class="provider-name">${a.provider || 'Unknown'}</div>
+          <div class="provider-meta">${a.title} · ${formatActivityTime(a.time)}</div>
+        </div>
+      </div>`).join('');
   } catch (e) {
     el.innerHTML = `<div class="empty" style="color:var(--danger)">Failed to load: ${e.message}</div>`;
   }
@@ -719,12 +897,25 @@ function applyRole(role) {
   showView(allowed[0]);
 }
 
+let autoRefreshInterval = null, activityRefreshInterval = null;
+
 function showApp(role) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appHeader').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'block';
   document.getElementById('bottomNav').style.display = '';
   applyRole(role);
+
+  if (role !== 'team') {
+    loadDashboard().then(loadActivity);
+    if (!autoRefreshInterval) {
+      autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
+      activityRefreshInterval = setInterval(() => { if (!document.hidden) loadActivity(); }, 60000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && sessionStorage.getItem('weinRole')) loadDashboard();
+      });
+    }
+  }
 }
 
 function attemptLogin() {
@@ -743,6 +934,8 @@ function attemptLogin() {
 
 function logout() {
   sessionStorage.removeItem('weinRole');
+  if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+  if (activityRefreshInterval) { clearInterval(activityRefreshInterval); activityRefreshInterval = null; }
   document.getElementById('appHeader').style.display = 'none';
   document.getElementById('appContainer').style.display = 'none';
   document.getElementById('bottomNav').style.display = 'none';
@@ -778,7 +971,6 @@ if (window.location.pathname.includes('intake')) {
   const savedRole = sessionStorage.getItem('weinRole');
   if (Object.values(PIN_ROLES).includes(savedRole)) {
     showApp(savedRole);
-    loadDashboard();
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
     document.querySelector('.pin-box').focus();
