@@ -290,18 +290,31 @@
   .db-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: transparent; font-size: 11px; }
   .db-offer-card.selected .db-check { background: var(--success); border-color: var(--success); color: #06200f; }
 
-  /* ── Kanban board ── */
-  .kanban-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-  .kanban-col { min-width: 0; background: var(--surface2); border: .5px solid var(--border); border-radius: var(--radius); padding: 10px; max-height: calc(100vh - 220px); display: flex; flex-direction: column; }
-  .kanban-col-header { display: flex; justify-content: space-between; align-items: center; padding: 4px 4px 10px; font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
-  .kanban-col-header .count { background: var(--surface); color: var(--text-faint); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
-  .kanban-col-header.accepted .count { background: rgba(34,197,94,.15); color: var(--success); }
-  .kanban-cards { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-  .kanban-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; transition: border-color .15s, transform .1s; }
-  .kanban-card:hover { border-color: var(--orange); transform: translateY(-1px); }
-  .kanban-card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-  .kanban-card-meta { font-size: 11px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .kanban-empty-col { font-size: 12px; color: var(--text-faint); text-align: center; padding: 16px 4px; }
+  /* ── Deal flow cards (mobile-first, one card per provider) ── */
+  .db-card-list { display: flex; flex-direction: column; gap: 10px; }
+  .db-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .db-card-top { padding: 14px; cursor: pointer; min-height: 44px; }
+  .db-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+  .db-card-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .db-status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 8px; margin-bottom: 8px; }
+  .db-status-badge.red { background: rgba(239,68,68,.15); color: var(--danger); }
+  .db-status-badge.orange { background: rgba(245,166,35,.15); color: var(--orange); }
+  .db-status-badge.green { background: rgba(34,197,94,.15); color: var(--success); }
+  .db-status-badge.gray { background: rgba(255,255,255,.06); color: var(--text-faint); }
+  .db-card-line { font-size: 12px; color: var(--text-dim); margin-bottom: 3px; line-height: 1.4; }
+  .db-card-line b { color: var(--text); font-weight: 600; }
+  .db-card-actions { display: flex; gap: 8px; padding: 0 14px 14px; flex-wrap: wrap; }
+  .db-card-actions .btn { min-height: 44px; }
+  .db-card-actions .btn-sm { min-height: 38px; padding: 8px 14px; font-size: 12px; }
+  .db-card-expand { display: none; border-top: .5px solid var(--border); padding: 14px; background: var(--surface2); }
+  .db-card-expand.open { display: block; }
+  .db-expand-section { margin-bottom: 16px; }
+  .db-expand-section:last-child { margin-bottom: 0; }
+  .db-expand-label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .db-history-row { font-size: 12px; color: var(--text-dim); padding: 6px 0; border-bottom: .5px solid var(--border); }
+  .db-history-row:last-child { border-bottom: none; }
+  .db-offer-row { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 12px; cursor: pointer; min-height: 44px; }
+  .db-offer-row.selected { border-color: var(--success); background: rgba(34,197,94,.06); }
 </style>
 </head>
 <body>
@@ -450,13 +463,13 @@
         <div class="stat-card"><div class="stat-lbl">In negotiation</div><div class="stat-num" id="db-negotiating-count">0</div></div>
         <div class="stat-card"><div class="stat-lbl">Accepted this week</div><div class="stat-num" id="db-accepted-count">0</div></div>
       </div>
-      <div id="db-kanban-manager" class="kanban-board"></div>
+      <div id="db-cards-manager" class="db-card-list"></div>
     </div>
 
     <div id="db-field-view" style="display:none">
       <div class="card-title" style="margin-bottom:2px">🤝 My providers</div>
       <div style="font-size:13px;color:var(--text-faint);margin-bottom:14px" id="db-field-summary">Loading…</div>
-      <div id="db-kanban-field" class="kanban-board"></div>
+      <div id="db-cards-field" class="db-card-list"></div>
     </div>
   </div>
 
@@ -762,44 +775,6 @@
     <div class="field"><label>Description</label><textarea id="tDescription"></textarea></div>
     <div id="taskModalAlert"></div>
     <button class="btn btn-orange btn-full" onclick="saveTask()">Save Task</button>
-  </div>
-</div>
-
-<!-- ══════════════ DEAL BREAKER PROVIDER PANEL ══════════════ -->
-<div class="modal-overlay" id="dbProviderPanel" onclick="if(event.target===this) closeProviderPanel()">
-  <div class="modal-box" style="max-width:480px">
-    <button class="modal-close" onclick="closeProviderPanel()">&times;</button>
-    <div id="panel-provider-name" style="font-size:18px;font-weight:700"></div>
-    <div id="panel-provider-vertical" style="font-size:13px;color:var(--text-faint);margin-bottom:14px"></div>
-
-    <div class="db-section-label">Negotiation stage</div>
-    <div id="panel-stage-track" class="db-stage-track"></div>
-
-    <div class="chips" id="panel-tabs" style="margin-top:16px">
-      <button class="chip db-tab-btn active-tab" data-paneltab="panel-offers" onclick="dbSwitchTab(this,'panel-offers')">Offers</button>
-      <button class="chip db-tab-btn" data-paneltab="panel-notes" onclick="dbSwitchTab(this,'panel-notes')">Notes</button>
-      <button class="chip db-tab-btn" data-paneltab="panel-files" onclick="dbSwitchTab(this,'panel-files')">Files</button>
-    </div>
-
-    <div id="panel-offers">
-      <div style="font-size:12px;color:var(--text-faint);margin:10px 0">Tap offers to mark as accepted</div>
-      <div id="panel-offers-list" style="display:flex;flex-direction:column;gap:8px"></div>
-      <button id="panel-save-btn" class="btn btn-orange btn-full" style="display:none;margin-top:12px" onclick="saveAcceptedOffers()">Save accepted offers</button>
-    </div>
-
-    <div id="panel-notes" style="display:none">
-      <div class="field" style="margin-top:10px">
-        <label>Visit notes</label>
-        <textarea id="panel-notes-text" placeholder="What did the provider say? Objections, requests, follow-ups…" style="min-height:100px"></textarea>
-      </div>
-      <div class="field"><label>Next action</label><input type="text" id="panel-next-action" placeholder="e.g. Call back Thursday, send updated offer 3…"></div>
-      <div class="field"><label>Next action date</label><input type="date" id="panel-next-date"></div>
-      <button class="btn btn-navy btn-full" onclick="saveNotes(event)">Save notes</button>
-    </div>
-
-    <div id="panel-files" style="display:none">
-      <div id="panel-files-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
-    </div>
   </div>
 </div>
 
@@ -2600,23 +2575,53 @@ async function startAnalyticsAlertsLoop() {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// DEAL BREAKER MODULE
+// DEAL BREAKER MODULE — one card per provider, status-driven flow
 // ════════════════════════════════════════════════════════════════════
-const DB_STAGES = ['contacted','meeting_done','offers_sent','negotiating','accepted'];
-const DB_STAGE_LABELS = {
-  contacted: 'Contacted', meeting_done: 'Meeting done', offers_sent: 'Offers sent',
-  negotiating: 'Negotiating', accepted: 'Accepted'
+const DB_STAGE_ORDER = ['new','briefed','menu_collected','waiting_founder','offers_generated','sent_back','negotiating','accepted','paused','closed'];
+const ACTIVE_STAGES = ['new','briefed','menu_collected','waiting_founder','offers_generated','sent_back','negotiating'];
+
+const STAGE_META = {
+  new:              { label: 'New',                owner: 'deal_breaker', badge: 'orange', next: 'Brief this provider and start collecting their menu.' },
+  briefed:          { label: 'Briefed',             owner: 'deal_breaker', badge: 'orange', next: 'Collect the menu from the provider.' },
+  menu_collected:   { label: 'Menu collected',      owner: 'founder',      badge: 'red',    next: 'Review the menu and generate offers.' },
+  waiting_founder:  { label: 'Waiting for founder', owner: 'founder',      badge: 'red',    next: 'Generate offers.' },
+  offers_generated: { label: 'Offers generated',    owner: 'founder',      badge: 'red',    next: 'Review offers, then send back to the deal breaker.' },
+  sent_back:        { label: 'Sent back',           owner: 'deal_breaker', badge: 'orange', next: 'Present the offers to the provider.' },
+  negotiating:      { label: 'Negotiating',         owner: 'deal_breaker', badge: 'orange', next: 'Close the deal — mark which offers the provider accepts.' },
+  accepted:         { label: 'Accepted',            owner: 'both',         badge: 'green',  next: 'Deal done.' },
+  paused:           { label: 'Paused',               owner: 'both',         badge: 'gray',   next: 'On hold — resume when ready.' },
+  closed:           { label: 'Closed',               owner: 'both',         badge: 'gray',   next: 'Closed.' },
 };
 
-let currentPanelProvider = null;
-let selectedOfferIds = new Set();
-let dbProvidersCache = [], dbNegotiationsCache = [];
+// One primary transition per stage. founderOnly = button only active for admin/manager role.
+const STAGE_TRANSITIONS = {
+  new:              { to: 'briefed',          label: 'Mark as briefed' },
+  briefed:          { to: 'menu_collected',   label: 'Menu collected' },
+  menu_collected:   { to: 'offers_generated', label: 'Generate offers', founderOnly: true, triggerPipeline: true },
+  waiting_founder:  { to: 'offers_generated', label: 'Generate offers', founderOnly: true, triggerPipeline: true },
+  offers_generated: { to: 'sent_back',        label: 'Send back to deal breaker' },
+  sent_back:        { to: 'negotiating',      label: 'Mark as negotiating' },
+  negotiating:      { to: 'accepted',         label: 'Accept offers', opensOffers: true },
+};
 
-function dbStageTrackHtml(currentStage, onClickFn) {
-  return DB_STAGES.map(s => {
-    const cls = s === currentStage ? 'current' : DB_STAGES.indexOf(s) < DB_STAGES.indexOf(currentStage) ? 'done' : '';
-    return `<div class="${cls}" ${onClickFn ? `onclick="${onClickFn}('${s}')"` : ''}>${DB_STAGE_LABELS[s].split(' ')[0]}</div>`;
-  }).join('');
+let dbExpandedId = null;
+let dbSelectedOfferIds = new Set();
+let dbProvidersCache = [], dbNegotiationsCache = [], dbHistoryCache = [];
+
+function dbSan(id) { return String(id).replace(/[^a-zA-Z0-9]/g, ''); }
+function dbIsFounder() { const r = sessionStorage.getItem('weinRole'); return r === 'admin' || r === 'manager'; }
+
+function dbStatusBadge(stage) {
+  const meta = STAGE_META[stage] || STAGE_META.new;
+  const founder = dbIsFounder();
+  let label;
+  if (stage === 'accepted') label = '✅ Deal done';
+  else if (stage === 'paused') label = '⏸ On hold';
+  else if (stage === 'closed') label = '🔒 Closed';
+  else if (meta.owner === 'founder') label = founder ? '⏳ Waiting for you' : '⏳ Waiting for founder';
+  else if (meta.owner === 'deal_breaker') label = founder ? '⏳ Waiting for deal breaker' : `🔄 ${meta.label}`;
+  else label = meta.label;
+  return { label, color: meta.badge };
 }
 
 async function loadDealBreakers() {
@@ -2627,52 +2632,35 @@ async function loadDealBreakers() {
   if (isManager) await loadManagerView(); else await loadFieldView();
 }
 
-function renderKanbanBoard(containerId, providers, negotiations, opts) {
-  opts = opts || {};
-  const byStage = {};
-  DB_STAGES.forEach(s => byStage[s] = []);
-  providers.forEach(p => {
-    const neg = negotiations.find(n => n.provider_id === p.id);
-    const stage = DB_STAGES.includes(neg?.stage) ? neg.stage : 'contacted';
-    byStage[stage].push({ ...p, stage });
-  });
+async function dbFetchAll() {
+  const [providers, negotiations, history] = await Promise.all([
+    sbGet('wein_providers?select=*&order=created_at.desc'),
+    sbGet('wein_negotiations?select=*&order=updated_at.desc'),
+    sbGet('wein_provider_stages?select=*&order=changed_at.desc&limit=500').catch(() => [])
+  ]);
+  dbProvidersCache = providers; dbNegotiationsCache = negotiations; dbHistoryCache = history;
+  return { providers, negotiations, history };
+}
 
-  const container = document.getElementById(containerId);
-  container.innerHTML = DB_STAGES.map(stage => {
-    const cards = byStage[stage];
-    const cardsHtml = cards.length ? cards.map(p => `
-      <div class="kanban-card" onclick="openProviderPanel('${p.id}','${p.provider_name.replace(/'/g,"\\'")}','${(p.vertical||'').replace(/'/g,"\\'")}')">
-        <div class="kanban-card-name">${p.provider_name}</div>
-        <div class="kanban-card-meta">
-          <span class="badge">${p.vertical || '—'}</span>
-          ${opts.showAssignee && p.assigned_to ? `<span>${p.assigned_to}</span>` : ''}
-        </div>
-      </div>`).join('') : '<div class="kanban-empty-col">Empty</div>';
-    return `
-      <div class="kanban-col">
-        <div class="kanban-col-header${stage==='accepted'?' accepted':''}"><span>${DB_STAGE_LABELS[stage]}</span><span class="count">${cards.length}</span></div>
-        <div class="kanban-cards">${cardsHtml}</div>
-      </div>`;
-  }).join('');
+function dbStageOf(providerId) {
+  const neg = dbNegotiationsCache.find(n => n.provider_id === providerId);
+  if (neg?.stage) return neg.stage;
+  const p = dbProvidersCache.find(p => p.id === providerId);
+  return p?.current_stage || 'new';
 }
 
 async function loadManagerView() {
   try {
-    const [providers, negotiations] = await Promise.all([
-      sbGet('wein_providers?select=*&order=created_at.desc'),
-      sbGet('wein_negotiations?select=*&order=updated_at.desc')
-    ]);
-    dbProvidersCache = providers; dbNegotiationsCache = negotiations;
+    const { providers } = await dbFetchAll();
     const assigned = providers.filter(p => p.assigned_to);
-
     const deal_breakers = new Set(assigned.map(p => p.assigned_to));
     document.getElementById('db-active-count').textContent = deal_breakers.size;
     document.getElementById('db-assigned-count').textContent = assigned.length;
-    document.getElementById('db-negotiating-count').textContent = negotiations.filter(n => ['offers_sent','negotiating'].includes(n.stage)).length;
-    document.getElementById('db-accepted-count').textContent = negotiations.filter(n => n.stage === 'accepted').length;
+    document.getElementById('db-negotiating-count').textContent = assigned.filter(p => dbStageOf(p.id) === 'negotiating').length;
+    document.getElementById('db-accepted-count').textContent = assigned.filter(p => dbStageOf(p.id) === 'accepted').length;
     document.getElementById('db-team-summary').textContent = `${deal_breakers.size} active deal breaker${deal_breakers.size===1?'':'s'}`;
 
-    renderKanbanBoard('db-kanban-manager', assigned, negotiations, { showAssignee: true });
+    renderDbCards('db-cards-manager', assigned);
 
     const select = document.getElementById('assign-provider');
     select.innerHTML = '<option value="">Select provider…</option>' + providers.map(p => `<option value="${p.id}">${p.provider_name} (${p.vertical||'—'})</option>`).join('');
@@ -2681,67 +2669,82 @@ async function loadManagerView() {
 
 async function loadFieldView() {
   try {
-    const [providers, negotiations] = await Promise.all([
-      sbGet('wein_providers?select=*&order=created_at.desc'),
-      sbGet('wein_negotiations?select=*&order=updated_at.desc')
-    ]);
-    dbProvidersCache = providers; dbNegotiationsCache = negotiations;
+    const { providers } = await dbFetchAll();
     const assigned = providers.filter(p => p.assigned_to);
-
-    document.getElementById('db-field-summary').textContent =
-      `${assigned.length} provider${assigned.length!==1?'s':''} · ${negotiations.filter(n => n.stage === 'offers_sent').length} awaiting reply`;
-
-    renderKanbanBoard('db-kanban-field', assigned, negotiations, { showAssignee: false });
+    const awaiting = assigned.filter(p => dbStageOf(p.id) === 'sent_back').length;
+    document.getElementById('db-field-summary').textContent = `${assigned.length} provider${assigned.length!==1?'s':''} · ${awaiting} awaiting your action`;
+    renderDbCards('db-cards-field', assigned);
   } catch (e) { console.error('loadFieldView error:', e); }
 }
 
-async function openProviderPanel(providerId, providerName, vertical) {
-  currentPanelProvider = { id: providerId, name: providerName, vertical };
-  selectedOfferIds = new Set();
-  document.getElementById('panel-provider-name').textContent = providerName;
-  document.getElementById('panel-provider-vertical').textContent = vertical || '—';
-  document.getElementById('dbProviderPanel').classList.add('active');
-  document.querySelectorAll('.db-tab-btn').forEach(b => b.classList.toggle('active-tab', b.dataset.paneltab === 'panel-offers'));
-  ['panel-offers','panel-notes','panel-files'].forEach(id => document.getElementById(id).style.display = id === 'panel-offers' ? 'block' : 'none');
-
-  let negs = [];
-  try { negs = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&order=created_at.desc&limit=1`); } catch (e) {}
-  const currentStage = negs?.[0]?.stage || 'contacted';
-  document.getElementById('panel-stage-track').innerHTML = dbStageTrackHtml(currentStage, `updateStage_${providerId.replace(/[^a-zA-Z0-9]/g,'')}`);
-  // bind a closure-safe handler via a temp global
-  window['updateStage_' + providerId.replace(/[^a-zA-Z0-9]/g,'')] = (stage) => updateStage(providerId, stage);
-
-  document.getElementById('panel-notes-text').value = negs?.[0]?.notes || '';
-  document.getElementById('panel-next-action').value = negs?.[0]?.next_action || '';
-  document.getElementById('panel-next-date').value = negs?.[0]?.next_action_date || '';
-
-  await loadPanelOffers(providerId);
-  await loadPanelFiles(providerName);
+function dbLastAction(providerId) {
+  const row = dbHistoryCache.find(h => h.provider_id === providerId);
+  if (!row) return '— · no activity yet';
+  const meta = STAGE_META[row.stage] || {};
+  return `<b>${row.changed_by || 'someone'}</b> moved to ${meta.label || row.stage} · ${formatActivityTime(row.changed_at)}`;
 }
 
-async function loadPanelOffers(providerId) {
-  const list = document.getElementById('panel-offers-list');
-  try {
-    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc&limit=20`);
-    if (!offers.length) { list.innerHTML = '<div class="empty">No offers generated yet — run the pipeline first.</div>'; return; }
-    list.innerHTML = offers.map((o, i) => `
-      <div class="db-offer-card" data-offer-id="${i+1}" onclick="togglePanelOffer(this, ${i+1})">
-        <div style="display:flex;gap:8px;align-items:flex-start">
-          <div class="db-check"><i class="ti ti-check"></i></div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:4px">
-              <div style="font-size:13px;font-weight:600">${o.title || 'Offer ' + (i+1)}</div>
-              <span class="badge badge-done" style="flex-shrink:0">${(() => { const dp = o.discount_pct || 0; return Math.round(dp > 0 && dp < 1 ? dp * 100 : dp); })()}% off</span>
-            </div>
-            ${o.hook ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:6px">"${o.hook}"</div>` : ''}
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="offer-old" style="font-size:11px">EGP ${(o.regular_egp||0).toLocaleString()}</span>
-              <span style="font-size:13px;font-weight:700">EGP ${(o.promo_egp||0).toLocaleString()}</span>
-            </div>
+function renderDbCards(containerId, providers) {
+  const container = document.getElementById(containerId);
+  if (!providers.length) { container.innerHTML = '<div class="empty">No providers assigned yet.</div>'; return; }
+  container.innerHTML = providers.map(p => {
+    const stage = dbStageOf(p.id);
+    const pid = dbSan(p.id);
+    const badge = dbStatusBadge(stage);
+    const meta = STAGE_META[stage] || STAGE_META.new;
+    const trans = STAGE_TRANSITIONS[stage];
+    const founder = dbIsFounder();
+
+    let primaryBtnHtml = '';
+    if (trans) {
+      if (trans.founderOnly && !founder) {
+        primaryBtnHtml = `<button class="btn btn-ghost" disabled>⏳ Waiting for founder</button>`;
+      } else {
+        primaryBtnHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">${trans.label}</button>`;
+      }
+    } else if (stage === 'paused') {
+      primaryBtnHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbResume('${p.id}')">Resume</button>`;
+    }
+    const pauseBtnHtml = ACTIVE_STAGES.includes(stage)
+      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbPause('${p.id}')">Pause</button>` : '';
+
+    return `
+      <div class="db-card" id="db-card-${pid}">
+        <div class="db-card-top" onclick="toggleDbCard('${p.id}')">
+          <div class="db-card-head">
+            <div class="db-card-name">${p.provider_name}</div>
+            <span class="badge">${p.vertical || '—'}</span>
           </div>
+          <div class="db-status-badge ${badge.color}">${badge.label}</div>
+          <div class="db-card-line">Last: ${dbLastAction(p.id)}</div>
+          <div class="db-card-line">Next: <b>${meta.next}</b></div>
         </div>
-      </div>`).join('');
-  } catch (e) { list.innerHTML = '<div class="empty">Failed to load offers.</div>'; }
+        <div class="db-card-actions">
+          ${primaryBtnHtml}
+          ${pauseBtnHtml}
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleDbCard('${p.id}')">Details</button>
+        </div>
+        <div class="db-card-expand" id="db-expand-${pid}"></div>
+      </div>`;
+  }).join('');
+}
+
+async function toggleDbCard(providerId) {
+  const pid = dbSan(providerId);
+  const expandEl = document.getElementById('db-expand-' + pid);
+  if (!expandEl) return;
+  if (dbExpandedId === providerId) {
+    expandEl.classList.remove('open'); expandEl.innerHTML = ''; dbExpandedId = null;
+    return;
+  }
+  if (dbExpandedId) {
+    const prevEl = document.getElementById('db-expand-' + dbSan(dbExpandedId));
+    if (prevEl) { prevEl.classList.remove('open'); prevEl.innerHTML = ''; }
+  }
+  dbExpandedId = providerId;
+  expandEl.classList.add('open');
+  expandEl.innerHTML = '<div class="empty">Loading…</div>';
+  await dbRenderExpand(providerId, expandEl);
 }
 
 const DB_FILE_TYPE_META = {
@@ -2752,10 +2755,50 @@ const DB_FILE_TYPE_META = {
   menu_file:        { icon: 'ti-menu-2', color: 'var(--orange)', label: 'Original menu' },
 };
 
-async function loadPanelFiles(providerName) {
-  const list = document.getElementById('panel-files-list');
+async function dbRenderExpand(providerId, el) {
+  const p = dbProvidersCache.find(x => x.id === providerId);
+  const stage = dbStageOf(providerId);
+  const neg = dbNegotiationsCache.find(n => n.provider_id === providerId);
+  const pid = dbSan(providerId);
+  const showOffers = ['negotiating', 'accepted'].includes(stage);
+
+  el.innerHTML = `
+    <div class="db-expand-section">
+      <div class="db-expand-label">Files</div>
+      <div id="db-files-${pid}"><div class="empty">Loading…</div></div>
+    </div>
+    ${showOffers ? `
+    <div class="db-expand-section">
+      <div class="db-expand-label">Offers — tap to mark accepted</div>
+      <div id="db-offers-${pid}"><div class="empty">Loading…</div></div>
+      <button class="btn btn-orange btn-full" id="db-savebtn-${pid}" style="display:none;margin-top:10px" onclick="dbSaveAcceptedOffers('${providerId}')">Save accepted offers</button>
+    </div>` : ''}
+    <div class="db-expand-section">
+      <div class="db-expand-label">Notes</div>
+      <div class="field"><textarea id="db-notes-${pid}" placeholder="What did the provider say? Objections, requests, follow-ups…" style="min-height:80px">${neg?.notes || ''}</textarea></div>
+      <div class="field"><label style="font-size:11px;color:var(--text-faint)">Next action</label><input type="text" id="db-nextaction-${pid}" value="${neg?.next_action || ''}" placeholder="e.g. Call back Thursday"></div>
+      <div class="field"><label style="font-size:11px;color:var(--text-faint)">Next action date</label><input type="date" id="db-nextdate-${pid}" value="${neg?.next_action_date || ''}"></div>
+      <button class="btn btn-navy btn-full" onclick="dbSaveNotes('${providerId}', event)">Save notes</button>
+    </div>
+    <div class="db-expand-section">
+      <div class="db-expand-label">History</div>
+      <div id="db-history-${pid}"></div>
+    </div>
+  `;
+
+  await dbLoadFilesInto(p?.provider_name || '', pid);
+  if (showOffers) await dbLoadOffersInto(providerId, pid);
+  dbRenderHistoryInto(providerId, pid);
+}
+
+async function dbLoadFilesInto(providerName, pid) {
+  const list = document.getElementById('db-files-' + pid);
+  if (!list) return;
   try {
-    const files = await sbGet(`wein_files?provider_name=eq.${encodeURIComponent(providerName)}&order=created_at.desc`);
+    let files = await sbGet(`wein_files?provider_name=eq.${encodeURIComponent(providerName)}&order=created_at.desc`);
+    if (sessionStorage.getItem('weinRole') === 'deal_breaker') {
+      files = files.filter(f => f.file_type === 'negotiation_pdf');
+    }
     if (!files.length) { list.innerHTML = '<div class="empty">No files yet — run the pipeline to generate files.</div>'; return; }
     const menuFiles = files.filter(f => f.file_type === 'menu_file');
     const offerFiles = files.filter(f => f.file_type !== 'menu_file');
@@ -2768,86 +2811,154 @@ async function loadPanelFiles(providerName) {
           <div class="file-name">${cfg.label}</div>
           <div style="font-size:11px;color:var(--text-faint)">v${f.version||1} · ${new Date(f.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
         </div>
-        ${link ? `<a href="${link}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">View</button></a>` : ''}
+        ${link ? `<a href="${link}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:8px 12px;min-height:38px">View</button></a>` : ''}
       </div>`;
     };
     list.innerHTML =
-      (menuFiles.length ? `<div class="db-section-label">Original menu</div>${menuFiles.map(renderFile).join('')}<div class="db-section-label" style="margin-top:12px">Generated files</div>` : '') +
+      (menuFiles.length ? `<div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">Original menu</div>${menuFiles.map(renderFile).join('')}<div style="font-size:11px;color:var(--text-faint);margin:10px 0 6px">Generated files</div>` : '') +
       (offerFiles.length ? offerFiles.map(renderFile).join('') : '<div class="empty">No generated files yet.</div>');
   } catch (e) { list.innerHTML = '<div class="empty">Failed to load files.</div>'; }
 }
 
-function togglePanelOffer(card, offerId) {
-  card.classList.toggle('selected');
-  if (card.classList.contains('selected')) selectedOfferIds.add(offerId); else selectedOfferIds.delete(offerId);
-  const btn = document.getElementById('panel-save-btn');
-  const count = selectedOfferIds.size;
+async function dbLoadOffersInto(providerId, pid) {
+  const list = document.getElementById('db-offers-' + pid);
+  if (!list) return;
+  dbSelectedOfferIds = new Set();
+  try {
+    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc&limit=20`);
+    if (!offers.length) { list.innerHTML = '<div class="empty">No offers generated yet.</div>'; return; }
+    list.innerHTML = offers.map((o, i) => `
+      <div class="db-offer-row" data-offer-id="${i+1}" onclick="dbToggleOffer(this, '${pid}', ${i+1})" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:4px">
+          <div style="font-size:13px;font-weight:600">${o.title || 'Offer ' + (i+1)}</div>
+          <span class="badge badge-done" style="flex-shrink:0">${(() => { const dp = o.discount_pct || 0; return Math.round(dp > 0 && dp < 1 ? dp * 100 : dp); })()}% off</span>
+        </div>
+        ${o.hook ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:6px">"${o.hook}"</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="offer-old" style="font-size:11px">EGP ${(o.regular_egp||0).toLocaleString()}</span>
+          <span style="font-size:13px;font-weight:700">EGP ${(o.promo_egp||0).toLocaleString()}</span>
+        </div>
+      </div>`).join('');
+  } catch (e) { list.innerHTML = '<div class="empty">Failed to load offers.</div>'; }
+}
+
+function dbToggleOffer(el, pid, offerId) {
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) dbSelectedOfferIds.add(offerId); else dbSelectedOfferIds.delete(offerId);
+  const btn = document.getElementById('db-savebtn-' + pid);
+  if (!btn) return;
+  const count = dbSelectedOfferIds.size;
   btn.style.display = count > 0 ? 'block' : 'none';
   btn.textContent = count > 0 ? `Save — ${count} offer${count>1?'s':''} accepted` : 'Save accepted offers';
 }
 
-async function saveAcceptedOffers() {
-  if (!currentPanelProvider || !selectedOfferIds.size) return;
-  const btn = document.getElementById('panel-save-btn');
-  btn.textContent = 'Saving…'; btn.disabled = true;
+function dbRenderHistoryInto(providerId, pid) {
+  const el = document.getElementById('db-history-' + pid);
+  if (!el) return;
+  const rows = dbHistoryCache.filter(h => h.provider_id === providerId);
+  el.innerHTML = rows.length
+    ? rows.map(r => `<div class="db-history-row"><b>${r.changed_by || 'someone'}</b> → ${(STAGE_META[r.stage]||{}).label || r.stage} · ${formatActivityTime(r.changed_at)}</div>`).join('')
+    : '<div class="empty">No history yet.</div>';
+}
+
+// Writes the 3 places a stage lives: wein_negotiations (source of truth),
+// wein_providers.current_stage (mirror for quick listing), wein_provider_stages (history log).
+async function dbSetStage(providerId, providerName, toStage, extraNegFields) {
+  extraNegFields = extraNegFields || {};
+  let existing = dbNegotiationsCache.find(n => n.provider_id === providerId);
+  if (!existing) {
+    const rows = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&limit=1`);
+    existing = rows?.[0];
+  }
+  if (existing) {
+    await sbPatch(`wein_negotiations?id=eq.${existing.id}`, { stage: toStage, updated_at: new Date().toISOString(), ...extraNegFields });
+  } else {
+    await sbPost('wein_negotiations', { provider_id: providerId, provider_name: providerName, deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: toStage, ...extraNegFields });
+  }
+  await sbPatch(`wein_providers?id=eq.${providerId}`, { current_stage: toStage });
+  await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: providerName, stage: toStage, changed_by: sessionStorage.getItem('weinRole') || 'portal' });
+}
+
+async function dbAdvance(providerId, currentStage) {
+  const trans = STAGE_TRANSITIONS[currentStage];
+  if (!trans) return;
+  if (trans.founderOnly && !dbIsFounder()) return;
+  const p = dbProvidersCache.find(x => x.id === providerId);
+  if (trans.opensOffers) {
+    if (dbExpandedId !== providerId) await toggleDbCard(providerId);
+    return;
+  }
   try {
-    await updateStage(currentPanelProvider.id, 'accepted');
-    for (const idx of selectedOfferIds) {
-      await sbPost('wein_events', {
-        event_type: 'offer_accepted', entity_type: 'offer', entity_id: currentPanelProvider.id,
-        data: { offer_index: idx, provider_name: currentPanelProvider.name, accepted_by: sessionStorage.getItem('weinRole') || 'portal' }
-      });
+    await dbSetStage(providerId, p?.provider_name || '', trans.to);
+    if (trans.triggerPipeline) {
+      try {
+        await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: p?.provider_name, vertical: p?.vertical || '' }) });
+      } catch (e) { console.error('pipeline trigger failed:', e); }
     }
-    btn.textContent = `✅ ${selectedOfferIds.size} offers saved`;
-    setTimeout(() => { closeProviderPanel(); loadDealBreakers(); }, 1500);
+    await loadDealBreakers();
+  } catch (e) { console.error('dbAdvance error:', e); }
+}
+
+async function dbPause(providerId) {
+  try {
+    const p = dbProvidersCache.find(x => x.id === providerId);
+    await dbSetStage(providerId, p?.provider_name || '', 'paused');
+    await loadDealBreakers();
+  } catch (e) { console.error('dbPause error:', e); }
+}
+
+async function dbResume(providerId) {
+  try {
+    const rows = await sbGet(`wein_provider_stages?provider_id=eq.${providerId}&order=changed_at.desc&limit=10`);
+    const pausedIdx = rows.findIndex(r => r.stage === 'paused');
+    const prev = rows.slice(pausedIdx + 1).find(r => r.stage !== 'paused');
+    const target = prev?.stage || 'briefed';
+    const p = dbProvidersCache.find(x => x.id === providerId);
+    await dbSetStage(providerId, p?.provider_name || '', target);
+    await loadDealBreakers();
+  } catch (e) { console.error('dbResume error:', e); }
+}
+
+async function dbSaveAcceptedOffers(providerId) {
+  if (!dbSelectedOfferIds.size) return;
+  const pid = dbSan(providerId);
+  const btn = document.getElementById('db-savebtn-' + pid);
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  try {
+    const p = dbProvidersCache.find(x => x.id === providerId);
+    await dbSetStage(providerId, p?.provider_name || '', 'accepted', { offers_accepted: [...dbSelectedOfferIds] });
+    for (const idx of dbSelectedOfferIds) {
+      await sbPost('wein_events', { event_type: 'offer_accepted', entity_type: 'offer', entity_id: providerId, data: { offer_index: idx, provider_name: p?.provider_name, accepted_by: sessionStorage.getItem('weinRole') || 'portal' } });
+    }
+    if (btn) btn.textContent = `✅ ${dbSelectedOfferIds.size} offers saved`;
+    setTimeout(() => loadDealBreakers(), 1200);
   } catch (e) {
-    console.error('saveAcceptedOffers error:', e);
-    btn.textContent = 'Error — try again'; btn.disabled = false;
+    console.error('dbSaveAcceptedOffers error:', e);
+    if (btn) { btn.textContent = 'Error — try again'; btn.disabled = false; }
   }
 }
 
-async function updateStage(providerId, stage) {
-  try {
-    const existing = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&limit=1`);
-    if (existing?.length) {
-      await sbPatch(`wein_negotiations?id=eq.${existing[0].id}`, { stage, updated_at: new Date().toISOString() });
-    } else {
-      await sbPost('wein_negotiations', { provider_id: providerId, provider_name: currentPanelProvider?.name || '', deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage });
-    }
-    const track = document.getElementById('panel-stage-track');
-    if (track) track.innerHTML = dbStageTrackHtml(stage, `updateStage_${providerId.replace(/[^a-zA-Z0-9]/g,'')}`);
-    await sbPost('wein_events', { event_type: 'stage_changed', entity_type: 'provider', entity_id: providerId, data: { stage, provider_name: currentPanelProvider?.name } });
-    loadDealBreakers();
-  } catch (e) { console.error('updateStage error:', e); }
-}
-
-async function saveNotes(ev) {
-  if (!currentPanelProvider) return;
-  const notes = document.getElementById('panel-notes-text').value;
-  const nextAction = document.getElementById('panel-next-action').value;
-  const nextDate = document.getElementById('panel-next-date').value;
+async function dbSaveNotes(providerId, ev) {
+  const pid = dbSan(providerId);
+  const notes = document.getElementById('db-notes-' + pid)?.value || '';
+  const nextAction = document.getElementById('db-nextaction-' + pid)?.value || '';
+  const nextDate = document.getElementById('db-nextdate-' + pid)?.value || '';
   const data = { notes, next_action: nextAction, next_action_date: nextDate || null, updated_at: new Date().toISOString() };
   try {
-    const existing = await sbGet(`wein_negotiations?provider_id=eq.${currentPanelProvider.id}&limit=1`);
-    if (existing?.length) {
-      await sbPatch(`wein_negotiations?id=eq.${existing[0].id}`, data);
+    const p = dbProvidersCache.find(x => x.id === providerId);
+    let existing = dbNegotiationsCache.find(n => n.provider_id === providerId);
+    if (!existing) {
+      const rows = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&limit=1`);
+      existing = rows?.[0];
+    }
+    if (existing) {
+      await sbPatch(`wein_negotiations?id=eq.${existing.id}`, data);
     } else {
-      await sbPost('wein_negotiations', { provider_id: currentPanelProvider.id, provider_name: currentPanelProvider.name, deal_breaker: sessionStorage.getItem('weinRole') || 'portal', ...data });
+      await sbPost('wein_negotiations', { provider_id: providerId, provider_name: p?.provider_name || '', deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: dbStageOf(providerId), ...data });
     }
     const btn = ev?.target;
     if (btn) { const orig = btn.textContent; btn.textContent = '✅ Saved'; setTimeout(() => btn.textContent = orig, 2000); }
-  } catch (e) { console.error('saveNotes error:', e); }
-}
-
-function closeProviderPanel() {
-  document.getElementById('dbProviderPanel').classList.remove('active');
-  currentPanelProvider = null; selectedOfferIds = new Set();
-}
-
-function dbSwitchTab(btn, tabId) {
-  document.querySelectorAll('.db-tab-btn').forEach(b => b.classList.remove('active-tab'));
-  btn.classList.add('active-tab');
-  ['panel-offers','panel-notes','panel-files'].forEach(id => document.getElementById(id).style.display = id === tabId ? 'block' : 'none');
+  } catch (e) { console.error('dbSaveNotes error:', e); }
 }
 
 function openAssignModal() { document.getElementById('assignModal').classList.add('active'); }
