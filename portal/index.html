@@ -3241,9 +3241,11 @@ async function dbAdvance(providerId, currentStage) {
     try {
       const payload = {
         provider_name: p?.provider_name, vertical: p?.vertical || '',
-        menu_or_services: p?.menu_text || '', menu_link: p?.menu_link || ''
+        menu_or_services: p?.menu_text || '', menu_link: p?.menu_link || '',
+        location: p?.location || '', minimum_spend: p?.minimum_spend || ''
       };
       if (p?.menu_drive_file_id) payload.menu_file_drive_id = p.menu_drive_file_id;
+      console.log('[Generate offers] provider id:', providerId, 'payload:', payload);
       await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } catch (e) {
       console.error('pipeline trigger failed:', e);
