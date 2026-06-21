@@ -278,6 +278,25 @@
   .commission-big { font-size: 28px; font-weight: 800; color: var(--success); }
   .commission-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: .5px solid var(--border); font-size: 13px; }
   .commission-row:last-child { border-bottom: none; }
+
+  /* ── Deal breakers ── */
+  .db-section-label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .db-stage-track { display: flex; border-radius: 20px; overflow: hidden; border: .5px solid var(--border); }
+  .db-stage-track > div { flex: 1; padding: 7px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text-faint); }
+  .db-stage-track > div.done { background: var(--navy); color: #fff; }
+  .db-stage-track > div.current { background: var(--orange); color: #1a1208; font-weight: 700; }
+  .db-offer-card { background: var(--surface2); border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .db-offer-card.selected { border-color: var(--success); background: rgba(34,197,94,.06); }
+  .db-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: transparent; font-size: 11px; }
+  .db-offer-card.selected .db-check { background: var(--success); border-color: var(--success); color: #06200f; }
+  .db-team-card { background: var(--surface); border: .5px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .db-avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(46,125,111,.18); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--teal); }
+  .db-provider-chip { font-size: 11px; padding: 3px 10px; border-radius: 8px; cursor: pointer; background: var(--surface2); color: var(--text-dim); border: .5px solid var(--border); }
+  .db-field-card { background: var(--surface2); border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 14px; cursor: pointer; }
+  .db-mini-stage { display: flex; border-radius: 20px; overflow: hidden; border: .5px solid var(--border); margin: 10px 0; }
+  .db-mini-stage > div { flex: 1; padding: 5px 4px; text-align: center; font-size: 10px; color: var(--text-faint); }
+  .db-mini-stage > div.done { background: var(--navy); color: #fff; }
+  .db-mini-stage > div.current { background: var(--orange); color: #1a1208; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -315,6 +334,7 @@
   <button class="sb-icon" data-view="offers" title="Offers"><i class="ti ti-tag"></i></button>
   <button class="sb-icon" data-view="files" title="Files"><i class="ti ti-files"></i></button>
   <button class="sb-icon" data-view="tasks" title="Tasks"><span class="sb-dot"></span><i class="ti ti-checkbox"></i></button>
+  <button class="sb-icon" data-view="deal-breakers" title="Deal Breakers"><i class="ti ti-users"></i></button>
   <button class="sb-icon" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></button>
   <button class="sb-icon" data-view="finance" title="Finance"><i class="ti ti-currency-dollar"></i></button>
   <button class="sb-icon" data-view="activity" title="Activity"><i class="ti ti-clock"></i></button>
@@ -406,6 +426,32 @@
     </div>
     <div class="card">
       <div id="tasksFullList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ DEAL BREAKERS ══════════════ -->
+  <div class="view" id="view-deal-breakers">
+    <div id="db-manager-view" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+          <div class="card-title" style="margin:0">🤝 Deal breakers</div>
+          <div style="font-size:13px;color:var(--text-faint);margin-top:2px" id="db-team-summary">Loading…</div>
+        </div>
+        <button class="btn btn-orange" onclick="openAssignModal()"><i class="ti ti-plus"></i> Assign provider</button>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-lbl">Active deal breakers</div><div class="stat-num" id="db-active-count">0</div></div>
+        <div class="stat-card"><div class="stat-lbl">Providers assigned</div><div class="stat-num" id="db-assigned-count">0</div></div>
+        <div class="stat-card"><div class="stat-lbl">In negotiation</div><div class="stat-num" id="db-negotiating-count">0</div></div>
+        <div class="stat-card"><div class="stat-lbl">Accepted this week</div><div class="stat-num" id="db-accepted-count">0</div></div>
+      </div>
+      <div id="db-team-list" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <div id="db-field-view" style="display:none">
+      <div class="card-title" style="margin-bottom:2px">🤝 My providers</div>
+      <div style="font-size:13px;color:var(--text-faint);margin-bottom:14px" id="db-field-summary">Loading…</div>
+      <div id="db-provider-list" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
   </div>
 
@@ -714,11 +760,66 @@
   </div>
 </div>
 
+<!-- ══════════════ DEAL BREAKER PROVIDER PANEL ══════════════ -->
+<div class="modal-overlay" id="dbProviderPanel" onclick="if(event.target===this) closeProviderPanel()">
+  <div class="modal-box" style="max-width:480px">
+    <button class="modal-close" onclick="closeProviderPanel()">&times;</button>
+    <div id="panel-provider-name" style="font-size:18px;font-weight:700"></div>
+    <div id="panel-provider-vertical" style="font-size:13px;color:var(--text-faint);margin-bottom:14px"></div>
+
+    <div class="db-section-label">Negotiation stage</div>
+    <div id="panel-stage-track" class="db-stage-track"></div>
+
+    <div class="chips" id="panel-tabs" style="margin-top:16px">
+      <button class="chip db-tab-btn active-tab" data-paneltab="panel-offers" onclick="dbSwitchTab(this,'panel-offers')">Offers</button>
+      <button class="chip db-tab-btn" data-paneltab="panel-notes" onclick="dbSwitchTab(this,'panel-notes')">Notes</button>
+      <button class="chip db-tab-btn" data-paneltab="panel-files" onclick="dbSwitchTab(this,'panel-files')">Files</button>
+    </div>
+
+    <div id="panel-offers">
+      <div style="font-size:12px;color:var(--text-faint);margin:10px 0">Tap offers to mark as accepted</div>
+      <div id="panel-offers-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button id="panel-save-btn" class="btn btn-orange btn-full" style="display:none;margin-top:12px" onclick="saveAcceptedOffers()">Save accepted offers</button>
+    </div>
+
+    <div id="panel-notes" style="display:none">
+      <div class="field" style="margin-top:10px">
+        <label>Visit notes</label>
+        <textarea id="panel-notes-text" placeholder="What did the provider say? Objections, requests, follow-ups…" style="min-height:100px"></textarea>
+      </div>
+      <div class="field"><label>Next action</label><input type="text" id="panel-next-action" placeholder="e.g. Call back Thursday, send updated offer 3…"></div>
+      <div class="field"><label>Next action date</label><input type="date" id="panel-next-date"></div>
+      <button class="btn btn-navy btn-full" onclick="saveNotes(event)">Save notes</button>
+    </div>
+
+    <div id="panel-files" style="display:none">
+      <div id="panel-files-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ASSIGN PROVIDER MODAL ══════════════ -->
+<div class="modal-overlay" id="assignModal" onclick="if(event.target===this) closeAssignModal()">
+  <div class="modal-box" style="max-width:380px">
+    <button class="modal-close" onclick="closeAssignModal()">&times;</button>
+    <div class="card-title">Assign provider to deal breaker</div>
+    <div class="field"><label>Provider</label>
+      <select id="assign-provider"><option value="">Select provider…</option></select>
+    </div>
+    <div class="field"><label>Deal breaker name</label><input type="text" id="assign-to" placeholder="Deal breaker name"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeAssignModal()">Cancel</button>
+      <button class="btn btn-navy" style="flex:1" onclick="saveAssignment()">Assign</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ BOTTOM NAV (mobile) ══════════════ -->
 <div class="bottom-nav" id="bottomNav" style="display:none">
   <button class="nav-btn active" data-view="dashboard"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
   <button class="nav-btn" data-view="providers"><i class="ti ti-building-store"></i>Providers</button>
   <button class="nav-btn" data-view="tasks"><i class="ti ti-checkbox"></i>Tasks</button>
+  <button class="nav-btn" data-view="deal-breakers"><i class="ti ti-users"></i>Deals</button>
   <button class="nav-btn" data-view="chat"><i class="ti ti-message-bolt"></i>Chat</button>
   <button class="nav-btn" data-view="intake"><i class="ti ti-plus"></i>Add</button>
   <button class="nav-btn" data-view="analytics"><i class="ti ti-chart-bar"></i>Analytics</button>
@@ -888,6 +989,7 @@ function showView(name) {
   if (name === 'offers') renderOffersView('all');
   if (name === 'files') loadFilesView();
   if (name === 'tasks') renderTasks('all');
+  if (name === 'deal-breakers') loadDealBreakers();
   if (name === 'analytics') loadAnalyticsDashboard();
   if (name === 'settings') { const el = document.getElementById('settingsRole'); if (el) el.textContent = sessionStorage.getItem('weinRole') || '—'; }
 }
@@ -1807,13 +1909,15 @@ async function loadPipelineHealth() {
 const PIN_ROLES = {
   '1986': 'admin',
   '2026': 'manager',
+  '5555': 'deal_breaker',
   '1234': 'team',
 };
-const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'files', 'tasks', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
+const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'files', 'tasks', 'deal-breakers', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
 const TEAM_VIEWS  = ['intake'];
+const DEAL_BREAKER_VIEWS = ['deal-breakers'];
 
 function applyRole(role) {
-  const allowed = role === 'team' ? TEAM_VIEWS : ADMIN_VIEWS;
+  const allowed = role === 'team' ? TEAM_VIEWS : role === 'deal_breaker' ? DEAL_BREAKER_VIEWS : ADMIN_VIEWS;
   document.querySelectorAll('.sb-icon').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
   document.querySelectorAll('.nav-btn').forEach(b => b.style.display = allowed.includes(b.dataset.view) ? '' : 'none');
   showView(allowed[0]);
@@ -2488,6 +2592,287 @@ async function startAnalyticsAlertsLoop() {
       try { await anLoadAllData(); await anRefreshAlerts(); } catch (e) { /* keep trying */ }
     }, 60000);
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DEAL BREAKER MODULE
+// ════════════════════════════════════════════════════════════════════
+const DB_STAGES = ['contacted','meeting_done','offers_sent','negotiating','accepted'];
+const DB_STAGE_LABELS = {
+  contacted: 'Contacted', meeting_done: 'Meeting done', offers_sent: 'Offers sent',
+  negotiating: 'Negotiating', accepted: 'Accepted'
+};
+
+let currentPanelProvider = null;
+let selectedOfferIds = new Set();
+let dbProvidersCache = [], dbNegotiationsCache = [];
+
+function dbStageTrackHtml(currentStage, onClickFn) {
+  return DB_STAGES.map(s => {
+    const cls = s === currentStage ? 'current' : DB_STAGES.indexOf(s) < DB_STAGES.indexOf(currentStage) ? 'done' : '';
+    return `<div class="${cls}" ${onClickFn ? `onclick="${onClickFn}('${s}')"` : ''}>${DB_STAGE_LABELS[s].split(' ')[0]}</div>`;
+  }).join('');
+}
+
+async function loadDealBreakers() {
+  const role = sessionStorage.getItem('weinRole');
+  const isManager = role === 'admin' || role === 'manager';
+  document.getElementById('db-manager-view').style.display = isManager ? 'block' : 'none';
+  document.getElementById('db-field-view').style.display = isManager ? 'none' : 'block';
+  if (isManager) await loadManagerView(); else await loadFieldView();
+}
+
+async function loadManagerView() {
+  try {
+    const [providers, negotiations] = await Promise.all([
+      sbGet('wein_providers?select=*&order=created_at.desc'),
+      sbGet('wein_negotiations?select=*&order=updated_at.desc')
+    ]);
+    dbProvidersCache = providers; dbNegotiationsCache = negotiations;
+
+    const teamMap = {};
+    providers.forEach(p => {
+      if (!p.assigned_to) return;
+      if (!teamMap[p.assigned_to]) teamMap[p.assigned_to] = { name: p.assigned_to, providers: [], accepted: 0 };
+      const neg = negotiations.find(n => n.provider_id === p.id);
+      teamMap[p.assigned_to].providers.push({ ...p, stage: neg?.stage || 'contacted' });
+      if (neg?.stage === 'accepted') teamMap[p.assigned_to].accepted++;
+    });
+    const teamArr = Object.values(teamMap);
+
+    document.getElementById('db-active-count').textContent = teamArr.length;
+    document.getElementById('db-assigned-count').textContent = providers.filter(p => p.assigned_to).length;
+    document.getElementById('db-negotiating-count').textContent = negotiations.filter(n => ['offers_sent','negotiating'].includes(n.stage)).length;
+    document.getElementById('db-accepted-count').textContent = negotiations.filter(n => n.stage === 'accepted').length;
+    document.getElementById('db-team-summary').textContent = `${teamArr.length} active deal breaker${teamArr.length===1?'':'s'}`;
+
+    const list = document.getElementById('db-team-list');
+    list.innerHTML = teamArr.length ? teamArr.map(member => `
+      <div class="db-team-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="db-avatar">${member.name.substring(0,2).toUpperCase()}</div>
+            <div>
+              <div style="font-size:14px;font-weight:600">${member.name}</div>
+              <div style="font-size:11px;color:var(--text-faint)">${member.providers.length} provider${member.providers.length!==1?'s':''}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:700;color:var(--success)">${member.accepted} accepted</div>
+            <div style="font-size:11px;color:var(--text-faint)">this week</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${member.providers.map(p => `
+            <span class="db-provider-chip" onclick="openProviderPanel('${p.id}','${p.provider_name.replace(/'/g,"\\'")}','${(p.vertical||'').replace(/'/g,"\\'")}')">
+              ${p.provider_name} · ${DB_STAGE_LABELS[p.stage] || 'Contacted'}
+            </span>`).join('')}
+        </div>
+      </div>`).join('') : '<div class="empty">No providers assigned yet. Click "Assign provider" to start.</div>';
+
+    const select = document.getElementById('assign-provider');
+    select.innerHTML = '<option value="">Select provider…</option>' + providers.map(p => `<option value="${p.id}">${p.provider_name} (${p.vertical||'—'})</option>`).join('');
+  } catch (e) { console.error('loadManagerView error:', e); }
+}
+
+async function loadFieldView() {
+  try {
+    const [providers, negotiations] = await Promise.all([
+      sbGet('wein_providers?select=*&order=created_at.desc'),
+      sbGet('wein_negotiations?select=*&order=updated_at.desc')
+    ]);
+    dbProvidersCache = providers; dbNegotiationsCache = negotiations;
+    const assigned = providers.filter(p => p.assigned_to);
+
+    document.getElementById('db-field-summary').textContent =
+      `${assigned.length} provider${assigned.length!==1?'s':''} · ${negotiations.filter(n => n.stage === 'offers_sent').length} awaiting reply`;
+
+    const list = document.getElementById('db-provider-list');
+    list.innerHTML = assigned.length ? assigned.map(p => {
+      const neg = negotiations.find(n => n.provider_id === p.id);
+      const stage = neg?.stage || 'contacted';
+      return `
+        <div class="db-field-card" onclick="openProviderPanel('${p.id}','${p.provider_name.replace(/'/g,"\\'")}','${(p.vertical||'').replace(/'/g,"\\'")}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div style="font-size:15px;font-weight:600">${p.provider_name}</div>
+            <span class="badge">${p.vertical || '—'}</span>
+          </div>
+          <div class="db-mini-stage">${dbStageTrackHtml(stage)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;color:var(--text-faint)">${p.drive_folder_id ? 'Files ready' : 'Pipeline not run'}</span>
+            <span style="font-size:12px;color:var(--orange);font-weight:600">View offers →</span>
+          </div>
+        </div>`;
+    }).join('') : '<div class="empty">No providers assigned to you yet.</div>';
+  } catch (e) { console.error('loadFieldView error:', e); }
+}
+
+async function openProviderPanel(providerId, providerName, vertical) {
+  currentPanelProvider = { id: providerId, name: providerName, vertical };
+  selectedOfferIds = new Set();
+  document.getElementById('panel-provider-name').textContent = providerName;
+  document.getElementById('panel-provider-vertical').textContent = vertical || '—';
+  document.getElementById('dbProviderPanel').classList.add('active');
+  document.querySelectorAll('.db-tab-btn').forEach(b => b.classList.toggle('active-tab', b.dataset.paneltab === 'panel-offers'));
+  ['panel-offers','panel-notes','panel-files'].forEach(id => document.getElementById(id).style.display = id === 'panel-offers' ? 'block' : 'none');
+
+  let negs = [];
+  try { negs = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&order=created_at.desc&limit=1`); } catch (e) {}
+  const currentStage = negs?.[0]?.stage || 'contacted';
+  document.getElementById('panel-stage-track').innerHTML = dbStageTrackHtml(currentStage, `updateStage_${providerId.replace(/[^a-zA-Z0-9]/g,'')}`);
+  // bind a closure-safe handler via a temp global
+  window['updateStage_' + providerId.replace(/[^a-zA-Z0-9]/g,'')] = (stage) => updateStage(providerId, stage);
+
+  document.getElementById('panel-notes-text').value = negs?.[0]?.notes || '';
+  document.getElementById('panel-next-action').value = negs?.[0]?.next_action || '';
+  document.getElementById('panel-next-date').value = negs?.[0]?.next_action_date || '';
+
+  await loadPanelOffers(providerId);
+  await loadPanelFiles(providerName);
+}
+
+async function loadPanelOffers(providerId) {
+  const list = document.getElementById('panel-offers-list');
+  try {
+    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc&limit=20`);
+    if (!offers.length) { list.innerHTML = '<div class="empty">No offers generated yet — run the pipeline first.</div>'; return; }
+    list.innerHTML = offers.map((o, i) => `
+      <div class="db-offer-card" data-offer-id="${i+1}" onclick="togglePanelOffer(this, ${i+1})">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div class="db-check"><i class="ti ti-check"></i></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:4px">
+              <div style="font-size:13px;font-weight:600">${o.title || 'Offer ' + (i+1)}</div>
+              <span class="badge badge-done" style="flex-shrink:0">${o.discount_pct||0}% off</span>
+            </div>
+            ${o.hook ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:6px">"${o.hook}"</div>` : ''}
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="offer-old" style="font-size:11px">EGP ${(o.regular_egp||0).toLocaleString()}</span>
+              <span style="font-size:13px;font-weight:700">EGP ${(o.promo_egp||0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch (e) { list.innerHTML = '<div class="empty">Failed to load offers.</div>'; }
+}
+
+const DB_FILE_TYPE_META = {
+  offer_template:   { icon: 'ti-table', color: 'var(--teal)', label: 'Offer Template' },
+  comparison_pdf:   { icon: 'ti-file-description', color: 'var(--danger)', label: 'Comparison PDF' },
+  negotiation_pdf:  { icon: 'ti-file-type-pdf', color: 'var(--orange)', label: 'Negotiation PDF' },
+  negotiation_xlsx: { icon: 'ti-table', color: '#85B7EB', label: 'Negotiation Excel' },
+  menu_file:        { icon: 'ti-menu-2', color: 'var(--orange)', label: 'Original menu' },
+};
+
+async function loadPanelFiles(providerName) {
+  const list = document.getElementById('panel-files-list');
+  try {
+    const files = await sbGet(`wein_files?provider_name=eq.${encodeURIComponent(providerName)}&order=created_at.desc`);
+    if (!files.length) { list.innerHTML = '<div class="empty">No files yet — run the pipeline to generate files.</div>'; return; }
+    const menuFiles = files.filter(f => f.file_type === 'menu_file');
+    const offerFiles = files.filter(f => f.file_type !== 'menu_file');
+    const renderFile = f => {
+      const cfg = DB_FILE_TYPE_META[f.file_type] || DB_FILE_TYPE_META.menu_file;
+      const link = f.drive_view_url || f.drive_folder_url;
+      return `<div class="file-card">
+        <i class="ti ${cfg.icon}" style="color:${cfg.color}"></i>
+        <div style="flex:1;min-width:0">
+          <div class="file-name">${cfg.label}</div>
+          <div style="font-size:11px;color:var(--text-faint)">v${f.version||1} · ${new Date(f.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+        </div>
+        ${link ? `<a href="${link}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px">View</button></a>` : ''}
+      </div>`;
+    };
+    list.innerHTML =
+      (menuFiles.length ? `<div class="db-section-label">Original menu</div>${menuFiles.map(renderFile).join('')}<div class="db-section-label" style="margin-top:12px">Generated files</div>` : '') +
+      (offerFiles.length ? offerFiles.map(renderFile).join('') : '<div class="empty">No generated files yet.</div>');
+  } catch (e) { list.innerHTML = '<div class="empty">Failed to load files.</div>'; }
+}
+
+function togglePanelOffer(card, offerId) {
+  card.classList.toggle('selected');
+  if (card.classList.contains('selected')) selectedOfferIds.add(offerId); else selectedOfferIds.delete(offerId);
+  const btn = document.getElementById('panel-save-btn');
+  const count = selectedOfferIds.size;
+  btn.style.display = count > 0 ? 'block' : 'none';
+  btn.textContent = count > 0 ? `Save — ${count} offer${count>1?'s':''} accepted` : 'Save accepted offers';
+}
+
+async function saveAcceptedOffers() {
+  if (!currentPanelProvider || !selectedOfferIds.size) return;
+  const btn = document.getElementById('panel-save-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    await updateStage(currentPanelProvider.id, 'accepted');
+    for (const idx of selectedOfferIds) {
+      await sbPost('wein_events', {
+        event_type: 'offer_accepted', entity_type: 'offer', entity_id: currentPanelProvider.id,
+        data: { offer_index: idx, provider_name: currentPanelProvider.name, accepted_by: sessionStorage.getItem('weinRole') || 'portal' }
+      });
+    }
+    btn.textContent = `✅ ${selectedOfferIds.size} offers saved`;
+    setTimeout(() => { closeProviderPanel(); loadDealBreakers(); }, 1500);
+  } catch (e) {
+    console.error('saveAcceptedOffers error:', e);
+    btn.textContent = 'Error — try again'; btn.disabled = false;
+  }
+}
+
+async function updateStage(providerId, stage) {
+  try {
+    const existing = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&limit=1`);
+    if (existing?.length) {
+      await sbPatch(`wein_negotiations?id=eq.${existing[0].id}`, { stage, updated_at: new Date().toISOString() });
+    } else {
+      await sbPost('wein_negotiations', { provider_id: providerId, provider_name: currentPanelProvider?.name || '', deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage });
+    }
+    const track = document.getElementById('panel-stage-track');
+    if (track) track.innerHTML = dbStageTrackHtml(stage, `updateStage_${providerId.replace(/[^a-zA-Z0-9]/g,'')}`);
+    await sbPost('wein_events', { event_type: 'stage_changed', entity_type: 'provider', entity_id: providerId, data: { stage, provider_name: currentPanelProvider?.name } });
+  } catch (e) { console.error('updateStage error:', e); }
+}
+
+async function saveNotes(ev) {
+  if (!currentPanelProvider) return;
+  const notes = document.getElementById('panel-notes-text').value;
+  const nextAction = document.getElementById('panel-next-action').value;
+  const nextDate = document.getElementById('panel-next-date').value;
+  const data = { notes, next_action: nextAction, next_action_date: nextDate || null, updated_at: new Date().toISOString() };
+  try {
+    const existing = await sbGet(`wein_negotiations?provider_id=eq.${currentPanelProvider.id}&limit=1`);
+    if (existing?.length) {
+      await sbPatch(`wein_negotiations?id=eq.${existing[0].id}`, data);
+    } else {
+      await sbPost('wein_negotiations', { provider_id: currentPanelProvider.id, provider_name: currentPanelProvider.name, deal_breaker: sessionStorage.getItem('weinRole') || 'portal', ...data });
+    }
+    const btn = ev?.target;
+    if (btn) { const orig = btn.textContent; btn.textContent = '✅ Saved'; setTimeout(() => btn.textContent = orig, 2000); }
+  } catch (e) { console.error('saveNotes error:', e); }
+}
+
+function closeProviderPanel() {
+  document.getElementById('dbProviderPanel').classList.remove('active');
+  currentPanelProvider = null; selectedOfferIds = new Set();
+}
+
+function dbSwitchTab(btn, tabId) {
+  document.querySelectorAll('.db-tab-btn').forEach(b => b.classList.remove('active-tab'));
+  btn.classList.add('active-tab');
+  ['panel-offers','panel-notes','panel-files'].forEach(id => document.getElementById(id).style.display = id === tabId ? 'block' : 'none');
+}
+
+function openAssignModal() { document.getElementById('assignModal').classList.add('active'); }
+function closeAssignModal() { document.getElementById('assignModal').classList.remove('active'); document.getElementById('assign-to').value = ''; }
+
+async function saveAssignment() {
+  const providerId = document.getElementById('assign-provider').value;
+  const assignTo = document.getElementById('assign-to').value.trim();
+  if (!providerId || !assignTo) { alert('Please select a provider and enter a deal breaker name.'); return; }
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { assigned_to: assignTo, assigned_at: new Date().toISOString() });
+    closeAssignModal();
+    await loadDealBreakers();
+  } catch (e) { console.error('saveAssignment error:', e); }
 }
 
 // ════════════════════════════════════════════════════════════════════
