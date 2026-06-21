@@ -3023,7 +3023,8 @@ async function dbRenderExpand(providerId, el) {
   const stage = dbStageOf(providerId);
   const neg = dbNegotiationsCache.find(n => n.provider_id === providerId);
   const pid = dbSan(providerId);
-  const showOffers = ['negotiating', 'accepted'].includes(stage);
+  const showSelectableOffers = stage === 'negotiating';
+  const showAcceptedOffers = stage === 'accepted';
 
   el.innerHTML = `
     <div class="db-expand-section">
@@ -3034,11 +3035,16 @@ async function dbRenderExpand(providerId, el) {
       <div class="db-expand-label">Files</div>
       <div id="db-files-${pid}"><div class="empty">Loading…</div></div>
     </div>
-    ${showOffers ? `
+    ${showSelectableOffers ? `
     <div class="db-expand-section">
       <div class="db-expand-label">Offers — tap to mark accepted</div>
       <div id="db-offers-${pid}"><div class="empty">Loading…</div></div>
       <button class="btn btn-orange btn-full" id="db-savebtn-${pid}" style="display:none;margin-top:10px" onclick="dbSaveAcceptedOffers('${providerId}')">Save accepted offers</button>
+    </div>` : ''}
+    ${showAcceptedOffers ? `
+    <div class="db-expand-section">
+      <div class="db-expand-label">✅ Accepted offer</div>
+      <div id="db-accepted-${pid}"><div class="empty">Loading…</div></div>
     </div>` : ''}
     <div class="db-expand-section">
       <div class="db-expand-label">Notes</div>
@@ -3054,8 +3060,31 @@ async function dbRenderExpand(providerId, el) {
   `;
 
   await dbLoadFilesInto(p?.provider_name || '', pid);
-  if (showOffers) await dbLoadOffersInto(providerId, pid);
+  if (showSelectableOffers) await dbLoadOffersInto(providerId, pid);
+  if (showAcceptedOffers) await dbLoadAcceptedOffersInto(providerId, pid);
   dbRenderHistoryInto(providerId, pid);
+}
+
+async function dbLoadAcceptedOffersInto(providerId, pid) {
+  const list = document.getElementById('db-accepted-' + pid);
+  if (!list) return;
+  try {
+    const accepted = await sbGet(`wein_accepted_offers?provider_id=eq.${providerId}&select=*&order=created_at.asc`);
+    if (!accepted.length) { list.innerHTML = '<div class="empty">No accepted offer recorded.</div>'; return; }
+    list.innerHTML = accepted.map(o => `
+      <div class="db-offer-row" style="margin-bottom:8px;cursor:default">
+        <div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:4px">
+          <div style="font-size:13px;font-weight:600">${o.offer_title || 'Offer'}</div>
+          <span class="badge badge-done" style="flex-shrink:0">${(() => { const dp = o.discount_pct || 0; return Math.round(dp > 0 && dp < 1 ? dp * 100 : dp); })()}% off</span>
+        </div>
+        ${o.hook ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:6px">"${o.hook}"</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span class="offer-old" style="font-size:11px">EGP ${(o.regular_egp||0).toLocaleString()}</span>
+          <span style="font-size:13px;font-weight:700">EGP ${(o.promo_egp||0).toLocaleString()}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-faint)">Accepted ${o.accepted_date ? new Date(o.accepted_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : ''}</div>
+      </div>`).join('');
+  } catch (e) { list.innerHTML = '<div class="empty">Failed to load accepted offer.</div>'; }
 }
 
 async function dbLoadFilesInto(providerName, pid) {
