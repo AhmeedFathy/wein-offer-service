@@ -33,9 +33,25 @@
     --radius: 10px;
     --radius-sm: 8px;
   }
+  html[data-theme="light"] {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --surface2: #F5F4F0;
+    --card: #FFFFFF;
+    --text: #111110;
+    --text-dim: rgba(17,17,16,.5);
+    --muted: rgba(17,17,16,.5);
+    --text-faint: rgba(17,17,16,.28);
+    --border: rgba(0,0,0,.08);
+    --border-hover: rgba(0,0,0,.18);
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { transition: background 150ms ease, color 150ms ease; }
   body { font-family: 'Satoshi', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; }
   .mono, .stat-num, .offer-new, .offer-old { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+  .theme-toggle { color: var(--text-faint); }
+  .theme-toggle:hover { color: var(--orange); }
+  html[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); }
   button { font-family: inherit; cursor: pointer; }
   a { color: var(--orange); text-decoration: none; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -327,6 +343,12 @@
   #dbAddProviderBtn { position: fixed; left: 16px; right: 16px; bottom: 76px; z-index: 50; min-height: 48px; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
   @media (min-width: 900px) { #dbAddProviderBtn { left: auto; right: 24px; bottom: 24px; width: 220px; } }
 </style>
+<script>
+  (function() {
+    var saved = localStorage.getItem('weinTheme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+  })();
+</script>
 </head>
 <body>
 
@@ -352,7 +374,10 @@
 
 <div class="header" id="appHeader" style="display:none">
   <div class="logo"><img src="https://wein-eg.com/images/wein-logo.svg" alt="WeIN" onerror="this.outerHTML='<div class=&quot;logo-badge&quot;>W</div>'"></div>
-  <button class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3);padding:6px 14px;font-size:12px" onclick="logout()">Logout</button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="theme-toggle" style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px" onclick="toggleTheme()" title="Toggle theme"><i class="ti ti-sun-moon"></i></button>
+    <button class="btn btn-ghost" style="color:var(--text);border-color:var(--border-hover);padding:6px 14px;font-size:12px" onclick="logout()">Logout</button>
+  </div>
 </div>
 
 <div id="appShell" style="display:none">
@@ -371,6 +396,7 @@
   <button class="sb-icon" data-view="chat" title="Chat"><i class="ti ti-message-bolt"></i></button>
   <button class="sb-icon" data-view="intake" title="Add Provider"><i class="ti ti-plus"></i></button>
   <div class="sb-spacer"></div>
+  <button class="sb-icon" onclick="toggleTheme()" title="Toggle theme"><i class="ti ti-sun-moon"></i></button>
   <button class="sb-icon" data-view="settings" title="Settings"><i class="ti ti-settings"></i></button>
 </div>
 
@@ -843,6 +869,13 @@
 </div>
 
 <script>
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('weinTheme', next);
+}
+
 // ════════════════════════════════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════════════════════════════════
