@@ -2743,8 +2743,10 @@ const DB_DONE_STAGES = ['accepted', 'paused', 'closed'];
 async function loadFieldView() {
   try {
     const { providers } = await dbFetchAll();
-    const assigned = providers.filter(p => p.assigned_to);
-    const withStage = assigned.map(p => ({ p, stage: dbStageOf(p.id) }));
+    // No per-deal-breaker accounts exist yet (just one shared PIN for the
+    // role), so there's no real "assigned to me" to filter on -- show all
+    // providers until individual accounts exist.
+    const withStage = providers.map(p => ({ p, stage: dbStageOf(p.id) }));
 
     const actionList = withStage.filter(x => DB_ACTION_STAGES.includes(x.stage));
     const waitingList = withStage.filter(x => DB_WAITING_STAGES.includes(x.stage));
