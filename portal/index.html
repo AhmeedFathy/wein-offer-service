@@ -960,6 +960,9 @@ async function runPipelineFromCard(name, vertical) {
 // ════════════════════════════════════════════════════════════════════
 function showView(name) {
   if (!name) return;
+  const role = sessionStorage.getItem('weinRole');
+  const allowed = role === 'team' ? TEAM_VIEWS : role === 'deal_breaker' ? DEAL_BREAKER_VIEWS : ADMIN_VIEWS;
+  if (role && !allowed.includes(name)) name = allowed[0];
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.querySelectorAll('.sb-icon').forEach(b => b.classList.toggle('active', b.dataset.view === name));
@@ -1459,7 +1462,34 @@ async function submitIntake() {
 
   try {
     await fetch(`${N8N}/portal-intake-save`, { method: 'POST', body: fd });
-    showAlertEl('alertIntake3', `✅ Submitted! The WeIN team will review "${name}" shortly.`, 'success');
+
+    const role = sessionStorage.getItem('weinRole');
+    if (role === 'deal_breaker') {
+      // The n8n call above only logs to portal_submissions (a pending-review
+      // queue for admin approval) — it never creates a wein_providers row,
+      // so the card a deal breaker just submitted would never appear in
+      // their own Deal Breakers list. Create the live card directly.
+      try {
+        const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'provider-' + Date.now();
+        const created = await sbPost('wein_providers', {
+          provider_name: name,
+          provider_slug: slug,
+          vertical: document.getElementById('iVertical').value,
+          location: document.getElementById('iLocation').value,
+          view_or_atmosphere: document.getElementById('iAtmosphere').value,
+          assigned_to: 'deal_breaker',
+          assigned_at: new Date().toISOString(),
+          current_stage: 'new'
+        });
+        const providerId = created?.[0]?.id;
+        if (providerId) {
+          await sbPost('wein_negotiations', { provider_id: providerId, provider_name: name, deal_breaker: 'deal_breaker', stage: 'new' });
+          await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: name, stage: 'new', changed_by: 'deal_breaker' });
+        }
+      } catch (createErr) { console.error('deal-breaker provider auto-create failed:', createErr); }
+    }
+
+    showAlertEl('alertIntake3', `✅ Submitted! ${role === 'deal_breaker' ? `"${name}" is now on your Deal Breakers board.` : `The WeIN team will review "${name}" shortly.`}`, 'success');
     const pendEl = document.getElementById('statPending');
     if (pendEl) pendEl.textContent = (parseInt(pendEl.textContent) || 0) + 1;
     loadDashboard();
@@ -1913,14 +1943,27 @@ function showApp(role) {
   document.getElementById('bottomNav').style.display = '';
   applyRole(role);
 
-  if (role !== 'team') {
+  if (role === 'admin' || role === 'manager') {
     loadDashboard().then(() => { updateGreeting(); loadActivity(); loadTasks(); loadStages(); loadPipelineHealth(); loadFilesSummary().then(renderProvidersView); });
     startAnalyticsAlertsLoop();
     if (!autoRefreshInterval) {
-      autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
+      autoRefreshInterval = setInterval(() => {
+        if (document.hidden) return;
+        loadDashboard();
+        // Skip while a deal-breaker card is expanded — re-rendering would
+        // wipe out unsaved notes text the user is mid-typing.
+        if (document.getElementById('view-deal-breakers')?.classList.contains('active') && !dbExpandedId) loadDealBreakers();
+      }, 30000);
       activityRefreshInterval = setInterval(() => { if (!document.hidden) { loadActivity(); loadTasks(); } }, 60000);
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && sessionStorage.getItem('weinRole')) loadDashboard();
+      });
+    }
+  } else if (role === 'deal_breaker') {
+    if (!autoRefreshInterval) {
+      autoRefreshInterval = setInterval(() => { if (!document.hidden && !dbExpandedId) loadDealBreakers(); }, 30000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && !dbExpandedId && sessionStorage.getItem('weinRole') === 'deal_breaker') loadDealBreakers();
       });
     }
   }
@@ -2694,9 +2737,19 @@ function renderDbCards(containerId, providers) {
     const meta = STAGE_META[stage] || STAGE_META.new;
     const trans = STAGE_TRANSITIONS[stage];
     const founder = dbIsFounder();
+    const isGenerating = dbGeneratingIds.has(p.id);
+    const isFailed = dbFailedIds.has(p.id);
 
-    let primaryBtnHtml = '';
-    if (trans) {
+    let primaryBtnHtml = '', pauseBtnHtml = '', statusBadge = badge, nextLine = meta.next;
+    if (isGenerating) {
+      statusBadge = { label: '🔄 Generating offers… (~3-6 min)', color: 'red' };
+      nextLine = 'Pipeline is running — this card will update automatically.';
+      primaryBtnHtml = `<button class="btn btn-ghost" disabled>Generating…</button>`;
+    } else if (isFailed) {
+      statusBadge = { label: '⚠️ Pipeline failed', color: 'red' };
+      nextLine = 'Generation timed out or failed — check Telegram, then try again.';
+      primaryBtnHtml = founder ? `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">Retry — generate offers</button>` : `<button class="btn btn-ghost" disabled>⏳ Waiting for founder</button>`;
+    } else if (trans) {
       if (trans.founderOnly && !founder) {
         primaryBtnHtml = `<button class="btn btn-ghost" disabled>⏳ Waiting for founder</button>`;
       } else {
@@ -2705,8 +2758,9 @@ function renderDbCards(containerId, providers) {
     } else if (stage === 'paused') {
       primaryBtnHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbResume('${p.id}')">Resume</button>`;
     }
-    const pauseBtnHtml = ACTIVE_STAGES.includes(stage)
-      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbPause('${p.id}')">Pause</button>` : '';
+    if (!isGenerating && !isFailed && ACTIVE_STAGES.includes(stage)) {
+      pauseBtnHtml = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbPause('${p.id}')">Pause</button>`;
+    }
 
     return `
       <div class="db-card" id="db-card-${pid}">
@@ -2715,9 +2769,9 @@ function renderDbCards(containerId, providers) {
             <div class="db-card-name">${p.provider_name}</div>
             <span class="badge">${p.vertical || '—'}</span>
           </div>
-          <div class="db-status-badge ${badge.color}">${badge.label}</div>
+          <div class="db-status-badge ${statusBadge.color}">${statusBadge.label}</div>
           <div class="db-card-line">Last: ${dbLastAction(p.id)}</div>
-          <div class="db-card-line">Next: <b>${meta.next}</b></div>
+          <div class="db-card-line">Next: <b>${nextLine}</b></div>
         </div>
         <div class="db-card-actions">
           ${primaryBtnHtml}
@@ -2879,6 +2933,9 @@ async function dbSetStage(providerId, providerName, toStage, extraNegFields) {
   await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: providerName, stage: toStage, changed_by: sessionStorage.getItem('weinRole') || 'portal' });
 }
 
+let dbGeneratingIds = new Set();
+let dbFailedIds = new Set();
+
 async function dbAdvance(providerId, currentStage) {
   const trans = STAGE_TRANSITIONS[currentStage];
   if (!trans) return;
@@ -2888,15 +2945,53 @@ async function dbAdvance(providerId, currentStage) {
     if (dbExpandedId !== providerId) await toggleDbCard(providerId);
     return;
   }
+  if (trans.triggerPipeline) {
+    // Don't flip the stage yet — flipping immediately would let "Send back
+    // to deal breaker" become clickable before the pipeline has actually
+    // produced any offers/files. Show a generating state and only advance
+    // once wein_offers actually has rows for this provider.
+    dbFailedIds.delete(providerId);
+    dbGeneratingIds.add(providerId);
+    await loadDealBreakers();
+    try {
+      await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: p?.provider_name, vertical: p?.vertical || '' }) });
+    } catch (e) {
+      console.error('pipeline trigger failed:', e);
+      dbGeneratingIds.delete(providerId);
+      dbFailedIds.add(providerId);
+      await loadDealBreakers();
+      return;
+    }
+    dbPollPipeline(providerId, p?.provider_name || '');
+    return;
+  }
   try {
     await dbSetStage(providerId, p?.provider_name || '', trans.to);
-    if (trans.triggerPipeline) {
-      try {
-        await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: p?.provider_name, vertical: p?.vertical || '' }) });
-      } catch (e) { console.error('pipeline trigger failed:', e); }
-    }
     await loadDealBreakers();
   } catch (e) { console.error('dbAdvance error:', e); }
+}
+
+async function dbPollPipeline(providerId, providerName) {
+  let initialCount = 0;
+  try { initialCount = (await sbGet(`wein_offers?provider_id=eq.${providerId}&select=id`)).length; } catch (e) {}
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    try {
+      const newCount = (await sbGet(`wein_offers?provider_id=eq.${providerId}&select=id`)).length;
+      if (newCount > initialCount) {
+        clearInterval(poll);
+        dbGeneratingIds.delete(providerId);
+        await dbSetStage(providerId, providerName, 'offers_generated');
+        await loadDealBreakers();
+      } else if (attempts > 24) { // ~6 minutes at 15s intervals
+        clearInterval(poll);
+        dbGeneratingIds.delete(providerId);
+        dbFailedIds.add(providerId);
+        await loadDealBreakers();
+      }
+    } catch (e) { /* keep polling — transient network error */ }
+  }, 15000);
 }
 
 async function dbPause(providerId) {
