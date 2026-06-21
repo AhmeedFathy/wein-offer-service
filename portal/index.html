@@ -1482,16 +1482,23 @@ async function submitIntake() {
   if (file) fd.append('menu_file', file);
 
   try {
-    await fetch(`${N8N}/portal-intake-save`, { method: 'POST', body: fd });
-
     const role = sessionStorage.getItem('weinRole');
+    if (role !== 'deal_breaker') {
+      // Non-deal-breaker submissions go through the pending-review queue
+      // (portal_submissions) for an admin to approve later.
+      await fetch(`${N8N}/portal-intake-save`, { method: 'POST', body: fd });
+    }
+
     if (role === 'deal_breaker') {
-      // The n8n call above only logs to portal_submissions (a pending-review
-      // queue for admin approval) — it never creates a wein_providers row,
-      // so the card a deal breaker just submitted would never appear in
-      // their own Deal Breakers list. Create the live card directly.
+      // Deal breakers bypass the pending-review queue entirely and get a
+      // live card immediately -- the file upload below goes through its
+      // own dedicated webhook instead of portal-intake-save's, so it's
+      // not uploaded twice.
       try {
         const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'provider-' + Date.now();
+        const menuText = document.getElementById('iMenuText').value.trim();
+        const menuLink = document.getElementById('iMenuLink').value.trim();
+        const hasMenuInput = !!(file || menuText || menuLink);
         const created = await sbPost('wein_providers', {
           provider_name: name,
           provider_slug: slug,
@@ -1500,12 +1507,41 @@ async function submitIntake() {
           view_or_atmosphere: document.getElementById('iAtmosphere').value,
           assigned_to: 'deal_breaker',
           assigned_at: new Date().toISOString(),
-          current_stage: 'new'
+          current_stage: 'new',
+          menu_text: menuText || null,
+          menu_link: menuLink || null,
+          menu_submitted_at: hasMenuInput ? new Date().toISOString() : null
         });
         const providerId = created?.[0]?.id;
         if (providerId) {
           await sbPost('wein_negotiations', { provider_id: providerId, provider_name: name, deal_breaker: 'deal_breaker', stage: 'new' });
           await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: name, stage: 'new', changed_by: 'deal_breaker' });
+
+          if (file) {
+            try {
+              const uploadFd = new FormData();
+              uploadFd.append('provider_name', name);
+              uploadFd.append('menu_file', file);
+              const uploadResp = await fetch(`${N8N}/upload-menu-file`, { method: 'POST', body: uploadFd });
+              const driveResult = await uploadResp.json();
+              if (driveResult.drive_file_id) {
+                await sbPatch(`wein_providers?id=eq.${providerId}`, {
+                  menu_drive_url: driveResult.drive_view_url,
+                  menu_drive_file_id: driveResult.drive_file_id,
+                  menu_file_name: driveResult.file_name,
+                  menu_submitted_at: new Date().toISOString()
+                });
+                await sbPost('wein_files', {
+                  provider_id: providerId, provider_name: name, vertical: document.getElementById('iVertical').value,
+                  file_name: driveResult.file_name, file_type: 'menu_file',
+                  drive_file_id: driveResult.drive_file_id, drive_view_url: driveResult.drive_view_url,
+                  drive_folder_id: '1s6b3naDJRmMosIhe_GRdNAHz4ZI-xJmi',
+                  drive_folder_url: 'https://drive.google.com/drive/folders/1s6b3naDJRmMosIhe_GRdNAHz4ZI-xJmi',
+                  version: 1
+                });
+              }
+            } catch (uploadErr) { console.error('menu file upload failed:', uploadErr); }
+          }
         }
       } catch (createErr) { console.error('deal-breaker provider auto-create failed:', createErr); }
     }
@@ -2938,6 +2974,50 @@ const DB_FILE_TYPE_META = {
   menu_file:        { icon: 'ti-menu-2', color: 'var(--orange)', label: 'Original menu' },
 };
 
+function dbMenuSectionHtml(p) {
+  if (!p) return '<div class="empty">No menu yet</div>';
+  const parts = [];
+  if (p.menu_drive_url) {
+    parts.push(`<div class="file-card">
+      <i class="ti ti-file-type-pdf" style="color:var(--orange)"></i>
+      <div style="flex:1;min-width:0">
+        <div class="file-name">Menu file</div>
+        <div style="font-size:11px;color:var(--text-faint)">${p.menu_submitted_at ? 'Submitted ' + new Date(p.menu_submitted_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : ''}</div>
+      </div>
+      <a href="${p.menu_drive_url}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:8px 12px;min-height:38px">View</button></a>
+    </div>`);
+  }
+  if (p.menu_text) {
+    const escId = 'menutext-' + dbSan(p.id);
+    parts.push(`<div class="file-card" style="cursor:pointer;align-items:flex-start" onclick="dbToggleMenuText('${escId}')">
+      <i class="ti ti-notes" style="color:var(--teal)"></i>
+      <div style="flex:1;min-width:0">
+        <div class="file-name">Menu text <i class="ti ti-chevron-down" id="${escId}-chev"></i></div>
+        <div id="${escId}" style="display:none;font-size:12px;color:var(--text-dim);white-space:pre-wrap;margin-top:6px;max-height:240px;overflow-y:auto">${p.menu_text.replace(/</g,'&lt;')}</div>
+      </div>
+    </div>`);
+  }
+  if (p.menu_link) {
+    parts.push(`<div class="file-card">
+      <i class="ti ti-link" style="color:var(--success)"></i>
+      <div style="flex:1;min-width:0"><div class="file-name">Menu link</div></div>
+      <a href="${p.menu_link}" target="_blank"><button class="btn btn-ghost" style="font-size:11px;padding:8px 12px;min-height:38px">Open ↗</button></a>
+    </div>`);
+  }
+  if (!parts.length) {
+    return '<div class="empty">No menu yet — deal breaker needs to add a menu.</div>';
+  }
+  return parts.join('');
+}
+
+function dbToggleMenuText(id) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById(id + '-chev');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (chev) chev.className = open ? 'ti ti-chevron-down' : 'ti ti-chevron-up';
+}
+
 async function dbRenderExpand(providerId, el) {
   const p = dbProvidersCache.find(x => x.id === providerId);
   const stage = dbStageOf(providerId);
@@ -2946,6 +3026,10 @@ async function dbRenderExpand(providerId, el) {
   const showOffers = ['negotiating', 'accepted'].includes(stage);
 
   el.innerHTML = `
+    <div class="db-expand-section">
+      <div class="db-expand-label">Menu</div>
+      ${dbMenuSectionHtml(p)}
+    </div>
     <div class="db-expand-section">
       <div class="db-expand-label">Files</div>
       <div id="db-files-${pid}"><div class="empty">Loading…</div></div>
@@ -3089,7 +3173,12 @@ async function dbAdvance(providerId, currentStage) {
     dbGeneratingIds.add(providerId);
     await loadDealBreakers();
     try {
-      await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_name: p?.provider_name, vertical: p?.vertical || '' }) });
+      const payload = {
+        provider_name: p?.provider_name, vertical: p?.vertical || '',
+        menu_or_services: p?.menu_text || '', menu_link: p?.menu_link || ''
+      };
+      if (p?.menu_drive_file_id) payload.menu_file_drive_id = p.menu_drive_file_id;
+      await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } catch (e) {
       console.error('pipeline trigger failed:', e);
       dbGeneratingIds.delete(providerId);
