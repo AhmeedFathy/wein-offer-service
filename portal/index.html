@@ -2731,7 +2731,7 @@ async function loadPanelOffers(providerId) {
           <div style="flex:1;min-width:0">
             <div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:4px">
               <div style="font-size:13px;font-weight:600">${o.title || 'Offer ' + (i+1)}</div>
-              <span class="badge badge-done" style="flex-shrink:0">${o.discount_pct||0}% off</span>
+              <span class="badge badge-done" style="flex-shrink:0">${(() => { const dp = o.discount_pct || 0; return Math.round(dp > 0 && dp < 1 ? dp * 100 : dp); })()}% off</span>
             </div>
             ${o.hook ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-bottom:6px">"${o.hook}"</div>` : ''}
             <div style="display:flex;align-items:center;gap:8px">
