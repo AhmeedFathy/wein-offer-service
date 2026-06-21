@@ -2721,15 +2721,20 @@ function dbStageOf(providerId) {
 async function loadManagerView() {
   try {
     const { providers } = await dbFetchAll();
+    // BUG FIX: this used to filter to providers.assigned_to before
+    // rendering, which meant any provider never run through the Assign
+    // modal was invisible here -- even after the deal breaker (whose own
+    // view has no such filter) moved it all the way to negotiating/accepted.
+    // Show everyone; "assigned" stays a tracked stat, not a visibility gate.
     const assigned = providers.filter(p => p.assigned_to);
     const deal_breakers = new Set(assigned.map(p => p.assigned_to));
     document.getElementById('db-active-count').textContent = deal_breakers.size;
     document.getElementById('db-assigned-count').textContent = assigned.length;
-    document.getElementById('db-negotiating-count').textContent = assigned.filter(p => dbStageOf(p.id) === 'negotiating').length;
-    document.getElementById('db-accepted-count').textContent = assigned.filter(p => dbStageOf(p.id) === 'accepted').length;
+    document.getElementById('db-negotiating-count').textContent = providers.filter(p => dbStageOf(p.id) === 'negotiating').length;
+    document.getElementById('db-accepted-count').textContent = providers.filter(p => dbStageOf(p.id) === 'accepted').length;
     document.getElementById('db-team-summary').textContent = `${deal_breakers.size} active deal breaker${deal_breakers.size===1?'':'s'}`;
 
-    renderDbCards('db-cards-manager', assigned);
+    renderDbCards('db-cards-manager', providers);
 
     const select = document.getElementById('assign-provider');
     select.innerHTML = '<option value="">Select provider…</option>' + providers.map(p => `<option value="${p.id}">${p.provider_name} (${p.vertical||'—'})</option>`).join('');
@@ -2853,7 +2858,7 @@ function dbLastAction(providerId) {
 
 function renderDbCards(containerId, providers) {
   const container = document.getElementById(containerId);
-  if (!providers.length) { container.innerHTML = '<div class="empty">No providers assigned yet.</div>'; return; }
+  if (!providers.length) { container.innerHTML = '<div class="empty">No providers yet.</div>'; return; }
   container.innerHTML = providers.map(p => {
     const stage = dbStageOf(p.id);
     const pid = dbSan(p.id);
