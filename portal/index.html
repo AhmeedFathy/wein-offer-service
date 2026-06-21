@@ -2975,7 +2975,10 @@ async function dbLoadFilesInto(providerName, pid) {
   try {
     let files = await sbGet(`wein_files?provider_name=eq.${encodeURIComponent(providerName)}&order=created_at.desc`);
     if (sessionStorage.getItem('weinRole') === 'deal_breaker') {
-      files = files.filter(f => f.file_type === 'negotiation_pdf');
+      // Deal breakers only ever need the original menu and the negotiation
+      // PDF -- offer_template/negotiation_xlsx/comparison_pdf stay in
+      // Drive + wein_files as internal records, never surfaced here.
+      files = files.filter(f => f.file_type === 'menu_file' || f.file_type === 'negotiation_pdf');
     }
     if (!files.length) { list.innerHTML = '<div class="empty">No files yet — run the pipeline to generate files.</div>'; return; }
     const menuFiles = files.filter(f => f.file_type === 'menu_file');
