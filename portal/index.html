@@ -710,7 +710,11 @@
 
     <div class="card" id="intakePane1">
       <div class="card-title">🏢 Provider Information</div>
-      <div class="field"><label>Provider Name <span class="req">*</span></label><input type="text" id="iProviderName" placeholder="e.g. Almayass Grand Restaurant"></div>
+      <div class="field">
+        <label>Provider Name <span class="req">*</span></label>
+        <input type="text" id="iProviderName" placeholder="e.g. Almayass Grand Restaurant" oninput="updateNamePreview()">
+        <div id="iNamePreview" style="font-size:11px;color:var(--text-faint);margin-top:5px"></div>
+      </div>
       <div class="field"><label>Vertical <span class="req">*</span></label>
         <select id="iVertical"><option value="">Select…</option><option>Dining</option><option>Fun &amp; Activities</option><option>Health &amp; Beauty</option><option>Hotels &amp; Aqua Park</option></select>
       </div>
@@ -1494,9 +1498,24 @@ function intakeGoStep(n) {
     document.getElementById('stepDot'+i).className = 'step-dot' + (i < n ? ' done' : i === n ? ' active' : '');
   });
 }
+function formatProviderName(raw) {
+  return raw
+    .trim()
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+function updateNamePreview() {
+  const raw = document.getElementById('iProviderName').value;
+  const preview = document.getElementById('iNamePreview');
+  if (!preview) return;
+  const formatted = formatProviderName(raw);
+  preview.textContent = formatted ? `Will be saved as: ${formatted}` : '';
+}
 async function submitIntake() {
   const btn = document.getElementById('intakeSubmitBtn');
-  const name = document.getElementById('iProviderName').value.trim();
+  const name = formatProviderName(document.getElementById('iProviderName').value);
   if (!name) { showAlertEl('alertIntake3', 'Provider name is required.', 'error'); return; }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Submitting…';
 
