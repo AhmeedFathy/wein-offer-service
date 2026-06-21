@@ -2874,12 +2874,15 @@ async function dbLoadFilesInto(providerName, pid) {
   } catch (e) { list.innerHTML = '<div class="empty">Failed to load files.</div>'; }
 }
 
+let dbOffersCache = {}; // pid -> full offer rows, indexed the same way as the on-screen list
+
 async function dbLoadOffersInto(providerId, pid) {
   const list = document.getElementById('db-offers-' + pid);
   if (!list) return;
   dbSelectedOfferIds = new Set();
   try {
     const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=promo_egp.asc&limit=20`);
+    dbOffersCache[pid] = offers;
     if (!offers.length) { list.innerHTML = '<div class="empty">No offers generated yet.</div>'; return; }
     list.innerHTML = offers.map((o, i) => `
       <div class="db-offer-row" data-offer-id="${i+1}" onclick="dbToggleOffer(this, '${pid}', ${i+1})" style="margin-bottom:8px">
@@ -3021,10 +3024,36 @@ async function dbSaveAcceptedOffers(providerId) {
   if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
   try {
     const p = dbProvidersCache.find(x => x.id === providerId);
-    await dbSetStage(providerId, p?.provider_name || '', 'accepted', { offers_accepted: [...dbSelectedOfferIds] });
+    const offers = dbOffersCache[pid] || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // wein_accepted_offers is the source of truth for accepted offers;
+    // wein_negotiations.offers_accepted stays as a quick-reference array.
     for (const idx of dbSelectedOfferIds) {
-      await sbPost('wein_events', { event_type: 'offer_accepted', entity_type: 'offer', entity_id: providerId, data: { offer_index: idx, provider_name: p?.provider_name, accepted_by: sessionStorage.getItem('weinRole') || 'portal' } });
+      const o = offers[idx - 1]; // dbToggleOffer's offerId is 1-based (i+1)
+      if (!o) continue;
+      await sbPost('wein_accepted_offers', {
+        provider_id: providerId,
+        provider_name: p?.provider_name || '',
+        vertical: p?.vertical || null,
+        offer_title: o.title || null,
+        hook: o.hook || null,
+        regular_egp: o.regular_egp || null,
+        promo_egp: o.promo_egp || null,
+        discount_pct: o.discount_pct || null,
+        party_size: o.party_size || null,
+        tier: o.tier || null,
+        hook_type: o.hook_type || null,
+        items: o.items || null,
+        terms: o.terms || null,
+        status: 'accepted',
+        accepted_date: todayStr
+      });
+      await sbPost('wein_events', { event_type: 'offer_accepted', entity_type: 'offer', entity_id: providerId, data: { offer_index: idx, offer_title: o.title, provider_name: p?.provider_name, accepted_by: sessionStorage.getItem('weinRole') || 'portal' } });
     }
+
+    await dbSetStage(providerId, p?.provider_name || '', 'accepted', { offers_accepted: [...dbSelectedOfferIds] });
+
     if (btn) btn.textContent = `✅ ${dbSelectedOfferIds.size} offers saved`;
     setTimeout(() => loadDealBreakers(), 1200);
   } catch (e) {
