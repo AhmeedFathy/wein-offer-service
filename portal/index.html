@@ -2817,6 +2817,7 @@ async function updateStage(providerId, stage) {
     const track = document.getElementById('panel-stage-track');
     if (track) track.innerHTML = dbStageTrackHtml(stage, `updateStage_${providerId.replace(/[^a-zA-Z0-9]/g,'')}`);
     await sbPost('wein_events', { event_type: 'stage_changed', entity_type: 'provider', entity_id: providerId, data: { stage, provider_name: currentPanelProvider?.name } });
+    loadDealBreakers();
   } catch (e) { console.error('updateStage error:', e); }
 }
 
