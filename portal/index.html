@@ -1308,6 +1308,7 @@ async function openProvider(name, providerId, submissionId) {
         <button class="btn btn-navy" onclick="runPipelineFor('${name.replace(/'/g,"\\'")}','${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">▶ Run Pipeline</button>
         ${sub.id ? `<button class="btn btn-success" onclick="approveSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✅ Approve Submission</button>` : ''}
         ${sub.id && sub.status === 'pending' ? `<button class="btn btn-danger" onclick="rejectSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✕ Reject</button>` : ''}
+        ${isAdminOrManager() ? `<button class="btn btn-danger" style="margin-left:auto" onclick="deleteProviderModal('${name.replace(/'/g,"\\'")}', ${providerId ? `'${providerId}'` : 'null'}, '${submissionId||''}')">🗑 Delete Provider</button>` : ''}
       </div>
 
       ${filesHtml}
@@ -1331,6 +1332,31 @@ async function openProvider(name, providerId, submissionId) {
   }
 }
 function closeProviderModal() { document.getElementById('providerModal').classList.remove('active'); }
+
+async function deleteProviderModal(name, providerId, submissionId) {
+  if (!isAdminOrManager()) { showModalAlert('Only admin/manager can delete providers.', 'error'); return; }
+  if (!confirm(`Delete "${name}" permanently? This removes the provider, its offers, menu items, files, and accepted-offer records. This cannot be undone.`)) return;
+
+  const btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+  try {
+    if (providerId) {
+      // wein_menu_items / wein_offers cascade via FK ON DELETE CASCADE,
+      // but accepted offers and files are matched by name, not FK, so clear explicitly.
+      await sbDelete(`wein_files?provider_id=eq.${providerId}`);
+      await sbDelete(`wein_providers?id=eq.${providerId}`);
+    }
+    await sbDelete(`wein_accepted_offers?provider_name=eq.${encodeURIComponent(name)}`);
+    await sbDelete(`provider_profiles?provider_name=eq.${encodeURIComponent(name)}`);
+    if (submissionId) await sbDelete(`portal_submissions?id=eq.${submissionId}`);
+
+    closeProviderModal();
+    await loadDashboard();
+  } catch (e) {
+    showModalAlert('Delete failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🗑 Delete Provider'; }
+  }
+}
 
 async function toggleAcceptOffer(btn, offerId, providerName, vertical, isAccepted) {
   btn.disabled = true; btn.textContent = '…';
@@ -2137,6 +2163,11 @@ const PIN_ROLES = {
 const ADMIN_VIEWS = ['dashboard', 'providers', 'offers', 'files', 'tasks', 'deal-breakers', 'analytics', 'finance', 'activity', 'chat', 'intake', 'settings'];
 const TEAM_VIEWS  = ['intake'];
 const DEAL_BREAKER_VIEWS = ['deal-breakers', 'intake'];
+
+function isAdminOrManager() {
+  const role = sessionStorage.getItem('weinRole');
+  return role === 'admin' || role === 'manager';
+}
 
 function applyRole(role) {
   const allowed = role === 'team' ? TEAM_VIEWS : role === 'deal_breaker' ? DEAL_BREAKER_VIEWS : ADMIN_VIEWS;
