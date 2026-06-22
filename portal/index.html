@@ -3136,6 +3136,7 @@ function dbBuildFieldCard(p, mode) {
       </div>
       <div class="db-card-actions">
         ${actionHtml}
+        ${isAdminOrManager() ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">🔄 Sync</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleDbCard('${p.id}')">Details</button>
       </div>
       <div class="db-card-expand" id="db-expand-${pid}"></div>
@@ -3183,6 +3184,16 @@ function renderDbCards(containerId, providers) {
     if (!isGenerating && !isFailed && ACTIVE_STAGES.includes(stage)) {
       pauseBtnHtml = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbPause('${p.id}')">Pause</button>`;
     }
+    // Stage normally only advances via dbSetStage clicks in this board. A
+    // provider whose offers were inserted directly (e.g. a re-import script,
+    // bypassing the deal-breaker flow entirely) gets stuck showing a stale
+    // stage like "menu collected" forever, since nothing here ever wrote a
+    // new wein_provider_stages row for it. Let admin/manager force a re-sync
+    // from the actual wein_offers/wein_accepted_offers data instead of having
+    // to click through every intermediate stage manually.
+    const syncBtnHtml = isAdminOrManager()
+      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">🔄 Sync</button>`
+      : '';
 
     return `
       <div class="db-card" id="db-card-${pid}">
@@ -3198,11 +3209,36 @@ function renderDbCards(containerId, providers) {
         <div class="db-card-actions">
           ${primaryBtnHtml}
           ${pauseBtnHtml}
+          ${syncBtnHtml}
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleDbCard('${p.id}')">Details</button>
         </div>
         <div class="db-card-expand" id="db-expand-${pid}"></div>
       </div>`;
   }).join('');
+}
+
+// Re-derives a provider's deal-breaker stage from what's actually in
+// wein_offers / wein_accepted_offers, for providers added or edited outside
+// the normal Generate Offers / Accept Offers flow (direct DB import, manual
+// fix, etc). admin/manager only -- this skips stages rather than walking
+// through them, which would be wrong to expose to the deal_breaker role.
+async function dbSyncStageFromOffers(providerId, providerName) {
+  if (!isAdminOrManager()) return;
+  try {
+    const [offers, accepted] = await Promise.all([
+      sbGet(`wein_offers?provider_id=eq.${providerId}&select=id`),
+      sbGet(`wein_accepted_offers?provider_name=eq.${encodeURIComponent(providerName)}&select=id`).catch(() => [])
+    ]);
+    let target;
+    if (accepted.length > 0) target = 'accepted';
+    else if (offers.length > 0) target = 'offers_generated';
+    else { alert(`No offers found in the database for "${providerName}" yet — nothing to sync to.`); return; }
+
+    await dbSetStage(providerId, providerName, target);
+    await loadDealBreakers();
+  } catch (e) {
+    alert('Sync failed: ' + e.message);
+  }
 }
 
 async function toggleDbCard(providerId) {
