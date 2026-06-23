@@ -533,7 +533,13 @@
           <div class="card-title" style="margin:0">🤝 Deal breakers</div>
           <div style="font-size:13px;color:var(--text-faint);margin-top:2px" id="db-team-summary">Loading…</div>
         </div>
-        <button class="btn btn-orange" onclick="openAssignModal()"><i class="ti ti-plus"></i> Assign provider</button>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="view-toggle-group">
+            <button class="view-toggle-btn" id="dbMgrViewListBtn" onclick="dbSetManagerViewMode('list')"><i class="ti ti-list"></i> List</button>
+            <button class="view-toggle-btn" id="dbMgrViewBoardBtn" onclick="dbSetManagerViewMode('board')"><i class="ti ti-layout-board"></i> Board</button>
+          </div>
+          <button class="btn btn-orange" onclick="openAssignModal()"><i class="ti ti-plus"></i> Assign provider</button>
+        </div>
       </div>
       <div class="stats-row">
         <div class="stat-card" id="db-action-card"><div class="stat-lbl" style="color:var(--red)">Need your action</div><div class="stat-num" id="db-action-count" style="color:var(--red)">0</div><div style="font-size:11px;color:var(--text-faint);margin-top:2px">Generate offers</div></div>
@@ -542,6 +548,7 @@
         <div class="stat-card"><div class="stat-lbl">Accepted this week</div><div class="stat-num" id="db-accepted-count">0</div></div>
       </div>
       <div id="db-cards-manager" class="db-card-list"></div>
+      <div id="db-board-view-manager" class="kanban-board" style="display:none"></div>
     </div>
 
     <div id="db-field-view" style="display:none">
@@ -3085,6 +3092,8 @@ async function loadManagerView() {
     document.getElementById('db-team-summary').textContent = `${deal_breakers.size} active deal breaker${deal_breakers.size===1?'':'s'}`;
 
     renderDbCards('db-cards-manager', providers);
+    renderKanbanBoard(providers, 'db-board-view-manager');
+    dbApplyManagerViewMode();
 
     const select = document.getElementById('assign-provider');
     select.innerHTML = '<option value="">Select provider…</option>' + providers.map(p => `<option value="${p.id}">${p.provider_name} (${p.vertical||'—'})</option>`).join('');
@@ -3210,12 +3219,16 @@ function dbRenderKanbanColumn(col, withStage) {
     </div>`;
 }
 
-let dbLastKanbanProviders = [];
+// Keyed by containerId so the field-view board and the manager-view board
+// each remember their own provider list for resize-driven re-renders and
+// the Done sheet, instead of one clobbering the other's data.
+let dbLastKanbanByContainer = {};
 
-function renderKanbanBoard(providers) {
-  const board = document.getElementById('db-board-view');
+function renderKanbanBoard(providers, containerId) {
+  containerId = containerId || 'db-board-view';
+  const board = document.getElementById(containerId);
   if (!board) return;
-  dbLastKanbanProviders = providers;
+  dbLastKanbanByContainer[containerId] = providers;
   const withStage = providers.map(p => ({ p, stage: dbStageOf(p.id) }));
   const isMobile = window.innerWidth < 768;
   const columnSet = isMobile ? KANBAN_COLUMNS_MOBILE : KANBAN_COLUMNS;
@@ -3225,12 +3238,13 @@ function renderKanbanBoard(providers) {
   // Mobile-only "Done (N)" button, sits below the board, opens the done
   // stages as a sheet instead of squeezing a 3rd column into 375px. Desktop
   // already shows Done as a normal 5th column, so no button needed there.
-  let doneBtn = document.getElementById('kanban-done-sheet-btn');
+  const doneBtnId = 'kanban-done-sheet-btn-' + containerId;
+  let doneBtn = document.getElementById(doneBtnId);
   if (!doneBtn) {
     doneBtn = document.createElement('button');
-    doneBtn.id = 'kanban-done-sheet-btn';
+    doneBtn.id = doneBtnId;
     doneBtn.className = 'btn btn-ghost btn-full';
-    doneBtn.onclick = dbOpenKanbanDoneSheet;
+    doneBtn.onclick = () => dbOpenKanbanDoneSheet(containerId);
     board.insertAdjacentElement('afterend', doneBtn);
   }
   if (isMobile) {
@@ -3242,8 +3256,10 @@ function renderKanbanBoard(providers) {
   }
 }
 
-function dbOpenKanbanDoneSheet() {
-  const withStage = dbLastKanbanProviders.map(p => ({ p, stage: dbStageOf(p.id) }));
+function dbOpenKanbanDoneSheet(containerId) {
+  containerId = containerId || 'db-board-view';
+  const providers = dbLastKanbanByContainer[containerId] || [];
+  const withStage = providers.map(p => ({ p, stage: dbStageOf(p.id) }));
   const doneCol = KANBAN_COLUMNS.find(c => c.id === 'done');
   const content = document.getElementById('modalContent');
   content.innerHTML = `<div class="card-title">✅ Done</div><div class="kanban-col-body" style="max-height:70vh">${dbRenderKanbanColumn(doneCol, withStage).match(/<div class="kanban-col-body"[^>]*>([\s\S]*)<\/div>\s*<\/div>$/)[1]}</div>`;
@@ -3255,8 +3271,11 @@ window.addEventListener('resize', (function() {
   return function() {
     clearTimeout(t);
     t = setTimeout(() => {
-      const board = document.getElementById('db-board-view');
-      if (board && board.style.display !== 'none' && dbLastKanbanProviders.length) renderKanbanBoard(dbLastKanbanProviders);
+      Object.keys(dbLastKanbanByContainer).forEach(containerId => {
+        const board = document.getElementById(containerId);
+        const providers = dbLastKanbanByContainer[containerId];
+        if (board && board.style.display !== 'none' && providers && providers.length) renderKanbanBoard(providers, containerId);
+      });
     }, 200);
   };
 })());
@@ -3272,6 +3291,19 @@ function dbApplyViewMode() {
   document.getElementById('db-board-view').style.display = isBoard ? 'flex' : 'none';
   document.getElementById('dbViewListBtn')?.classList.toggle('active', !isBoard);
   document.getElementById('dbViewBoardBtn')?.classList.toggle('active', isBoard);
+}
+
+function dbSetManagerViewMode(mode) {
+  localStorage.setItem('weinDbManagerViewMode', mode);
+  dbApplyManagerViewMode();
+}
+function dbApplyManagerViewMode() {
+  const mode = localStorage.getItem('weinDbManagerViewMode') || 'list';
+  const isBoard = mode === 'board';
+  document.getElementById('db-cards-manager').style.display = isBoard ? 'none' : 'flex';
+  document.getElementById('db-board-view-manager').style.display = isBoard ? 'flex' : 'none';
+  document.getElementById('dbMgrViewListBtn')?.classList.toggle('active', !isBoard);
+  document.getElementById('dbMgrViewBoardBtn')?.classList.toggle('active', isBoard);
 }
 
 function dbToggleDoneSection() {
