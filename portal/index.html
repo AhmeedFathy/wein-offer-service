@@ -12,11 +12,37 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   :root {
+    /* Light mode is the default look now -- Notion/Linear-style, friendly
+       for non-technical deal breakers. Dark mode (below) stays available
+       as an opt-in via the existing theme toggle, unchanged. */
     --navy: #1B3A6B;
     --navy-lt: #2a5298;
     --orange: #F5A623;
     --orange-dk: #d4891a;
     --teal: #2E7D6F;
+    --bg: #F7F7F5;
+    --surface: #FFFFFF;
+    --surface2: #F2F2EF;
+    --card: #FFFFFF;
+    --text: #111110;
+    --text-dim: #666662;
+    --muted: #666662;
+    --text-faint: #AAAAAA;
+    --border: #E5E5E2;
+    --border-hover: #D4D4D0;
+    --success: #15803D;
+    --danger: #DC2626;
+    --warn: #C2410C;
+    --red: #DC2626;
+    --red-light: #FEF2F2;
+    --green: #15803D;
+    --green-light: #F0FDF4;
+    --amber: #C2410C;
+    --amber-light: #FFF7ED;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  html[data-theme="dark"] {
     --bg: #0D0D0F;
     --surface: #141418;
     --surface2: #1C1C22;
@@ -27,23 +53,6 @@
     --text-faint: rgba(242,242,240,.2);
     --border: rgba(255,255,255,.06);
     --border-hover: rgba(255,255,255,.12);
-    --success: #1D9E75;
-    --danger: #E24B4A;
-    --warn: #EF9F27;
-    --radius: 10px;
-    --radius-sm: 8px;
-  }
-  html[data-theme="light"] {
-    --bg: #FAFAF8;
-    --surface: #FFFFFF;
-    --surface2: #F5F4F0;
-    --card: #FFFFFF;
-    --text: #111110;
-    --text-dim: rgba(17,17,16,.5);
-    --muted: rgba(17,17,16,.5);
-    --text-faint: rgba(17,17,16,.28);
-    --border: rgba(0,0,0,.08);
-    --border-hover: rgba(0,0,0,.18);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { transition: background 150ms ease, color 150ms ease; }
@@ -51,7 +60,8 @@
   .mono, .stat-num, .offer-new, .offer-old { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   .theme-toggle { color: var(--text-faint); }
   .theme-toggle:hover { color: var(--orange); }
-  html[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); }
+  html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); }
   button { font-family: inherit; cursor: pointer; }
   a { color: var(--orange); text-decoration: none; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -301,10 +311,6 @@
 
   /* ── Deal breakers ── */
   .db-section-label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-  .db-stage-track { display: flex; border-radius: 6px; overflow: hidden; border: .5px solid var(--border); }
-  .db-stage-track > div { flex: 1; padding: 7px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text-faint); }
-  .db-stage-track > div.done { background: var(--navy); color: #fff; }
-  .db-stage-track > div.current { background: var(--orange); color: #1a1208; font-weight: 700; }
   .db-offer-card { background: var(--surface2); border: .5px solid var(--border); border-radius: var(--radius-sm); padding: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
   .db-offer-card.selected { border-color: var(--success); background: rgba(34,197,94,.06); }
   .db-check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: transparent; font-size: 11px; }
@@ -367,7 +373,7 @@
 </style>
 <script>
   (function() {
-    var saved = localStorage.getItem('weinTheme') || 'dark';
+    var saved = localStorage.getItem('weinTheme') || 'light';
     document.documentElement.setAttribute('data-theme', saved);
   })();
 </script>
@@ -378,7 +384,7 @@
 <div id="loginScreen" style="position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .3s">
   <img src="https://wein-eg.com/images/wein-logo.svg" alt="WeIN" style="height:40px;margin-bottom:18px" onerror="this.style.display='none';document.getElementById('logoFallback').style.display='flex'">
   <div id="logoFallback" style="display:none;width:64px;height:64px;border-radius:50%;background:var(--orange);align-items:center;justify-content:center;font-weight:800;font-size:28px;color:var(--navy);margin-bottom:16px">W</div>
-  <div style="color:#fff;font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.02em">WeIN OS</div>
+  <div style="color:var(--text);font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.02em">WeIN OS</div>
   <div style="color:var(--text-faint);font-size:13px;margin-bottom:32px">Marketplace Operations</div>
   <div style="display:flex;gap:10px;margin-bottom:18px" id="pinBoxes">
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
@@ -386,11 +392,15 @@
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
     <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
   </div>
-  <div id="loginError" style="color:#fca5a5;font-size:13px;min-height:18px;margin-bottom:10px"></div>
+  <div id="loginError" style="color:var(--danger);font-size:13px;min-height:18px;margin-bottom:10px"></div>
   <button class="btn btn-orange" style="padding:10px 40px;width:228px" onclick="attemptLogin()">Login</button>
+  <div style="margin-top:16px;text-align:center;width:228px">
+    <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px">or</div>
+    <button onclick="showEmailLogin()" style="width:100%;padding:11px;background:var(--surface);border:.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text-dim);cursor:pointer;font-weight:500">Continue with email</button>
+  </div>
 </div>
 <style>
-  .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 12px; border: .5px solid var(--border); background: var(--surface2); color: #fff; }
+  .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 12px; border: .5px solid var(--border); background: var(--surface2); color: var(--text); }
   .pin-box:focus { outline: 2px solid var(--orange); }
 </style>
 
@@ -517,7 +527,7 @@
         <button class="btn btn-orange" onclick="openAssignModal()"><i class="ti ti-plus"></i> Assign provider</button>
       </div>
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-lbl">Active deal breakers</div><div class="stat-num" id="db-active-count">0</div></div>
+        <div class="stat-card" id="db-action-card"><div class="stat-lbl" style="color:var(--red)">Need your action</div><div class="stat-num" id="db-action-count" style="color:var(--red)">0</div><div style="font-size:11px;color:var(--text-faint);margin-top:2px">Generate offers</div></div>
         <div class="stat-card"><div class="stat-lbl">Providers assigned</div><div class="stat-num" id="db-assigned-count">0</div></div>
         <div class="stat-card"><div class="stat-lbl">In negotiation</div><div class="stat-num" id="db-negotiating-count">0</div></div>
         <div class="stat-card"><div class="stat-lbl">Accepted this week</div><div class="stat-num" id="db-accepted-count">0</div></div>
@@ -771,12 +781,6 @@
       <div class="field"><label>Excluded Items</label><textarea id="iExcluded"></textarea></div>
       <div class="field"><label>Special Terms</label><textarea id="iTerms"></textarea></div>
 
-      <div class="card-title" style="margin-top:18px;font-size:14px">📊 Menu intelligence</div>
-      <div style="font-size:11px;color:var(--text-faint);margin-bottom:10px">Fill these in after visiting the provider and asking what sells best.</div>
-      <div class="field"><label>Top selling items</label><textarea id="iTopSelling" placeholder="What does the provider say sells most?&#10;e.g. Lamb Ribs, Mixed Grill, Family platters…"></textarea></div>
-      <div class="field"><label>Mid selling items</label><textarea id="iMidSelling" placeholder="Regularly ordered but not the stars…&#10;e.g. Pasta, Salads, Chicken dishes…"></textarea></div>
-      <div class="field"><label>Low / slow items</label><textarea id="iLowSelling" placeholder="Items that rarely sell or provider wants to move…&#10;e.g. Fish of the day, Specials…"></textarea></div>
-
       <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="intakeGoStep(1)">← Back</button><button class="btn btn-orange btn-full" onclick="intakeGoStep(3)">Next: Menu →</button></div>
     </div>
 
@@ -789,6 +793,21 @@
         <div id="iMenuFilePills" class="chips" style="margin-top:8px"></div>
       </div>
       <div class="field"><label>— or — Menu Text</label><textarea id="iMenuText" placeholder="Paste menu items…" style="min-height:100px"></textarea></div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;margin:16px 0 12px;font-size:12px;color:#1D4ED8;display:flex;gap:8px;align-items:flex-start">
+        <i class="ti ti-info-circle" style="font-size:14px;flex-shrink:0;margin-top:1px" aria-hidden="true"></i>
+        <span>Ask the provider what sells best before you leave. This helps us build stronger offers that the provider will actually accept.</span>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:500;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">
+          Sales intelligence
+          <span style="font-size:10px;color:var(--text-faint);text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px">(ask the provider during your visit)</span>
+        </div>
+        <div class="field"><label>Top selling items</label><textarea id="iTopSelling" rows="2" placeholder="What sells most? e.g. Lamb Ribs, Mixed Grill, Family platters…"></textarea></div>
+        <div class="field"><label>Mid selling items</label><textarea id="iMidSelling" rows="2" placeholder="Regularly ordered… e.g. Pasta, Salads, Chicken dishes…"></textarea></div>
+        <div class="field"><label>Low / slow items</label><textarea id="iLowSelling" rows="2" placeholder="Rarely ordered or provider wants to move… e.g. Fish special, Daily soup…"></textarea></div>
+      </div>
+
       <div id="alertIntake3"></div>
       <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="intakeGoStep(2)">← Back</button><button class="btn btn-orange btn-full" id="intakeSubmitBtn" onclick="submitIntake()">Submit Provider</button></div>
     </div>
@@ -916,8 +935,11 @@
 </div>
 
 <script>
+function showEmailLogin() {
+  alert('Email login coming soon. Use your PIN for now.');
+}
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('weinTheme', next);
@@ -2894,6 +2916,100 @@ const STAGE_TRANSITIONS = {
   negotiating:      { to: 'accepted',         label: 'Accept offers', opensOffers: true },
 };
 
+// Vertical stage timeline -- replaces the old horizontal .db-stage-track,
+// which only ever existed as dead CSS (nothing rendered it). compact=true
+// shows a window of stages around the current one; compact=false shows all 10.
+function renderStageTimeline(currentStage, compact=true) {
+  const ALL_STAGES = [
+    'new','briefed','menu_collected','waiting_founder',
+    'offers_generated','sent_back','negotiating',
+    'accepted','paused','closed'
+  ];
+  const STAGE_LABELS = {
+    new: 'New',
+    briefed: 'Briefed',
+    menu_collected: 'Menu collected',
+    waiting_founder: 'Waiting for founder',
+    offers_generated: 'Offers generated',
+    sent_back: 'Sent back',
+    negotiating: 'Negotiating',
+    accepted: 'Accepted',
+    paused: 'Paused',
+    closed: 'Closed'
+  };
+
+  const currentIdx = ALL_STAGES.indexOf(currentStage);
+
+  let visibleStages, startIdx;
+  if (compact) {
+    startIdx = Math.max(0, currentIdx - 2);
+    const endIdx = Math.min(ALL_STAGES.length-1, currentIdx+2);
+    visibleStages = ALL_STAGES.slice(startIdx, endIdx+1);
+  } else {
+    startIdx = 0;
+    visibleStages = ALL_STAGES;
+  }
+
+  const showTopDots = compact && startIdx > 0;
+  const showBottomDots = compact &&
+    (startIdx + visibleStages.length) < ALL_STAGES.length;
+
+  const items = visibleStages.map((stage, i) => {
+    const absIdx = startIdx + i;
+    const isDone = absIdx < currentIdx;
+    const isCurrent = absIdx === currentIdx;
+    const isLast = i === visibleStages.length - 1;
+
+    const connectorColor = isDone ? '#1B3A6B' : '#E5E5E2';
+    const dotBg = isDone ? '#1B3A6B' :
+                  isCurrent ? '#F5A623' : '#fff';
+    const dotBorder = isCurrent ?
+      'box-shadow:0 0 0 3px #FFF7ED' :
+      (!isDone ? 'border:1.5px solid #E5E5E2' : '');
+    const labelColor = isDone ? '#1B3A6B' :
+                       isCurrent ? '#111' : '#aaa';
+    const labelWeight = isCurrent ? '600' :
+                        isDone ? '500' : '400';
+
+    return `
+      <div style="display:flex;align-items:flex-start;
+        gap:10px;position:relative;">
+        ${!isLast ? `<div style="position:absolute;left:7px;
+          top:16px;width:1.5px;
+          height:calc(100% + 2px);
+          background:${connectorColor};z-index:0"></div>` : ''}
+        <div style="width:15px;height:15px;border-radius:50%;
+          flex-shrink:0;margin-top:1px;position:relative;
+          z-index:1;display:flex;align-items:center;
+          justify-content:center;background:${dotBg};
+          ${dotBorder}">
+          ${isDone ?
+            '<span style="color:#fff;font-size:8px">✓</span>' :
+            ''}
+        </div>
+        <div style="color:${labelColor};font-weight:${labelWeight};
+          font-size:${isCurrent?'13':'12'}px;
+          padding:0 0 ${isLast?'2':'10'}px">
+          ${STAGE_LABELS[stage]}
+          ${isCurrent ?
+            '<span style="font-size:10px;color:#aaa;'+
+            'font-weight:400;margin-left:4px">← now</span>':''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div style="padding:6px 0 2px">
+      ${showTopDots ?
+        '<div style="font-size:10px;color:#ccc;'+
+        'padding-left:4px;margin-bottom:2px">···</div>':''}
+      ${items}
+      ${showBottomDots ?
+        '<div style="font-size:10px;color:#ccc;'+
+        'padding-left:4px;margin-top:-6px">···</div>':''}
+    </div>`;
+}
+
 let dbExpandedId = null;
 let dbSelectedOfferIds = new Set();
 let dbProvidersCache = [], dbNegotiationsCache = [], dbHistoryCache = [];
@@ -2950,7 +3066,10 @@ async function loadManagerView() {
     // Show everyone; "assigned" stays a tracked stat, not a visibility gate.
     const assigned = providers.filter(p => p.assigned_to);
     const deal_breakers = new Set(assigned.map(p => p.assigned_to));
-    document.getElementById('db-active-count').textContent = deal_breakers.size;
+    const actionCount = providers.filter(p => (STAGE_META[dbStageOf(p.id)] || {}).owner === 'founder').length;
+    document.getElementById('db-action-count').textContent = actionCount;
+    document.getElementById('db-action-card').style.background = actionCount > 0 ? 'var(--red-light)' : '';
+    document.getElementById('db-action-card').style.borderColor = actionCount > 0 ? '#FECACA' : '';
     document.getElementById('db-assigned-count').textContent = assigned.length;
     document.getElementById('db-negotiating-count').textContent = providers.filter(p => dbStageOf(p.id) === 'negotiating').length;
     document.getElementById('db-accepted-count').textContent = providers.filter(p => dbStageOf(p.id) === 'accepted').length;
@@ -3132,6 +3251,7 @@ function dbBuildFieldCard(p, mode) {
           <span class="badge">${p.vertical || '—'}</span>
         </div>
         <div class="db-status-badge ${badge.color}">${badge.label}</div>
+        ${renderStageTimeline(stage, true)}
         ${nextLine}
       </div>
       <div class="db-card-actions">
@@ -3153,7 +3273,7 @@ function dbLastAction(providerId) {
 function renderDbCards(containerId, providers) {
   const container = document.getElementById(containerId);
   if (!providers.length) { container.innerHTML = '<div class="empty">No providers yet.</div>'; return; }
-  container.innerHTML = providers.map(p => {
+  const cards = providers.map(p => {
     const stage = dbStageOf(p.id);
     const pid = dbSan(p.id);
     const badge = dbStatusBadge(stage);
@@ -3195,14 +3315,20 @@ function renderDbCards(containerId, providers) {
       ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">🔄 Sync</button>`
       : '';
 
-    return `
-      <div class="db-card" id="db-card-${pid}">
+    // founder-owned stages (menu_collected/waiting_founder/offers_generated)
+    // are this admin's own action items -- flag them with a red accent so
+    // the most urgent thing is visually first, per the redesign brief.
+    const isFounderAction = meta.owner === 'founder';
+
+    const html = `
+      <div class="db-card" id="db-card-${pid}" style="${isFounderAction ? 'border-left:3px solid var(--red)' : ''}">
         <div class="db-card-top" onclick="toggleDbCard('${p.id}')">
           <div class="db-card-head">
             <div class="db-card-name">${p.provider_name}</div>
             <span class="badge">${p.vertical || '—'}</span>
           </div>
           <div class="db-status-badge ${statusBadge.color}">${statusBadge.label}</div>
+          ${renderStageTimeline(stage, true)}
           <div class="db-card-line">Last: ${dbLastAction(p.id)}</div>
           <div class="db-card-line">Next: <b>${nextLine}</b></div>
         </div>
@@ -3214,7 +3340,21 @@ function renderDbCards(containerId, providers) {
         </div>
         <div class="db-card-expand" id="db-expand-${pid}"></div>
       </div>`;
-  }).join('');
+    return { html, owner: meta.owner };
+  });
+
+  const actionCards = cards.filter(c => c.owner === 'founder');
+  const dealBreakerCards = cards.filter(c => c.owner !== 'founder');
+
+  container.innerHTML = `
+    ${actionCards.length ? `
+    <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Needs your action</div>
+    <div class="db-card-list" style="margin-bottom:20px">${actionCards.map(c => c.html).join('')}</div>` : ''}
+    ${dealBreakerCards.length ? `
+    <div style="font-size:11px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Deal breakers working</div>
+    <div class="db-card-list">${dealBreakerCards.map(c => c.html).join('')}</div>` : ''}
+    ${!actionCards.length && !dealBreakerCards.length ? '<div class="empty">No providers yet.</div>' : ''}
+  `;
 }
 
 // Re-derives a provider's deal-breaker stage from what's actually in
@@ -3339,6 +3479,10 @@ async function dbRenderExpand(providerId, el) {
   const showAcceptedOffers = stage === 'accepted';
 
   el.innerHTML = `
+    <div class="db-expand-section">
+      <div class="db-expand-label">Stage</div>
+      ${renderStageTimeline(stage, false)}
+    </div>
     <div class="db-expand-section">
       <div class="db-expand-label">Menu</div>
       ${dbMenuSectionHtml(p)}
