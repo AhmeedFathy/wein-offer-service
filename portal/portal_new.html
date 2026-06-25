@@ -35,6 +35,31 @@
   --red:            #ef4444;
   --red-tint:       #ef444415;
 }
+[data-theme="light"] {
+  --bg-base:        #f5f3ef;
+  --bg-surface:     #ffffff;
+  --bg-elevated:    #ede9e1;
+  --bg-deep:        #e8e4dc;
+
+  --border:         #d4cfc4;
+  --border-subtle:  #e4dfd6;
+  --border-amber:   #f59e0b50;
+
+  --amber:          #d97706;
+  --amber-muted:    #92400e;
+  --amber-tint:     #f59e0b18;
+
+  --text-primary:   #1a1208;
+  --text-secondary: #6b5e3e;
+  --text-tertiary:  #a8956e;
+
+  --green:          #16a34a;
+  --green-tint:     #16a34a15;
+  --blue:           #2563eb;
+  --blue-tint:      #2563eb15;
+  --red:            #dc2626;
+  --red-tint:       #dc262615;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg-base); color: var(--text-primary); font-family: 'Instrument Sans', sans-serif; min-height: 100vh; }
 button, input { font-family: inherit; }
@@ -111,7 +136,7 @@ a { color: var(--amber); text-decoration: none; }
 .empty-col { padding: 20px 8px; text-align: center; font-size: 11px; color: var(--text-tertiary); }
 .db-filter {
   font-size:10px; padding:4px 10px; border-radius:4px;
-  border:0.5px solid #2a2208; color:#7a6a4a;
+  border:0.5px solid var(--border); color:var(--text-secondary);
   background:transparent; cursor:pointer; font-family:'Instrument Sans',sans-serif;
 }
 .db-filter.active {
@@ -235,6 +260,16 @@ a { color: var(--amber); text-decoration: none; }
       <div id="notif-list" class="notif-list"></div>
     </div>
   </div>
+  <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode" style="
+    width:32px; height:32px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:6px; cursor:pointer;
+    background:transparent; border:0.5px solid var(--border);
+    color:var(--text-secondary); margin-right:6px;
+    transition: all 150ms ease;
+  ">
+    <i id="theme-icon" class="ti ti-sun" style="font-size:15px;" aria-hidden="true"></i>
+  </button>
   <div id="tbAvatar" style="width:28px;height:28px;border-radius:50%;background:var(--amber-tint);border:.5px solid var(--border-amber);display:flex;align-items:center;justify-content:center;margin-right:12px;cursor:pointer" title="">
     <span style="font-size:10px;font-weight:600;color:var(--amber)" id="tbAvatarInitials">W</span>
   </div>
@@ -283,7 +318,7 @@ a { color: var(--amber); text-decoration: none; }
   </div>
 
   <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
-    <span style="font-size:9px;color:#3a3020;text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
+    <span style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
     <button class="db-filter active" data-role="all">All</button>
     <button class="db-filter" data-role="deal_breaker">Deal Breaker</button>
     <button class="db-filter" data-role="admin">Admin</button>
@@ -327,26 +362,26 @@ a { color: var(--amber); text-decoration: none; }
   align-items:center; justify-content:center;
 ">
   <div id="provider-modal" style="
-    background:#161208; border:0.5px solid #2a2208;
+    background:var(--bg-surface); border:0.5px solid var(--border);
     border-radius:10px; width:860px; max-width:95vw;
     max-height:85vh; overflow:hidden;
     display:flex; flex-direction:column; position:relative;
   ">
     <div style="
-      padding:16px 20px; border-bottom:0.5px solid #2a2208;
+      padding:16px 20px; border-bottom:0.5px solid var(--border);
       display:flex; align-items:center; gap:12px;
-      flex-shrink:0; background:#161208;
+      flex-shrink:0; background:var(--bg-surface);
     ">
       <div id="modal-stage-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;"></div>
       <div style="flex:1;">
-        <div id="modal-provider-name" style="font-family:'Instrument Sans';font-size:16px;font-weight:600;color:#f0e8d8;"></div>
-        <div id="modal-provider-meta" style="font-family:'Instrument Sans';font-size:12px;color:#7a6a4a;margin-top:2px;"></div>
+        <div id="modal-provider-name" style="font-family:'Instrument Sans';font-size:16px;font-weight:600;color:var(--text-primary);"></div>
+        <div id="modal-provider-meta" style="font-family:'Instrument Sans';font-size:12px;color:var(--text-secondary);margin-top:2px;"></div>
       </div>
       <div id="modal-stage-pill" style="font-family:'Instrument Sans';font-size:11px;padding:3px 10px;border-radius:4px;font-weight:500;"></div>
       <button onclick="closeProviderModal()" style="
         width:28px;height:28px;border-radius:5px;
-        background:transparent;border:0.5px solid #2a2208;
-        color:#7a6a4a;font-size:16px;cursor:pointer;
+        background:transparent;border:0.5px solid var(--border);
+        color:var(--text-secondary);font-size:16px;cursor:pointer;
         display:flex;align-items:center;justify-content:center;margin-left:8px;
       ">x</button>
     </div>
@@ -354,13 +389,13 @@ a { color: var(--amber); text-decoration: none; }
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
 
       <!-- Column 1: Offers -->
-      <div style="display:flex;flex-direction:column;border-right:0.5px solid #2a2208;min-height:0;">
+      <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;">
         <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
         <div id="modal-offers" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
       </div>
 
       <!-- Column 2: Files -->
-      <div style="display:flex;flex-direction:column;border-right:0.5px solid #2a2208;min-height:0;">
+      <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;">
         <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
         <div id="modal-files" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:4px;"></div>
       </div>
@@ -369,16 +404,16 @@ a { color: var(--amber); text-decoration: none; }
       <div style="display:flex;flex-direction:column;min-height:0;">
         <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
         <div id="modal-comments" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
-        <div style="border-top:0.5px solid #2a2208;padding:8px;flex-shrink:0;">
+        <div style="border-top:0.5px solid var(--border);padding:8px;flex-shrink:0;">
           <textarea id="comment-input" placeholder="Leave a note or instruction..." style="
-            width:100%;background:#1e1810;border:0.5px solid #2a2208;border-radius:6px;
+            width:100%;background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px;
             padding:8px 10px;font-family:'Instrument Sans';font-size:12px;
-            color:#f0e8d8;resize:none;height:64px;outline:none;box-sizing:border-box;
+            color:var(--text-primary);resize:none;height:64px;outline:none;box-sizing:border-box;
           "></textarea>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
             <select id="comment-author-role" style="
-              font-family:'Instrument Sans';font-size:11px;background:#1e1810;
-              border:0.5px solid #2a2208;border-radius:4px;padding:4px 8px;color:#7a6a4a;outline:none;
+              font-family:'Instrument Sans';font-size:11px;background:var(--bg-elevated);
+              border:0.5px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text-secondary);outline:none;
             ">
               <option value="admin">Ahmed (Admin)</option>
               <option value="deal_breaker">Deal Breaker</option>
@@ -692,6 +727,31 @@ function rpChatLog(text, who) {
 /* === END PRESERVED LOGIC === */
 
 // ════════════════════════════════════════════════════════════════════
+// LIGHT / DARK THEME TOGGLE
+// ════════════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('wein-theme', newTheme);
+  document.getElementById('theme-icon').className = newTheme === 'light'
+    ? 'ti ti-moon'
+    : 'ti ti-sun';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('wein-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  const icon = document.getElementById('theme-icon');
+  if (icon) {
+    icon.className = saved === 'light' ? 'ti ti-moon' : 'ti ti-sun';
+  }
+}
+
+initTheme();
+
+// ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
 const PAGE_TITLES = { overview: 'Overview', pipeline: 'Pipeline', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
@@ -826,11 +886,11 @@ function providerCardHtml(item) {
         <button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>
       </div>
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
-      <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid #1c1808;margin-top:4px;">
+      <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
         <div style="width:18px;height:18px;border-radius:50%;background:#f59e0b20;border:0.5px solid #f59e0b40;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:#f59e0b;">
           ${dealBreaker === 'admin' ? 'AD' : 'DB'}
         </div>
-        <span style="font-size:11px;color:#7a6a4a;">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
+        <span style="font-size:11px;color:var(--text-secondary);">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
       </div>
     </div>`;
 }
@@ -869,7 +929,7 @@ async function openProviderModal(providerUuid, negotiationId) {
 
   const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : negotiationFor(p);
   const stage = neg ? neg.stage : 'new';
-  const colors = STAGE_COLORS[stage] || { bg: '#1e1810', border: '#2a2208', text: '#7a6a4a', dot: '#7a6a4a' };
+  const colors = STAGE_COLORS[stage] || { bg: 'var(--bg-elevated)', border: 'var(--border)', text: 'var(--text-secondary)', dot: 'var(--text-secondary)' };
 
   document.getElementById('modal-provider-name').textContent = p.provider_name;
   document.getElementById('modal-provider-meta').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
@@ -879,42 +939,42 @@ async function openProviderModal(providerUuid, negotiationId) {
   pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
-  offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
-  filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
-  commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
+  offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
+  filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
+  commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
 
   try {
     const offers = await sbGet(`wein_offers?provider_id=eq.${providerUuid}&select=*`);
     if (token !== modalOpenToken) return;
     offersEl.innerHTML = offers.length ? offers.map(o => `
-      <div style="background:#1e1810;border:0.5px solid #2a2208;border-radius:5px;padding:9px 11px;">
-        <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:#f0e8d8;margin-bottom:4px;">${o.title || 'Untitled offer'}</div>
+      <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:5px;padding:9px 11px;">
+        <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:var(--text-primary);margin-bottom:4px;">${o.title || 'Untitled offer'}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-family:'Instrument Sans';font-size:11px;color:#7a6a4a;">${o.category || '—'}</span>
+          <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);">${o.category || '—'}</span>
           <span style="font-family:'JetBrains Mono';font-size:12px;color:#f59e0b;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
         </div>
-      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No offers yet</div>';
-  } catch (e) { if (token === modalOpenToken) offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No offers yet</div>'; }
+      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>';
+  } catch (e) { if (token === modalOpenToken) offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>'; }
 
   try {
     const files = await sbGet(`wein_files?provider_id=eq.${providerUuid}&select=*`);
     if (token !== modalOpenToken) return;
     filesEl.innerHTML = files.length ? files.map(f => `
-      <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:#1e1810;border:0.5px solid #2a2208;border-radius:5px;">
-        <i class="ti ti-file" style="font-size:14px;color:#7a6a4a;flex-shrink:0;" aria-hidden="true"></i>
-        <span style="font-family:'Instrument Sans';font-size:11px;color:#f0e8d8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.file_name}</span>
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:5px;">
+        <i class="ti ti-file" style="font-size:14px;color:var(--text-secondary);flex-shrink:0;" aria-hidden="true"></i>
+        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.file_name}</span>
         ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener" style="font-family:'Instrument Sans';font-size:10px;color:#f59e0b;text-decoration:none;flex-shrink:0;">View</a>` : ''}
-      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No files yet</div>';
-  } catch (e) { if (token === modalOpenToken) filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No files yet</div>'; }
+      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>';
+  } catch (e) { if (token === modalOpenToken) filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>'; }
 
   if (negotiationId) {
     try {
       const comments = await sbGet(`wein_comments?negotiation_id=eq.${negotiationId}&order=created_at.asc&select=*`);
       if (token !== modalOpenToken) return;
       renderComments(comments);
-    } catch (e) { if (token === modalOpenToken) commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>'; }
+    } catch (e) { if (token === modalOpenToken) commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>'; }
   } else {
-    commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>';
+    commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>';
   }
 }
 
@@ -925,17 +985,17 @@ function renderComments(comments) {
     return isAdmin ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
         <div style="background:#f59e0b12;border:0.5px solid #f59e0b25;border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
-          <div style="font-family:'Instrument Sans';font-size:12px;color:#f0e8d8;">${c.body}</div>
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
         </div>
-        <div style="font-family:'Instrument Sans';font-size:10px;color:#3a3020;margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
       </div>` : `
       <div style="display:flex;flex-direction:column;align-items:flex-start;">
-        <div style="background:#1e1810;border:0.5px solid #2a2208;border-radius:6px 6px 6px 0;padding:7px 10px;max-width:85%;">
-          <div style="font-family:'Instrument Sans';font-size:12px;color:#f0e8d8;">${c.body}</div>
+        <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px 6px 6px 0;padding:7px 10px;max-width:85%;">
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
         </div>
-        <div style="font-family:'Instrument Sans';font-size:10px;color:#3a3020;margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
       </div>`;
-  }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>';
+  }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>';
   commentsEl.scrollTop = commentsEl.scrollHeight;
 }
 
