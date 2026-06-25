@@ -11,58 +11,77 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
-  --bg-base:        #0e0c08;
-  --bg-surface:     #161208;
-  --bg-elevated:    #1e1810;
-  --bg-deep:        #0a0904;
+  /* Backgrounds: WeIN's own dark-mode surfaces (wein-eg.com), blue-tinted
+     near-black instead of the previous warm near-black. */
+  --bg-base:        #05080f;
+  --bg-surface:     #0c121c;
+  --bg-elevated:    #141c2b;
+  --bg-deep:        #03060c;
 
-  --border:         #2a2208;
-  --border-subtle:  #1c1808;
+  --border:         #1c2838;
+  --border-subtle:  #141c2b;
+  --border-blue:    #0081fd35;
+  --border-blue-strong: #0081fd55;
+
+  /* Primary brand color -- extracted directly from wein-eg.com's logo SVG
+     fill (#0081FD) and its own --primary/--primary-dark CSS tokens. */
+  --blue:           #0081fd;
+  --blue-dark:      #004d97;
+  --blue-tint:      #0081fd15;
+  --blue-soft:      #0081fd20;
+  --blue-soft-strong: #0081fd40;
+
+  /* Amber is demoted from "the one accent" to a money/urgency-only color:
+     deal value, offer prices, discount badges. Everything else (sidebar
+     active state, buttons, hover borders, brand wordmark) uses --blue. */
   --border-amber:   #f59e0b35;
   --border-amber-strong: #f59e0b55;
-
   --amber:          #f59e0b;
   --amber-muted:    #92400e;
   --amber-tint:     #f59e0b12;
   --amber-soft:     #f59e0b20;
   --amber-soft-strong: #f59e0b40;
 
-  --text-primary:   #f0e8d8;
-  --text-secondary: #7a6a4a;
-  --text-tertiary:  #3a3020;
+  --text-primary:   #f0f4fa;
+  --text-secondary: #7a8aa0;
+  --text-tertiary:  #2e3a4c;
 
   --green:          #22c55e;
   --green-tint:     #22c55e15;
-  --blue:           #3b82f6;
-  --blue-tint:      #3b82f615;
   --red:            #ef4444;
   --red-tint:       #ef444415;
 }
 [data-theme="light"] {
-  --bg-base:        #f4f4f2;
+  --bg-base:        #f4f6fa;
   --bg-surface:     #ffffff;
-  --bg-elevated:    #f0f0ee;
-  --bg-deep:        #f8f8f6;
+  --bg-elevated:    #eef3fa;
+  --bg-deep:        #f8fafc;
 
-  --border:         #e5e5e3;
-  --border-subtle:  #eeeeec;
+  --border:         #dde4ee;
+  --border-subtle:  #eef3fa;
+  --border-blue:    #0081fd40;
+  --border-blue-strong: #004d9755;
+
+  --blue:           #0081fd;
+  --blue-dark:      #004d97;
+  --blue-tint:      #0081fd12;
+  --blue-soft:      #0081fd1a;
+  --blue-soft-strong: #0081fd33;
+
   --border-amber:   #f59e0b40;
   --border-amber-strong: #d9770655;
-
   --amber:          #d97706;
   --amber-muted:    #92400e;
   --amber-tint:     #f59e0b12;
   --amber-soft:     #f59e0b1a;
   --amber-soft-strong: #f59e0b33;
 
-  --text-primary:   #0a0a0a;
-  --text-secondary: #666660;
-  --text-tertiary:  #aaaaaa;
+  --text-primary:   #0a1018;
+  --text-secondary: #5c6b80;
+  --text-tertiary:  #a0acba;
 
   --green:          #16a34a;
   --green-tint:     #16a34a12;
-  --blue:           #2563eb;
-  --blue-tint:      #2563eb12;
   --red:            #dc2626;
   --red-tint:       #dc262612;
 }
@@ -70,7 +89,7 @@
 html, body { background: var(--bg-base); color: var(--text-primary); font-family: 'Instrument Sans', sans-serif; min-height: 100vh; }
 button, input { font-family: inherit; }
 button { cursor: pointer; }
-a { color: var(--amber); text-decoration: none; }
+a { color: var(--blue); text-decoration: none; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 *:not(.ti) { transition: border-color 150ms ease, background 150ms ease; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -83,11 +102,11 @@ a { color: var(--amber); text-decoration: none; }
 }
 .login-card { width: 360px; max-width: 100%; background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 32px 28px; display: flex; flex-direction: column; align-items: center; }
 .login-input { width: 100%; padding: 10px 12px; margin-bottom: 8px; background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 13px; }
-.login-input:focus { outline: none; border-color: var(--border-amber); }
-.btn-amber { width: 100%; height: 40px; border-radius: 6px; background: var(--amber); color: var(--bg-base); border: none; font-size: 13px; font-weight: 600; }
+.login-input:focus { outline: none; border-color: var(--border-blue); }
+.btn-primary { width: 100%; height: 40px; border-radius: 6px; background: var(--blue); color: #ffffff; border: none; font-size: 13px; font-weight: 600; }
 .btn-ghost { width: 100%; padding: 10px; background: transparent; border: .5px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text-secondary); }
 .pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 8px; border: .5px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); }
-.pin-box:focus { outline: 2px solid var(--amber); }
+.pin-box:focus { outline: 2px solid var(--blue); }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 .shake { animation: shake .3s; }
 
@@ -102,7 +121,7 @@ a { color: var(--amber); text-decoration: none; }
 #sidebar { position: fixed; left: 0; top: 52px; bottom: 0; width: 52px; background: var(--bg-deep); border-right: .5px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 8px 0; z-index: 99; }
 .nav-item { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; margin-bottom: 2px; position: relative; color: var(--text-tertiary); flex-shrink: 0; }
 .nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
-.nav-item.active { background: var(--amber-tint); color: var(--amber); border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; margin-left: -1px; }
+.nav-item.active { background: var(--blue-tint); color: var(--blue); border-left: 2px solid var(--blue); border-radius: 0 6px 6px 0; margin-left: -1px; }
 .nav-item.disabled { opacity: .3; cursor: not-allowed; }
 .nav-spacer { flex: 1; }
 
@@ -113,7 +132,7 @@ a { color: var(--amber); text-decoration: none; }
 /* ── KPI row ── */
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
 .kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 12px 16px; }
-.kpi-card:hover { border-color: var(--border-amber-strong); }
+.kpi-card:hover { border-color: var(--border-blue-strong); }
 .kpi-label { font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
@@ -128,22 +147,22 @@ a { color: var(--amber); text-decoration: none; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
 .provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; }
-.provider-card:hover { border-color: var(--border-amber-strong); background: var(--bg-elevated); }
+.provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); }
 .pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
 .pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
 .pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); }
 .pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.pc-badge { font-size: 10px; color: var(--amber); background: var(--amber-tint); border: .5px solid var(--border-amber); padding: 2px 6px; border-radius: 4px; }
+.pc-badge { font-size: 10px; color: var(--blue); background: var(--blue-tint); border: .5px solid var(--border-blue); padding: 2px 6px; border-radius: 4px; }
 .pc-run-btn { font-size: 10px; color: var(--text-secondary); background: transparent; border: .5px solid var(--border); border-radius: 4px; padding: 2px 8px; }
-.pc-run-btn:hover { color: var(--amber); border-color: var(--border-amber-strong); }
+.pc-run-btn:hover { color: var(--blue); border-color: var(--border-blue-strong); }
 .pc-progress { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
 .pc-progress-fill { height: 2px; border-radius: 1px; }
 .empty-col { padding: 20px 8px; text-align: center; font-size: 11px; color: var(--text-tertiary); }
 .view-header { display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px; }
 .view-title { font-size:18px;font-weight:600;color:var(--text-primary); }
 .view-count { font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-secondary); }
-.view-action { height:34px;border-radius:6px;border:.5px solid var(--border-amber);background:transparent;color:var(--amber);font-size:12px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px; }
+.view-action { height:34px;border-radius:6px;border:.5px solid var(--border-blue);background:transparent;color:var(--blue);font-size:12px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px; }
 .view-filterbar { display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap; }
 .view-input,.view-select { height:34px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;padding:0 10px;outline:none; }
 .view-input { min-width:220px;flex:1; }
@@ -155,26 +174,26 @@ a { color: var(--amber); text-decoration: none; }
 .providers-table tr { cursor:pointer; }
 .providers-table tr:hover { background:var(--bg-elevated); }
 .stage-pill,.count-pill { display:inline-flex;align-items:center;height:22px;border-radius:999px;border:.5px solid var(--border);background:var(--bg-elevated);padding:0 8px;font-size:10px;color:var(--text-secondary);white-space:nowrap; }
-.stage-pill.active { border-color:var(--border-amber);background:var(--amber-tint);color:var(--amber); }
+.stage-pill.active { border-color:var(--border-blue);background:var(--blue-tint);color:var(--blue); }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
-.mini-btn:hover { border-color:var(--border-amber-strong);color:var(--amber);background:var(--bg-elevated); }
+.mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
 .files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
 .file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0; }
-.file-card:hover { border-color:var(--border-amber-strong);background:var(--bg-elevated); }
+.file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated); }
 .file-card-head { display:flex;gap:8px;align-items:flex-start;min-width:0; }
-.file-icon { width:30px;height:30px;border-radius:6px;background:var(--amber-tint);border:.5px solid var(--border-amber);display:flex;align-items:center;justify-content:center;color:var(--amber);flex-shrink:0; }
+.file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-.file-provider { font-size:11px;color:var(--amber);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.file-provider { font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .file-meta { font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-tertiary); }
-.file-link { font-size:11px;color:var(--amber);align-self:flex-start; }
+.file-link { font-size:11px;color:var(--blue);align-self:flex-start; }
 .db-filter {
   font-size:10px; padding:4px 10px; border-radius:4px;
   border:0.5px solid var(--border); color:var(--text-secondary);
   background:transparent; cursor:pointer; font-family:'Instrument Sans',sans-serif;
 }
 .db-filter.active {
-  background:var(--amber-tint); border-color:var(--border-amber); color:var(--amber);
+  background:var(--blue-tint); border-color:var(--border-blue); color:var(--blue);
 }
 .db-filter:hover {
   background: var(--bg-elevated);
@@ -193,12 +212,12 @@ a { color: var(--amber); text-decoration: none; }
 .rp-alert-body { font-size: 11px; color: var(--text-secondary); }
 .rp-chat { margin-top: auto; border-top: .5px solid var(--border); padding: 10px; }
 .rp-chat-input { width: 100%; background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 12px; color: var(--text-primary); outline: none; }
-.rp-chat-input:focus { border-color: var(--border-amber); }
+.rp-chat-input:focus { border-color: var(--border-blue); }
 .rp-chat-quick { display: flex; gap: 6px; margin-top: 6px; }
 .rp-chat-quick button { flex: 1; font-size: 11px; color: var(--text-secondary); background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 5px; padding: 5px; }
 .rp-chat-log { font-size: 11px; color: var(--text-secondary); margin-top: 8px; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .rp-chat-log .from-user { color: var(--text-primary); }
-.rp-chat-log .from-bot { color: var(--amber); }
+.rp-chat-log .from-bot { color: var(--blue); }
 
 
 /* ── Notification dropdown ── */
@@ -206,9 +225,9 @@ a { color: var(--amber); text-decoration: none; }
 .notif-header { padding: 10px 14px; border-bottom: .5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 .notif-list { max-height: 360px; overflow-y: auto; }
 .notif-item { padding: 10px 14px; border-bottom: .5px solid var(--border-subtle); display: flex; gap: 10px; align-items: flex-start; background: transparent; }
-.notif-item.unread { background: var(--bg-elevated); border-left: 2px solid var(--amber); }
+.notif-item.unread { background: var(--bg-elevated); border-left: 2px solid var(--blue); }
 .notif-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-.notif-dot.unread { background: var(--amber); }
+.notif-dot.unread { background: var(--blue); }
 .notif-dot.read { background: var(--border); }
 .notif-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
 .notif-item:not(.unread) .notif-title { font-weight: 400; color: var(--text-secondary); }
@@ -236,14 +255,14 @@ a { color: var(--amber); text-decoration: none; }
 <!-- ══════════════ LOGIN SCREEN ══════════════ -->
 <div id="loginScreen">
   <div class="login-card">
-    <div style="width:40px;height:40px;border-radius:8px;background:var(--amber);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:var(--bg-base);margin-bottom:14px">W</div>
+    <div style="width:40px;height:40px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#ffffff;margin-bottom:14px">W</div>
     <div style="color:var(--text-primary);font-size:18px;font-weight:500;margin-bottom:2px">Sign in to WeIN OS</div>
     <div style="color:var(--text-secondary);font-size:12px;margin-bottom:24px">Marketplace operations platform</div>
 
     <div id="emailLoginForm" style="width:100%">
       <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" class="login-input">
       <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" class="login-input" style="margin-bottom:14px" onkeydown="if(event.key==='Enter')attemptEmailLogin()">
-      <button class="btn-amber" onclick="attemptEmailLogin()">Sign in</button>
+      <button class="btn-primary" onclick="attemptEmailLogin()">Sign in</button>
       <div id="loginError" style="color:var(--red);font-size:12px;min-height:16px;margin-top:8px;text-align:center"></div>
       <div style="text-align:center;margin-top:6px">
         <a href="javascript:void(0)" onclick="attemptForgotPassword()" style="font-size:11px;color:var(--text-secondary);text-decoration:underline">Forgot password?</a>
@@ -262,7 +281,7 @@ a { color: var(--amber); text-decoration: none; }
         <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
         <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
       </div>
-      <button class="btn-amber" onclick="attemptLogin()">Sign in with code</button>
+      <button class="btn-primary" onclick="attemptLogin()">Sign in with code</button>
       <div style="text-align:center;margin-top:10px">
         <a href="javascript:void(0)" onclick="showEmailLoginForm()" style="font-size:11px;color:var(--text-secondary);text-decoration:underline">Use email + password instead</a>
       </div>
@@ -272,17 +291,17 @@ a { color: var(--amber); text-decoration: none; }
       <div style="color:var(--text-primary);font-size:13px;margin-bottom:14px;text-align:center">Choose a new password for your account.</div>
       <input type="password" id="newPassword" placeholder="New password" autocomplete="new-password" class="login-input">
       <input type="password" id="newPasswordConfirm" placeholder="Confirm new password" autocomplete="new-password" class="login-input" style="margin-bottom:14px" onkeydown="if(event.key==='Enter')attemptSetNewPassword()">
-      <button class="btn-amber" onclick="attemptSetNewPassword()">Set password and sign in</button>
+      <button class="btn-primary" onclick="attemptSetNewPassword()">Set password and sign in</button>
     </div>
   </div>
 </div>
 
 <!-- ══════════════ TOPBAR ══════════════ -->
 <header id="topbar" style="display:none">
-  <div class="tb-logo-zone"><span style="font-size:15px;font-weight:700;color:var(--amber);letter-spacing:-0.5px">W</span></div>
+  <div class="tb-logo-zone"><span style="font-size:15px;font-weight:700;color:var(--blue);letter-spacing:-0.5px">W</span></div>
   <div class="tb-divider"></div>
   <div style="padding:0 16px;display:flex;align-items:center;gap:8px">
-    <span style="font-size:13px;font-weight:600;color:var(--amber)">WeIN OS</span>
+    <span style="font-size:13px;font-weight:600;color:var(--blue)">WeIN OS</span>
     <span style="color:var(--text-tertiary);font-size:13px">/</span>
     <span id="page-title" style="font-size:13px;color:var(--text-secondary)">Pipeline</span>
   </div>
@@ -290,12 +309,12 @@ a { color: var(--amber); text-decoration: none; }
   <div style="position:relative">
     <div id="notif-btn" class="tb-icon-btn" style="margin-right:4px" onclick="toggleNotifPanel()">
       <i class="ti ti-bell"></i>
-      <span id="notif-badge" style="display:none;position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--amber)"></span>
+      <span id="notif-badge" style="display:none;position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--blue)"></span>
     </div>
     <div id="notif-panel">
       <div class="notif-header">
         <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Notifications</span>
-        <span id="mark-read-btn" style="font-size:11px;color:var(--amber);cursor:pointer" onclick="markAllRead()">Mark all read</span>
+        <span id="mark-read-btn" style="font-size:11px;color:var(--blue);cursor:pointer" onclick="markAllRead()">Mark all read</span>
       </div>
       <div id="notif-list" class="notif-list"></div>
     </div>
@@ -310,8 +329,8 @@ a { color: var(--amber); text-decoration: none; }
   ">
     <i id="theme-icon" class="ti ti-sun" style="font-size:15px;" aria-hidden="true"></i>
   </button>
-  <div id="tbAvatar" style="width:28px;height:28px;border-radius:50%;background:var(--amber-tint);border:.5px solid var(--border-amber);display:flex;align-items:center;justify-content:center;margin-right:12px;cursor:pointer" title="">
-    <span style="font-size:10px;font-weight:600;color:var(--amber)" id="tbAvatarInitials">W</span>
+  <div id="tbAvatar" style="width:28px;height:28px;border-radius:50%;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;margin-right:12px;cursor:pointer" title="">
+    <span style="font-size:10px;font-weight:600;color:var(--blue)" id="tbAvatarInitials">W</span>
   </div>
   <button onclick="logout()" style="font-size:12px;color:var(--text-secondary);background:transparent;border:.5px solid var(--border);border-radius:5px;padding:5px 10px">Logout</button>
 </header>
@@ -338,7 +357,7 @@ a { color: var(--amber); text-decoration: none; }
   <div class="view-panel" id="view-leads" style="display:none">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="font-size:14px;font-weight:600;color:var(--text-primary);">Leads</div>
-      <button class="btn-amber" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="showAddLeadForm()">+ Add Lead</button>
+      <button class="btn-primary" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="showAddLeadForm()">+ Add Lead</button>
     </div>
 
     <div id="addLeadForm" style="display:none;background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;">
@@ -353,7 +372,7 @@ a { color: var(--amber); text-decoration: none; }
       <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn-ghost" style="width:auto;padding:6px 14px;" onclick="hideAddLeadForm()">Cancel</button>
-        <button class="btn-amber" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="submitLead()">Save lead</button>
+        <button class="btn-primary" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="submitLead()">Save lead</button>
       </div>
     </div>
 
@@ -436,19 +455,19 @@ a { color: var(--amber); text-decoration: none; }
 
       <!-- Column 1: Offers -->
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
         <div id="modal-offers" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
       </div>
 
       <!-- Column 2: Files -->
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
         <div id="modal-files" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:4px;"></div>
       </div>
 
       <!-- Column 3: Comments thread -->
       <div style="display:flex;flex-direction:column;min-height:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--amber);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
         <div id="modal-comments" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
         <div style="border-top:0.5px solid var(--border);padding:8px;flex-shrink:0;">
           <textarea id="comment-input" placeholder="Leave a note or instruction..." style="
@@ -466,8 +485,8 @@ a { color: var(--amber); text-decoration: none; }
             </select>
             <button onclick="submitComment()" style="
               font-family:'Instrument Sans';font-size:11px;
-              background:var(--amber-tint);border:0.5px solid var(--border-amber);
-              color:var(--amber);border-radius:4px;padding:5px 14px;cursor:pointer;
+              background:var(--blue-tint);border:0.5px solid var(--border-blue);
+              color:var(--blue);border-radius:4px;padding:5px 14px;cursor:pointer;
             ">Send</button>
           </div>
         </div>
@@ -484,7 +503,7 @@ a { color: var(--amber); text-decoration: none; }
     <span style="color:var(--text-secondary);font-size:12px" id="progressEta">~2 min</span>
   </div>
   <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden">
-    <div id="progressBarFill" style="background:var(--amber);height:100%;width:0%;transition:width .8s ease;border-radius:4px"></div>
+    <div id="progressBarFill" style="background:var(--blue);height:100%;width:0%;transition:width .8s ease;border-radius:4px"></div>
   </div>
   <div style="color:var(--text-secondary);font-size:11px;margin-top:6px" id="progressStep">Starting...</div>
 </div>
@@ -1336,7 +1355,7 @@ function providerCardHtml(item) {
       </div>
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
-        <div style="width:18px;height:18px;border-radius:50%;background:var(--amber-soft);border:0.5px solid var(--border-amber);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--amber);">
+        <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
           ${dealBreaker === 'admin' ? 'AD' : 'DB'}
         </div>
         <span style="font-size:11px;color:var(--text-secondary);">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
@@ -1433,7 +1452,7 @@ async function openProviderModal(providerUuid, negotiationId) {
       <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:5px;">
         <i class="ti ti-file" style="font-size:14px;color:var(--text-secondary);flex-shrink:0;" aria-hidden="true"></i>
         <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.file_name}</span>
-        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener" style="font-family:'Instrument Sans';font-size:10px;color:var(--amber);text-decoration:none;flex-shrink:0;">View</a>` : ''}
+        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener" style="font-family:'Instrument Sans';font-size:10px;color:var(--blue);text-decoration:none;flex-shrink:0;">View</a>` : ''}
       </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>';
   } catch (e) { if (token === modalOpenToken) filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>'; }
 
@@ -1454,7 +1473,7 @@ function renderComments(comments) {
     const isAdmin = c.author_role === 'admin';
     return isAdmin ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
-        <div style="background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
+        <div style="background:var(--blue-tint);border:0.5px solid var(--border-blue);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
           <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
         </div>
         <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
