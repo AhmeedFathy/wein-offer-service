@@ -138,29 +138,6 @@ a { color: var(--amber); text-decoration: none; }
 .rp-chat-log .from-user { color: var(--text-primary); }
 .rp-chat-log .from-bot { color: var(--amber); }
 
-/* ── Provider detail panel (slides over the right panel) ── */
-#providerDetailPanel {
-  position: fixed; right: 0; top: 52px; bottom: 0; width: 300px; background: var(--bg-deep);
-  border-left: .5px solid var(--border); display: flex; flex-direction: column; overflow-y: auto;
-  z-index: 99; transform: translateX(100%); transition: transform 200ms ease;
-}
-#providerDetailPanel.open { transform: translateX(0); }
-.pdp-header { padding: 14px 16px; border-bottom: .5px solid var(--border); position: relative; }
-.pdp-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 6px; background: transparent; border: none; color: var(--text-secondary); font-size: 16px; display: flex; align-items: center; justify-content: center; }
-.pdp-close:hover { color: var(--text-primary); background: var(--bg-elevated); }
-.pdp-header-main { display: flex; align-items: center; gap: 8px; padding-right: 30px; }
-.pdp-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.pdp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.pdp-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-.pdp-offer-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 5px; padding: 8px 10px; }
-.pdp-offer-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.pdp-offer-title { font-size: 12px; color: var(--text-primary); }
-.pdp-offer-price { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--amber); flex-shrink: 0; }
-.pdp-offer-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
-.pdp-file-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-.pdp-file-name { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pdp-file-row a { color: var(--amber); font-size: 11px; flex-shrink: 0; margin-left: 8px; }
-.pdp-empty { font-size: 12px; color: var(--text-tertiary); padding: 4px 0; }
 
 /* ── Notification dropdown ── */
 #notif-panel { display: none; position: fixed; top: 52px; right: 52px; width: 320px; background: var(--bg-surface); border: .5px solid var(--border); border-radius: 0 0 8px 8px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.4); max-height: 420px; display: none; flex-direction: column; }
@@ -343,26 +320,81 @@ a { color: var(--amber); text-decoration: none; }
   </div>
 </aside>
 
-<!-- ══════════════ PROVIDER DETAIL PANEL (slides in over the right panel) ══════════════ -->
-<aside id="providerDetailPanel">
-  <div class="pdp-header">
-    <button class="pdp-close" onclick="closeProviderDetail()" title="Close"><i class="ti ti-x"></i></button>
-    <div class="pdp-header-main">
-      <span class="pdp-name" id="pdpName">—</span>
-      <span class="pdp-dot" id="pdpDot"></span>
+<!-- ══════════════ PROVIDER MODAL (centered overlay) ══════════════ -->
+<div id="provider-modal-backdrop" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.7); z-index:500;
+  align-items:center; justify-content:center;
+">
+  <div id="provider-modal" style="
+    background:#161208; border:0.5px solid #2a2208;
+    border-radius:10px; width:860px; max-width:95vw;
+    max-height:85vh; overflow:hidden;
+    display:flex; flex-direction:column; position:relative;
+  ">
+    <div style="
+      padding:16px 20px; border-bottom:0.5px solid #2a2208;
+      display:flex; align-items:center; gap:12px;
+      flex-shrink:0; background:#161208;
+    ">
+      <div id="modal-stage-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div id="modal-provider-name" style="font-family:'Instrument Sans';font-size:16px;font-weight:600;color:#f0e8d8;"></div>
+        <div id="modal-provider-meta" style="font-family:'Instrument Sans';font-size:12px;color:#7a6a4a;margin-top:2px;"></div>
+      </div>
+      <div id="modal-stage-pill" style="font-family:'Instrument Sans';font-size:11px;padding:3px 10px;border-radius:4px;font-weight:500;"></div>
+      <button onclick="closeProviderModal()" style="
+        width:28px;height:28px;border-radius:5px;
+        background:transparent;border:0.5px solid #2a2208;
+        color:#7a6a4a;font-size:16px;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;margin-left:8px;
+      ">x</button>
     </div>
-    <div class="pdp-sub" id="pdpSub">—</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
+
+      <!-- Column 1: Offers -->
+      <div style="display:flex;flex-direction:column;border-right:0.5px solid #2a2208;min-height:0;">
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
+        <div id="modal-offers" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <!-- Column 2: Files -->
+      <div style="display:flex;flex-direction:column;border-right:0.5px solid #2a2208;min-height:0;">
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
+        <div id="modal-files" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+
+      <!-- Column 3: Comments thread -->
+      <div style="display:flex;flex-direction:column;min-height:0;">
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:#f59e0b;text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
+        <div id="modal-comments" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;"></div>
+        <div style="border-top:0.5px solid #2a2208;padding:8px;flex-shrink:0;">
+          <textarea id="comment-input" placeholder="Leave a note or instruction..." style="
+            width:100%;background:#1e1810;border:0.5px solid #2a2208;border-radius:6px;
+            padding:8px 10px;font-family:'Instrument Sans';font-size:12px;
+            color:#f0e8d8;resize:none;height:64px;outline:none;box-sizing:border-box;
+          "></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <select id="comment-author-role" style="
+              font-family:'Instrument Sans';font-size:11px;background:#1e1810;
+              border:0.5px solid #2a2208;border-radius:4px;padding:4px 8px;color:#7a6a4a;outline:none;
+            ">
+              <option value="admin">Ahmed (Admin)</option>
+              <option value="deal_breaker">Deal Breaker</option>
+            </select>
+            <button onclick="submitComment()" style="
+              font-family:'Instrument Sans';font-size:11px;
+              background:#f59e0b12;border:0.5px solid #f59e0b35;
+              color:#f59e0b;border-radius:4px;padding:5px 14px;cursor:pointer;
+            ">Send</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
-
-  <div class="rp-section-title" style="color:var(--amber)">Offers</div>
-  <div id="pdpOffers" style="padding:8px 10px;display:flex;flex-direction:column;gap:6px"></div>
-
-  <div class="rp-section-title" style="color:var(--amber)">Files</div>
-  <div id="pdpFiles" style="padding:8px 14px;display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
-
-  <div class="rp-section-title" style="color:var(--amber)">Notes</div>
-  <div id="pdpNotes" style="padding:8px 14px 16px;font-size:12px;color:var(--text-secondary)">—</div>
-</aside>
+</div>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
 <div id="pipelineProgress" style="display:none;position:fixed;bottom:0;left:52px;right:300px;background:var(--bg-deep);border-top:.5px solid var(--border);padding:12px 16px;z-index:300">
@@ -783,7 +815,7 @@ function providerCardHtml(item) {
   const safeName = p.provider_name.replace(/'/g, "\\'");
   const dealBreaker = item.dealBreaker;
   return `
-    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderDetail('${p.id}', '${item.negotiationId || ''}')">
+    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
       <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}</div>
       <div class="pc-meta">
         <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
@@ -807,66 +839,132 @@ function providerCardHtml(item) {
 // PROVIDER DETAIL PANEL
 // Field names below match the live schema, not the prompt's literal
 // names: wein_offers has `title`/`promo_egp`/`category`/`title_strategy`
-// (no offer_title/price_egp/party_size/tier columns), and wein_files has
-// `file_name`/`drive_view_url` (no file_url).
-// ════════════════════════════════════════════════════════════════════
+// (no offer_title/price_egp/party_size/tier columns), wein_files has
+// `file_name`/`drive_view_url` (no file_url), and the new wein_comments
+// table (see _WeIN_System/supabase/023_wein_comments.sql -- not yet
+// applied, same as every other pending migration in this project) uses
+// negotiation_id/author_role/author_name/body/created_at exactly as the
+// prompt's JS expects.
+//
 // Guards against a race when cards are clicked in quick succession: each
-// call gets a token, and a fetch only writes to the DOM if its token is
-// still the most recent one requested -- otherwise a slow-resolving
-// fetch for a previously-opened provider could overwrite the panel with
-// the wrong provider's files/offers after a faster second click already
-// rendered the correct one.
-let pdpOpenToken = 0;
+// open call gets a token, and a fetch only writes to the DOM if its
+// token is still the most recent one requested.
+// ════════════════════════════════════════════════════════════════════
+let modalOpenToken = 0;
 
-async function openProviderDetail(providerId, negotiationId) {
-  const p = cachedProviders.find(p => p.id === providerId);
+const STAGE_COLORS = {
+  'menu_collected': { bg: '#f59e0b15', border: '#f59e0b35', text: '#f59e0b', dot: '#f59e0b' },
+  'paused':         { bg: '#6b728015', border: '#6b728035', text: '#9ca3af', dot: '#6b7280' },
+  'negotiating':    { bg: '#3b82f615', border: '#3b82f635', text: '#3b82f6', dot: '#3b82f6' },
+  'accepted':       { bg: '#22c55e15', border: '#22c55e35', text: '#22c55e', dot: '#22c55e' },
+};
+
+async function openProviderModal(providerUuid, negotiationId) {
+  const p = cachedProviders.find(p => p.id === providerUuid);
   if (!p) return;
-  const token = ++pdpOpenToken;
+  const token = ++modalOpenToken;
+  window.currentNegotiationId = negotiationId || null;
+
+  document.getElementById('provider-modal-backdrop').style.display = 'flex';
 
   const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : negotiationFor(p);
   const stage = neg ? neg.stage : 'new';
-  const col = COLUMNS.find(c => c.id === STAGE_COLUMNS[stage]);
+  const colors = STAGE_COLORS[stage] || { bg: '#1e1810', border: '#2a2208', text: '#7a6a4a', dot: '#7a6a4a' };
 
-  document.getElementById('pdpName').textContent = p.provider_name;
-  document.getElementById('pdpSub').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
-  document.getElementById('pdpDot').style.background = col ? col.color : 'var(--text-tertiary)';
-  document.getElementById('pdpNotes').textContent = (neg && neg.notes) ? neg.notes : '—';
+  document.getElementById('modal-provider-name').textContent = p.provider_name;
+  document.getElementById('modal-provider-meta').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
+  document.getElementById('modal-stage-dot').style.background = colors.dot;
+  const pill = document.getElementById('modal-stage-pill');
+  pill.textContent = stage;
+  pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
 
-  document.getElementById('rightPanel').style.display = 'none';
-  document.getElementById('providerDetailPanel').classList.add('open');
-
-  const offersEl = document.getElementById('pdpOffers'), filesEl = document.getElementById('pdpFiles');
-  offersEl.innerHTML = '<div class="pdp-empty">Loading…</div>';
-  filesEl.innerHTML = '<div class="pdp-empty">Loading…</div>';
+  const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
+  offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
+  filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
+  commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">Loading…</div>';
 
   try {
-    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*`);
-    if (token !== pdpOpenToken) return;
+    const offers = await sbGet(`wein_offers?provider_id=eq.${providerUuid}&select=*`);
+    if (token !== modalOpenToken) return;
     offersEl.innerHTML = offers.length ? offers.map(o => `
-      <div class="pdp-offer-card">
-        <div class="pdp-offer-top">
-          <span class="pdp-offer-title">${o.title || 'Untitled offer'}</span>
-          <span class="pdp-offer-price mono">${o.promo_egp != null ? 'EGP ' + o.promo_egp : '—'}</span>
+      <div style="background:#1e1810;border:0.5px solid #2a2208;border-radius:5px;padding:9px 11px;">
+        <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:#f0e8d8;margin-bottom:4px;">${o.title || 'Untitled offer'}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'Instrument Sans';font-size:11px;color:#7a6a4a;">${o.category || '—'}</span>
+          <span style="font-family:'JetBrains Mono';font-size:12px;color:#f59e0b;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
         </div>
-        <div class="pdp-offer-meta">${[o.category, o.title_strategy].filter(Boolean).join(' · ') || '—'}</div>
-      </div>`).join('') : '<div class="pdp-empty">No offers yet</div>';
-  } catch (e) { if (token === pdpOpenToken) offersEl.innerHTML = '<div class="pdp-empty">No offers yet</div>'; }
+      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No offers yet</div>';
+  } catch (e) { if (token === modalOpenToken) offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No offers yet</div>'; }
 
   try {
-    const files = await sbGet(`wein_files?provider_id=eq.${providerId}&select=*`);
-    if (token !== pdpOpenToken) return;
+    const files = await sbGet(`wein_files?provider_id=eq.${providerUuid}&select=*`);
+    if (token !== modalOpenToken) return;
     filesEl.innerHTML = files.length ? files.map(f => `
-      <div class="pdp-file-row">
-        <span class="pdp-file-name">${f.file_name}</span>
-        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener">View</a>` : ''}
-      </div>`).join('') : '<div class="pdp-empty">No files yet</div>';
-  } catch (e) { if (token === pdpOpenToken) filesEl.innerHTML = '<div class="pdp-empty">No files yet</div>'; }
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:#1e1810;border:0.5px solid #2a2208;border-radius:5px;">
+        <i class="ti ti-file" style="font-size:14px;color:#7a6a4a;flex-shrink:0;" aria-hidden="true"></i>
+        <span style="font-family:'Instrument Sans';font-size:11px;color:#f0e8d8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.file_name}</span>
+        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener" style="font-family:'Instrument Sans';font-size:10px;color:#f59e0b;text-decoration:none;flex-shrink:0;">View</a>` : ''}
+      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No files yet</div>';
+  } catch (e) { if (token === modalOpenToken) filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No files yet</div>'; }
+
+  if (negotiationId) {
+    try {
+      const comments = await sbGet(`wein_comments?negotiation_id=eq.${negotiationId}&order=created_at.asc&select=*`);
+      if (token !== modalOpenToken) return;
+      renderComments(comments);
+    } catch (e) { if (token === modalOpenToken) commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>'; }
+  } else {
+    commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>';
+  }
 }
 
-function closeProviderDetail() {
-  document.getElementById('providerDetailPanel').classList.remove('open');
-  document.getElementById('rightPanel').style.display = 'flex';
+function renderComments(comments) {
+  const commentsEl = document.getElementById('modal-comments');
+  commentsEl.innerHTML = comments.length ? comments.map(c => {
+    const isAdmin = c.author_role === 'admin';
+    return isAdmin ? `
+      <div style="display:flex;flex-direction:column;align-items:flex-end;">
+        <div style="background:#f59e0b12;border:0.5px solid #f59e0b25;border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
+          <div style="font-family:'Instrument Sans';font-size:12px;color:#f0e8d8;">${c.body}</div>
+        </div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:#3a3020;margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
+      </div>` : `
+      <div style="display:flex;flex-direction:column;align-items:flex-start;">
+        <div style="background:#1e1810;border:0.5px solid #2a2208;border-radius:6px 6px 6px 0;padding:7px 10px;max-width:85%;">
+          <div style="font-family:'Instrument Sans';font-size:12px;color:#f0e8d8;">${c.body}</div>
+        </div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:#3a3020;margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
+      </div>`;
+  }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:#3a3020;text-align:center;padding:16px 0">No notes yet</div>';
+  commentsEl.scrollTop = commentsEl.scrollHeight;
 }
+
+async function submitComment() {
+  const body = document.getElementById('comment-input').value.trim();
+  const role = document.getElementById('comment-author-role').value;
+  const name = role === 'admin' ? 'Ahmed' : 'Deal Breaker';
+  if (!body || !window.currentNegotiationId) return;
+
+  await sbPost('wein_comments', {
+    negotiation_id: window.currentNegotiationId,
+    author_role: role,
+    author_name: name,
+    body: body,
+  });
+
+  document.getElementById('comment-input').value = '';
+  const comments = await sbGet(`wein_comments?negotiation_id=eq.${window.currentNegotiationId}&order=created_at.asc&select=*`);
+  renderComments(comments);
+}
+
+function closeProviderModal() {
+  document.getElementById('provider-modal-backdrop').style.display = 'none';
+  window.currentNegotiationId = null;
+}
+
+document.getElementById('provider-modal-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeProviderModal();
+});
 
 // ════════════════════════════════════════════════════════════════════
 // PIPELINE HEALTH (right panel)
