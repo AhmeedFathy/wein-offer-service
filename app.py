@@ -198,8 +198,8 @@ def generate_offer_files():
     })
 
 
-def _serve_portal():
-    portal_path = os.path.join(os.path.dirname(__file__), "portal", "index.html")
+def _serve_portal(filename="index.html"):
+    portal_path = os.path.join(os.path.dirname(__file__), "portal", filename)
     with open(portal_path, "r", encoding="utf-8") as f:
         html = f.read()
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -208,6 +208,11 @@ def _serve_portal():
 @app.route("/portal")
 def portal():
     return _serve_portal()
+
+
+@app.route("/portal-new")
+def portal_new():
+    return _serve_portal("portal_new.html")
 
 
 @app.route("/intake")
