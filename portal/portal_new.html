@@ -358,7 +358,7 @@ a { color: var(--amber); text-decoration: none; }
   <div id="pdpOffers" style="padding:8px 10px;display:flex;flex-direction:column;gap:6px"></div>
 
   <div class="rp-section-title" style="color:var(--amber)">Files</div>
-  <div id="pdpFiles" style="padding:8px 14px;display:flex;flex-direction:column;gap:6px"></div>
+  <div id="pdpFiles" style="padding:8px 14px;display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
 
   <div class="rp-section-title" style="color:var(--amber)">Notes</div>
   <div id="pdpNotes" style="padding:8px 14px 16px;font-size:12px;color:var(--text-secondary)">—</div>
@@ -810,9 +810,19 @@ function providerCardHtml(item) {
 // (no offer_title/price_egp/party_size/tier columns), and wein_files has
 // `file_name`/`drive_view_url` (no file_url).
 // ════════════════════════════════════════════════════════════════════
+// Guards against a race when cards are clicked in quick succession: each
+// call gets a token, and a fetch only writes to the DOM if its token is
+// still the most recent one requested -- otherwise a slow-resolving
+// fetch for a previously-opened provider could overwrite the panel with
+// the wrong provider's files/offers after a faster second click already
+// rendered the correct one.
+let pdpOpenToken = 0;
+
 async function openProviderDetail(providerId, negotiationId) {
   const p = cachedProviders.find(p => p.id === providerId);
   if (!p) return;
+  const token = ++pdpOpenToken;
+
   const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : negotiationFor(p);
   const stage = neg ? neg.stage : 'new';
   const col = COLUMNS.find(c => c.id === STAGE_COLUMNS[stage]);
@@ -831,6 +841,7 @@ async function openProviderDetail(providerId, negotiationId) {
 
   try {
     const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*`);
+    if (token !== pdpOpenToken) return;
     offersEl.innerHTML = offers.length ? offers.map(o => `
       <div class="pdp-offer-card">
         <div class="pdp-offer-top">
@@ -839,16 +850,17 @@ async function openProviderDetail(providerId, negotiationId) {
         </div>
         <div class="pdp-offer-meta">${[o.category, o.title_strategy].filter(Boolean).join(' · ') || '—'}</div>
       </div>`).join('') : '<div class="pdp-empty">No offers yet</div>';
-  } catch (e) { offersEl.innerHTML = '<div class="pdp-empty">No offers yet</div>'; }
+  } catch (e) { if (token === pdpOpenToken) offersEl.innerHTML = '<div class="pdp-empty">No offers yet</div>'; }
 
   try {
     const files = await sbGet(`wein_files?provider_id=eq.${providerId}&select=*`);
+    if (token !== pdpOpenToken) return;
     filesEl.innerHTML = files.length ? files.map(f => `
       <div class="pdp-file-row">
         <span class="pdp-file-name">${f.file_name}</span>
         ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener">View</a>` : ''}
       </div>`).join('') : '<div class="pdp-empty">No files yet</div>';
-  } catch (e) { filesEl.innerHTML = '<div class="pdp-empty">No files yet</div>'; }
+  } catch (e) { if (token === pdpOpenToken) filesEl.innerHTML = '<div class="pdp-empty">No files yet</div>'; }
 }
 
 function closeProviderDetail() {
