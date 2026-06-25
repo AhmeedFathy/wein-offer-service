@@ -1335,8 +1335,11 @@ async function promoteLead(leadId) {
   const lead = cachedLeads.find(l => l.id === leadId);
   if (!lead) return;
   try {
+    const slug = lead.business_name.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
     const [provider] = await sbPost('wein_providers', {
       provider_name: lead.business_name,
+      provider_slug: slug,
       vertical: lead.vertical || null,
       category: lead.vertical || null,
       location: lead.location || null,
