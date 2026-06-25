@@ -354,8 +354,7 @@ a { color: var(--blue); text-decoration: none; }
 <!-- ══════════════ SIDEBAR ══════════════ -->
 <div id="appShell">
 <aside id="sidebar">
-  <div class="nav-item active" data-view="overview" title="Overview"><i class="ti ti-layout-dashboard"></i></div>
-  <div class="nav-item" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
+  <div class="nav-item active" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
   <div class="nav-item" data-view="leads" title="Leads"><i class="ti ti-target-arrow"></i></div>
   <div class="nav-item" data-view="providers" title="Providers"><i class="ti ti-building-store"></i></div>
   <div class="nav-item" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></div>
@@ -844,8 +843,8 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { overview: 'Overview', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
-let currentView = 'overview';
+const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+let currentView = 'pipeline';
 function showView(name) {
   currentView = name;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
@@ -857,7 +856,7 @@ document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListene
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD DATA + KANBAN
 // ════════════════════════════════════════════════════════════════════
-let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [];
+let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [], cachedOutcomes = [];
 
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
@@ -880,14 +879,15 @@ const STAGE_PROGRESS = {
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files, leads] = await Promise.all([
+    const [providers, offers, negotiations, files, leads, outcomes] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
-      sbGet('wein_offers?select=id,provider_id'),
+      sbGet('wein_offers?select=*'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
       sbGet('wein_files?select=*&order=created_at.desc').catch(() => []),
       sbGet('wein_leads?select=*&order=created_at.desc').catch(() => []),
+      sbGet('offer_outcomes?select=*&order=created_at.desc').catch(() => []),
     ]);
-    cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads;
+    cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
@@ -898,6 +898,8 @@ function renderCurrentView() {
   if (currentView === 'providers') { renderProvidersView(); return; }
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
+  if (currentView === 'offers') { renderOffersView(); return; }
+  if (currentView === 'analytics') { renderAnalyticsView(); return; }
   renderPipelineView();
 }
 
@@ -1246,6 +1248,171 @@ function renderFilesGrid() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// OFFERS (all built offers across providers)
+// ════════════════════════════════════════════════════════════════════
+function discountPctLabel(pct) {
+  if (pct == null) return null;
+  const normalized = pct > 0 && pct <= 1 ? pct * 100 : pct;
+  return Math.round(normalized);
+}
+
+function offerProviderName(offer) {
+  const provider = cachedProviders.find(p => p.id === offer.provider_id);
+  return provider?.provider_name || offer.provider_name || 'Unknown provider';
+}
+
+function renderOffersView() {
+  const providerOptions = cachedProviders
+    .map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`)
+    .join('');
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Offers</div>
+        <div class="view-count">${cachedOffers.length} total</div>
+      </div>
+    </div>
+    <div class="view-filterbar">
+      <input id="offerSearch" class="view-input" type="search" placeholder="Search offers">
+      <select id="offerProviderFilter" class="view-select">
+        <option value="all">All providers</option>
+        ${providerOptions}
+      </select>
+      <select id="offerSort" class="view-select">
+        <option value="newest">Newest first</option>
+        <option value="discount">Highest discount</option>
+        <option value="price">Lowest price</option>
+      </select>
+    </div>
+    <div class="files-grid" id="offersGrid"></div>`;
+  document.getElementById('offerSearch').addEventListener('input', renderOffersGrid);
+  document.getElementById('offerProviderFilter').addEventListener('change', renderOffersGrid);
+  document.getElementById('offerSort').addEventListener('change', renderOffersGrid);
+  renderOffersGrid();
+}
+
+function renderOffersGrid() {
+  const grid = document.getElementById('offersGrid');
+  if (!grid) return;
+  const query = document.getElementById('offerSearch').value.trim().toLowerCase();
+  const providerId = document.getElementById('offerProviderFilter').value;
+  const sortBy = document.getElementById('offerSort').value;
+
+  let offers = cachedOffers.filter(o => {
+    const title = (o.title || '').toLowerCase();
+    const providerName = offerProviderName(o).toLowerCase();
+    const matchesQuery = !query || title.includes(query) || providerName.includes(query);
+    const matchesProvider = providerId === 'all' || o.provider_id === providerId;
+    return matchesQuery && matchesProvider;
+  });
+
+  offers = offers.slice().sort((a, b) => {
+    if (sortBy === 'discount') return (b.discount_pct || 0) - (a.discount_pct || 0);
+    if (sortBy === 'price') return (a.promo_egp ?? Infinity) - (b.promo_egp ?? Infinity);
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  grid.innerHTML = offers.length ? offers.map(o => `
+    <article class="file-card">
+      <div class="file-card-head">
+        <div class="file-icon"><i class="ti ti-tag"></i></div>
+        <div style="min-width:0;flex:1;">
+          <div class="file-name" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled offer')}</div>
+          <div class="file-provider">${escapeHtml(offerProviderName(o))}</div>
+        </div>
+        ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">${escapeHtml(o.category || '—')}</span>
+        <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="file-meta" style="text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
+        <span style="font-family:'JetBrains Mono';font-size:13px;color:var(--amber);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
+      </div>
+      <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')" style="align-self:flex-start;"><i class="ti ti-eye"></i><span>View provider</span></button>
+    </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No offers found</div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ANALYTICS (lightweight CSS bar charts -- no external chart lib)
+// ════════════════════════════════════════════════════════════════════
+function barChartHtml(bars, opts = {}) {
+  const max = Math.max(1, ...bars.map(b => b.value));
+  const barColor = opts.color || 'var(--blue)';
+  return `
+    <div style="display:flex;align-items:flex-end;gap:10px;height:160px;padding:0 4px;">
+      ${bars.map(b => `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0;height:100%;justify-content:flex-end;">
+          <div style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">${b.value}</div>
+          <div style="width:100%;max-width:40px;border-radius:4px 4px 0 0;background:${b.color || barColor};height:${Math.max(3, (b.value / max) * 110)}px;"></div>
+          <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${escapeHtml(b.label)}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderAnalyticsView() {
+  const stageCounts = {};
+  providerRows().forEach(row => { stageCounts[row.stage] = (stageCounts[row.stage] || 0) + 1; });
+  const stageBars = Object.keys(stageCounts).map(stage => ({ label: stageLabel(stage), value: stageCounts[stage] }));
+
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const offersByDay = days.map(day => ({
+    label: new Date(day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    value: cachedOffers.filter(o => (o.created_at || '').slice(0, 10) === day).length,
+  }));
+
+  const totalViolations = cachedOutcomes.reduce((sum, o) => sum + (o.discount_violations || 0), 0);
+  const violationRuns = cachedOutcomes.filter(o => (o.discount_violations || 0) > 0).length;
+  const recentOutcomes = cachedOutcomes.slice(0, 8);
+
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Analytics</div>
+        <div class="view-count">${cachedProviders.length} providers · ${cachedOffers.length} offers</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Providers by stage</div>
+        ${stageBars.length ? barChartHtml(stageBars) : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No providers yet</div>'}
+      </div>
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Offers built (last 14 days)</div>
+        ${barChartHtml(offersByDay, { color: 'var(--amber)' })}
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Discount violations</div>
+      <div style="display:flex;gap:24px;margin-bottom:14px;">
+        <div><div class="kpi-value mono" style="font-size:20px;">${totalViolations}</div><div class="kpi-delta">total violations</div></div>
+        <div><div class="kpi-value mono" style="font-size:20px;">${violationRuns}</div><div class="kpi-delta">runs with violations</div></div>
+      </div>
+      ${recentOutcomes.length ? `
+        <table class="providers-table">
+          <thead><tr><th>Provider</th><th>Grade</th><th>Violations</th><th>Run date</th></tr></thead>
+          <tbody>
+            ${recentOutcomes.map(o => {
+              const provider = cachedProviders.find(p => p.id === o.provider_id);
+              const date = o.created_at ? new Date(o.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+              return `<tr>
+                <td>${escapeHtml(provider?.provider_name || o.provider_name || 'Unknown')}</td>
+                <td>${escapeHtml(o.grade || '—')}</td>
+                <td style="color:${o.discount_violations > 0 ? 'var(--red)' : 'var(--text-secondary)'};">${o.discount_violations ?? 0}</td>
+                <td class="mono">${date}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:16px;">No pipeline runs yet</div>'}
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
 // LEADS (pre-provider stage -- closes the "Leads" gap vs. a standard CRM)
 // ════════════════════════════════════════════════════════════════════
 let leadFormVisible = false;
@@ -1502,7 +1669,7 @@ async function openProviderModal(providerUuid, negotiationId) {
             <div style="font-family:'Instrument Sans';font-size:12px;font-weight:600;color:var(--text-primary);line-height:1.25;">${o.title || 'Untitled offer'}</div>
             <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);margin-top:3px;">${o.category || '—'}</div>
           </div>
-          <span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${o.discount_pct != null ? `${o.discount_pct}% off` : 'Offer'}</span>
+          <span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct) != null ? `${discountPctLabel(o.discount_pct)}% off` : 'Offer'}</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
           <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);background:var(--bg-surface);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
