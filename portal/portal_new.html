@@ -1346,7 +1346,7 @@ async function promoteLead(leadId) {
     });
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'new',
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected',
     });
     await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'promoted', promoted_provider_id: provider.id, updated_at: new Date().toISOString() });
     await loadDashboard();
