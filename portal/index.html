@@ -6,57 +6,87 @@
 <title>WeIN Smart Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
-    /* Light mode is the default look now -- Notion/Linear-style, friendly
-       for non-technical deal breakers. Dark mode (below) stays available
-       as an opt-in via the existing theme toggle, unchanged. */
-    --navy: #1B3A6B;
+    /* New WeIN OS design tokens (--w-*), dark by default. Legacy variable
+       names below are kept as aliases so the rest of this file's existing
+       ~4000 lines of CSS -- which all reference --navy/--orange/--bg/etc --
+       re-skin automatically without touching every single rule. */
+    --w-bg: #0B0C0E;
+    --w-surface: #131416;
+    --w-surface2: #1A1B1E;
+    --w-border: #2A2B2F;
+    --w-border2: #333438;
+    --w-text: #F0EFE8;
+    --w-muted: #7A7A82;
+    --w-hint: #4A4A52;
+    --w-accent: #F5A623;
+    --w-accent2: #C27F0F;
+    --w-navy: #1B3A6B;
+    --w-green: #22C55E;
+    --w-green-bg: rgba(34,197,94,0.1);
+    --w-red: #EF4444;
+    --w-red-bg: rgba(239,68,68,0.1);
+    --w-blue: #3B82F6;
+    --w-blue-bg: rgba(59,130,246,0.1);
+    --w-amber: #F59E0B;
+    --w-amber-bg: rgba(245,158,11,0.1);
+
+    /* legacy aliases -- do not remove, used throughout the file */
+    --navy: var(--w-navy);
     --navy-lt: #2a5298;
-    --orange: #F5A623;
-    --orange-dk: #d4891a;
+    --orange: var(--w-accent);
+    --orange-dk: var(--w-accent2);
     --teal: #2E7D6F;
-    --bg: #F7F7F5;
-    --surface: #FFFFFF;
-    --surface2: #F2F2EF;
-    --card: #FFFFFF;
-    --text: #111110;
-    --text-dim: #666662;
-    --muted: #666662;
-    --text-faint: #AAAAAA;
-    --border: #E5E5E2;
-    --border-hover: #D4D4D0;
-    --success: #15803D;
-    --danger: #DC2626;
-    --warn: #C2410C;
-    --red: #DC2626;
-    --red-light: #FEF2F2;
-    --green: #15803D;
-    --green-light: #F0FDF4;
-    --amber: #C2410C;
-    --amber-light: #FFF7ED;
-    --radius: 12px;
-    --radius-sm: 8px;
+    --bg: var(--w-bg);
+    --surface: var(--w-surface);
+    --surface2: var(--w-surface2);
+    --card: var(--w-surface);
+    --text: var(--w-text);
+    --text-dim: var(--w-muted);
+    --muted: var(--w-muted);
+    --text-faint: var(--w-hint);
+    --border: var(--w-border);
+    --border-hover: var(--w-border2);
+    --success: var(--w-green);
+    --danger: var(--w-red);
+    --warn: var(--w-amber);
+    --red: var(--w-red);
+    --red-light: var(--w-red-bg);
+    --green: var(--w-green);
+    --green-light: var(--w-green-bg);
+    --amber: var(--w-amber);
+    --amber-light: var(--w-amber-bg);
+    --radius: 10px;
+    --radius-sm: 7px;
   }
-  html[data-theme="dark"] {
-    --bg: #0D0D0F;
-    --surface: #141418;
-    --surface2: #1C1C22;
-    --card: #141418;
-    --text: #F2F2F0;
-    --text-dim: rgba(242,242,240,.45);
-    --muted: rgba(242,242,240,.45);
-    --text-faint: rgba(242,242,240,.2);
-    --border: rgba(255,255,255,.06);
-    --border-hover: rgba(255,255,255,.12);
+  html[data-theme="light"] {
+    --w-bg: #F4F3EF;
+    --w-surface: #FFFFFF;
+    --w-surface2: #F0EFE8;
+    --w-border: #E2E1D9;
+    --w-border2: #CCCBC3;
+    --w-text: #1A1A1C;
+    --w-muted: #6B6B72;
+    --w-hint: #ADADB5;
+    --w-accent: #F5A623;
+    --w-navy: #1B3A6B;
+    --w-green: #16A34A;
+    --w-green-bg: rgba(22,163,74,0.08);
+    --w-red: #DC2626;
+    --w-red-bg: rgba(220,38,38,0.08);
+    --w-blue: #2563EB;
+    --w-blue-bg: rgba(37,99,235,0.08);
+    --w-amber: #D97706;
+    --w-amber-bg: rgba(217,119,6,0.08);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { transition: background 150ms ease, color 150ms ease; }
-  body { font-family: 'Satoshi', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; }
+  body { font-family: 'Instrument Sans', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 72px; }
   .mono, .stat-num, .offer-new, .offer-old { font-family: 'JetBrains Mono', 'Courier New', monospace; }
   .theme-toggle { color: var(--text-faint); }
   .theme-toggle:hover { color: var(--orange); }
@@ -390,22 +420,41 @@
 <body>
 
 <!-- ══════════════ LOGIN SCREEN ══════════════ -->
-<div id="loginScreen" style="position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .3s">
-  <img src="https://wein-eg.com/images/wein-logo.svg" alt="WeIN" style="height:40px;margin-bottom:18px" onerror="this.style.display='none';document.getElementById('logoFallback').style.display='flex'">
-  <div id="logoFallback" style="display:none;width:64px;height:64px;border-radius:50%;background:var(--orange);align-items:center;justify-content:center;font-weight:800;font-size:28px;color:var(--navy);margin-bottom:16px">W</div>
-  <div style="color:var(--text);font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.02em">WeIN OS</div>
-  <div style="color:var(--text-faint);font-size:13px;margin-bottom:32px">Marketplace Operations</div>
-  <div style="display:flex;gap:10px;margin-bottom:18px" id="pinBoxes">
-    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
-    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="1">
-    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
-    <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
-  </div>
-  <div id="loginError" style="color:var(--danger);font-size:13px;min-height:18px;margin-bottom:10px"></div>
-  <button class="btn btn-orange" style="padding:10px 40px;width:228px" onclick="attemptLogin()">Login</button>
-  <div style="margin-top:16px;text-align:center;width:228px">
-    <div style="font-size:12px;color:var(--text-faint);margin-bottom:8px">or</div>
-    <button onclick="showEmailLogin()" style="width:100%;padding:11px;background:var(--surface);border:.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text-dim);cursor:pointer;font-weight:500">Continue with email</button>
+<div id="loginScreen" style="position:fixed;inset:0;background:var(--w-bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .3s">
+  <div style="width:360px;max-width:100%;background:var(--w-surface);border:1px solid var(--w-border);border-radius:10px;padding:32px 28px;display:flex;flex-direction:column;align-items:center">
+    <div style="width:40px;height:40px;border-radius:8px;background:var(--w-accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#000;margin-bottom:14px">W</div>
+    <div style="color:var(--w-text);font-size:18px;font-weight:500;margin-bottom:2px">Sign in to WeIN OS</div>
+    <div style="color:var(--w-muted);font-size:12px;margin-bottom:24px">Marketplace operations platform</div>
+
+    <!-- EMAIL + PASSWORD (primary) -->
+    <div id="emailLoginForm" style="width:100%">
+      <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--w-surface2);border:1px solid var(--w-border);border-radius:7px;color:var(--w-text);font-size:13px;font-family:inherit">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" style="width:100%;padding:10px 12px;margin-bottom:14px;background:var(--w-surface2);border:1px solid var(--w-border);border-radius:7px;color:var(--w-text);font-size:13px;font-family:inherit" onkeydown="if(event.key==='Enter')attemptEmailLogin()">
+      <button class="btn btn-orange" style="width:100%;height:40px;border-radius:7px" onclick="attemptEmailLogin()">Sign in</button>
+      <div id="loginError" style="color:var(--w-red);font-size:12px;min-height:16px;margin-top:8px;text-align:center"></div>
+      <div style="text-align:center;margin-top:6px">
+        <a href="javascript:void(0)" onclick="attemptForgotPassword()" style="font-size:11px;color:var(--w-muted);text-decoration:underline">Forgot password?</a>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;text-align:center;width:100%">
+      <div style="font-size:11px;color:var(--w-hint);margin-bottom:8px">or</div>
+      <button onclick="showPinLogin()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--w-border);border-radius:7px;font-size:13px;color:var(--w-muted);cursor:pointer;font-weight:500">Use access code instead</button>
+    </div>
+
+    <!-- PIN FALLBACK (kept while team accounts are being provisioned) -->
+    <div id="pinLoginForm" style="display:none;width:100%;margin-top:8px">
+      <div style="display:flex;gap:10px;margin-bottom:14px;justify-content:center" id="pinBoxes">
+        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
+        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="1">
+        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
+        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
+      </div>
+      <button class="btn btn-orange" style="width:100%;height:40px;border-radius:7px" onclick="attemptLogin()">Sign in with code</button>
+      <div style="text-align:center;margin-top:10px">
+        <a href="javascript:void(0)" onclick="showEmailLoginForm()" style="font-size:11px;color:var(--w-muted);text-decoration:underline">Use email + password instead</a>
+      </div>
+    </div>
   </div>
 </div>
 <style>
@@ -458,7 +507,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">📋 Provider Pipeline</div>
+      <div class="card-title">Provider Pipeline</div>
       <div id="alertDashboard"></div>
       <div id="providerList" style="display:grid;grid-template-columns:1fr;gap:8px"><div class="empty">Loading…</div></div>
     </div>
@@ -466,7 +515,7 @@
 
   <!-- ══════════════ PROVIDERS (CRM) ══════════════ -->
   <div class="view" id="view-providers">
-    <div class="card-title" style="margin-bottom:14px">🏢 Providers</div>
+    <div class="card-title" style="margin-bottom:14px">Providers</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <input type="text" id="provSearch" placeholder="Search providers…" style="flex:1;min-width:180px;padding:9px 14px;border:.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text)" oninput="renderProvidersView()">
     </div>
@@ -478,7 +527,7 @@
 
   <!-- ══════════════ OFFERS ══════════════ -->
   <div class="view" id="view-offers">
-    <div class="card-title" style="margin-bottom:14px">🏷️ Offers</div>
+    <div class="card-title" style="margin-bottom:14px">Offers</div>
     <div class="chips">
       <button class="pill active" data-offerfilter="all" onclick="renderOffersView('all')">All</button>
       <button class="pill" data-offerfilter="accepted" onclick="renderOffersView('accepted')">Accepted</button>
@@ -491,7 +540,7 @@
   <!-- ══════════════ FILES ══════════════ -->
   <div class="view" id="view-files">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-      <div class="card-title" style="margin:0">📂 Files <span id="filesCount" style="font-size:12px;color:var(--text-dim);font-weight:400"></span></div>
+      <div class="card-title" style="margin:0">Files <span id="filesCount" style="font-size:12px;color:var(--text-dim);font-weight:400"></span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="filesSearch" placeholder="Search file name or provider…" oninput="renderFilesView()" style="min-width:220px">
         <select id="filesFilterVertical" onchange="renderFilesView()"><option value="all">All verticals</option></select>
@@ -510,7 +559,7 @@
   <!-- ══════════════ TASKS ══════════════ -->
   <div class="view" id="view-tasks">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div class="card-title" style="margin:0">✅ Tasks</div>
+      <div class="card-title" style="margin:0">Tasks</div>
       <button class="btn btn-orange" onclick="openTaskModal()"><i class="ti ti-plus"></i> Add Task</button>
     </div>
     <div class="chips" id="taskFilterPills">
@@ -530,7 +579,7 @@
     <div id="db-manager-view" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div>
-          <div class="card-title" style="margin:0">🤝 Deal breakers</div>
+          <div class="card-title" style="margin:0">Deal breakers</div>
           <div style="font-size:13px;color:var(--text-faint);margin-top:2px" id="db-team-summary">Loading…</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -561,14 +610,14 @@
       </div>
 
       <div id="db-list-view">
-        <div class="db-section-header red">🔴 Action needed</div>
+        <div class="db-section-header red">Action needed</div>
         <div id="db-section-action" class="db-card-list" style="margin-bottom:18px"></div>
 
-        <div class="db-section-header gray">⏳ Waiting</div>
+        <div class="db-section-header gray">Waiting</div>
         <div id="db-section-waiting" class="db-card-list" style="margin-bottom:18px"></div>
 
         <div class="db-section-header gray" id="db-done-header" onclick="dbToggleDoneSection()" style="cursor:pointer">
-          ✅ Done · <span id="db-done-count-label">0 completed providers</span>
+          Done · <span id="db-done-count-label">0 completed providers</span>
           <i class="ti ti-chevron-down" id="db-done-chevron" style="margin-left:4px"></i>
         </div>
         <div id="db-section-done" class="db-card-list" style="display:none;margin-bottom:70px"></div>
@@ -585,7 +634,7 @@
   <!-- ══════════════ ANALYTICS ══════════════ -->
   <div class="view" id="view-analytics">
     <div class="card-title" style="margin-bottom:14px;justify-content:space-between;display:flex">
-      <span>📊 Analytics</span>
+      <span>Analytics</span>
       <div class="chips" id="anPeriodPills">
         <button class="pill active" data-period="7d">7D</button>
         <button class="pill" data-period="30d">30D</button>
@@ -726,13 +775,13 @@
 
   <!-- ══════════════ FINANCE (placeholder) ══════════════ -->
   <div class="view" id="view-finance">
-    <div class="card-title" style="margin-bottom:14px">💰 Finance</div>
+    <div class="card-title" style="margin-bottom:14px">Finance</div>
     <div class="card"><div class="empty">Finance module coming soon.</div></div>
   </div>
 
   <!-- ══════════════ SETTINGS ══════════════ -->
   <div class="view" id="view-settings">
-    <div class="card-title" style="margin-bottom:14px">⚙️ Settings</div>
+    <div class="card-title" style="margin-bottom:14px">Settings</div>
     <div class="card">
       <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">Logged in as <b id="settingsRole" style="color:var(--text)">—</b></div>
       <button class="btn btn-ghost" onclick="logout()">Logout</button>
@@ -742,7 +791,7 @@
   <!-- ══════════════ CHAT ══════════════ -->
   <div class="view" id="view-chat">
     <div class="card">
-      <div class="card-title">💬 Pipeline Assistant</div>
+      <div class="card-title">Pipeline Assistant</div>
       <div class="chips">
         <button class="chip" onclick="sendQuickChat('Which providers are pending?')">Show pending</button>
         <button class="chip" onclick="sendQuickChat('Show overall stats')">Show stats</button>
@@ -767,7 +816,7 @@
     </div>
 
     <div class="card" id="intakePane1">
-      <div class="card-title">🏢 Provider Information</div>
+      <div class="card-title">Provider Information</div>
       <div class="field">
         <label>Provider Name <span class="req">*</span></label>
         <input type="text" id="iProviderName" placeholder="e.g. Almayass Grand Restaurant" oninput="updateNamePreview()">
@@ -787,7 +836,7 @@
     </div>
 
     <div class="card" id="intakePane2" style="display:none">
-      <div class="card-title">🔒 Constraints</div>
+      <div class="card-title">Constraints</div>
       <div class="field-row">
         <div class="field"><label>Minimum Spend</label><input type="text" id="iMinSpend"></div>
         <div class="field"><label>Max Group Size</label><input type="text" id="iMaxGroup"></div>
@@ -801,7 +850,7 @@
     </div>
 
     <div class="card" id="intakePane3" style="display:none">
-      <div class="card-title">🍽️ Menu</div>
+      <div class="card-title">Menu</div>
       <div class="field"><label>Menu Link</label><input type="text" id="iMenuLink" placeholder="https://..."></div>
       <div class="field">
         <label>— or — Menu Files (up to 3)</label>
@@ -832,7 +881,7 @@
   <!-- ══════════════ ACTIVITY ══════════════ -->
   <div class="view" id="view-activity">
     <div class="card">
-      <div class="card-title" style="justify-content:space-between;display:flex"><span>🕐 Recent Activity</span><button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="loadActivity()">↻ Refresh</button></div>
+      <div class="card-title" style="justify-content:space-between;display:flex"><span>Recent Activity</span><button class="btn btn-ghost" style="padding:4px 12px;font-size:12px" onclick="loadActivity()">Refresh</button></div>
       <div id="activityList"><div class="empty">Loading…</div></div>
     </div>
   </div>
@@ -951,9 +1000,68 @@
 </div>
 
 <script>
-function showEmailLogin() {
-  alert('Email login coming soon. Use your PIN for now.');
+function showPinLogin() {
+  document.getElementById('emailLoginForm').style.display = 'none';
+  document.getElementById('pinLoginForm').style.display = 'block';
+  document.getElementById('loginError').textContent = '';
+  document.querySelector('.pin-box')?.focus();
 }
+function showEmailLoginForm() {
+  document.getElementById('pinLoginForm').style.display = 'none';
+  document.getElementById('emailLoginForm').style.display = 'block';
+  document.getElementById('loginError').textContent = '';
+}
+
+async function attemptEmailLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Enter your email and password'; return; }
+  try {
+    const { data, error } = await sbAuth.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = error.message || 'Invalid email or password'; return; }
+    await loadPortalForSession(data.session);
+  } catch (e) {
+    errEl.textContent = 'Sign in failed — check your connection and try again';
+  }
+}
+
+async function attemptForgotPassword() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const errEl = document.getElementById('loginError');
+  if (!email) { errEl.textContent = 'Enter your email above first'; return; }
+  try {
+    const { error } = await sbAuth.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://wein.pythonanywhere.com/portal'
+    });
+    if (error) { errEl.textContent = error.message; return; }
+    errEl.style.color = 'var(--w-green)';
+    errEl.textContent = 'Password reset email sent. Check your inbox.';
+  } catch (e) {
+    errEl.textContent = 'Could not send reset email — try again';
+  }
+}
+
+async function loadPortalForSession(session) {
+  window.WEIN.user = session.user;
+  let role = 'deal_breaker', fullName = session.user.email;
+  try {
+    const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
+    if (profile) { role = profile.role || role; fullName = profile.full_name || fullName; }
+  } catch (e) { /* no profile row yet — default to deal_breaker */ }
+  window.WEIN.role = role;
+  window.WEIN.fullName = fullName;
+  sessionStorage.setItem('weinRole', role);
+  sessionStorage.setItem('weinAuthMode', 'email');
+  showApp(role);
+}
+
+sbAuth.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    sessionStorage.removeItem('weinAuthMode');
+  }
+});
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'light';
   const next = current === 'dark' ? 'light' : 'dark';
@@ -968,6 +1076,11 @@ const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
 const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
 const N8N     = 'https://weinflow.app.n8n.cloud/webhook';
 const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' };
+
+// Supabase Auth client (separate from the SB_HEADERS REST helpers above,
+// which keep using the anon key directly for data reads/writes unchanged).
+const sbAuth = supabase.createClient(SB_URL, SB_ANON);
+window.WEIN = window.WEIN || { user: null, role: null, fullName: null, theme: 'dark' };
 
 async function sbGet(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
@@ -1038,7 +1151,7 @@ function completeProgressBar() {
   const step = document.getElementById('progressStep');
   const eta = document.getElementById('progressEta');
   fill.style.width = '100%';
-  step.textContent = '✅ Done! Files uploaded to Drive.';
+  step.textContent = 'Done! Files uploaded to Drive.';
   eta.textContent = '';
   setTimeout(() => { document.getElementById('pipelineProgress').style.display = 'none'; fill.style.width = '0%'; }, 4000);
 }
@@ -1047,7 +1160,7 @@ function failProgressBar(error) {
   if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
   const el = document.getElementById('pipelineProgress');
   el.style.background = 'var(--danger)';
-  document.getElementById('progressStep').textContent = '❌ ' + (error || 'Pipeline failed');
+  document.getElementById('progressStep').textContent = '' + (error || 'Pipeline failed');
   document.getElementById('progressEta').textContent = 'Check Telegram for details';
   setTimeout(() => { el.style.display = 'none'; el.style.background = 'var(--navy)'; }, 5000);
 }
@@ -1070,7 +1183,7 @@ async function pollPipelineCompletion(providerName, providerId) {
           runningPipelines[providerName] = 'just_done';
           completeProgressBar();
           renderProviderList();
-          appendChatMsg(`✅ Pipeline complete for ${providerName}! ${newCount} offers generated. Click the provider card to review.`, 'bot');
+          appendChatMsg(`Pipeline complete for ${providerName}! ${newCount} offers generated. Click the provider card to review.`, 'bot');
           setTimeout(() => { delete runningPipelines[providerName]; renderProviderList(); }, 4000);
         } else {
           delete runningPipelines[providerName];
@@ -1246,7 +1359,7 @@ function buildOfferCardHtml(o, name, vertical, isAccepted) {
       <button class="btn ${isAccepted ? 'btn-success' : 'btn-ghost'}" style="font-size:12px;padding:6px 12px"
         onclick="toggleAcceptOffer(this, '${o.id}', '${name.replace(/'/g,"\\'")}', '${vertical.replace(/'/g,"\\'")}', ${isAccepted})"
         title="${isAccepted ? 'Click to undo' : 'Click to accept'}">
-        ${isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer'}
+        ${isAccepted ? 'Accepted · click to undo' : 'Accept Offer'}
       </button>
     </div>`;
 }
@@ -1290,15 +1403,15 @@ function buildFileCardHtml(f) {
 function buildProviderFilesHtml(files, providerRow) {
   if (!files || files.length === 0) {
     if (providerRow.drive_folder_url) {
-      return `<div class="card-title" style="margin-top:16px">📂 Files</div>
+      return `<div class="card-title" style="margin-top:16px">Files</div>
         <a href="${providerRow.drive_folder_url}" target="_blank"><button class="btn btn-navy btn-full">Open Drive folder</button></a>`;
     }
-    return `<div class="card-title" style="margin-top:16px">📂 Files</div><div class="empty">No files yet — run pipeline to generate</div>`;
+    return `<div class="card-title" style="margin-top:16px">Files</div><div class="empty">No files yet — run pipeline to generate</div>`;
   }
   const byVersion = {};
   files.forEach(f => { (byVersion[f.version || 1] = byVersion[f.version || 1] || []).push(f); });
   const versions = Object.keys(byVersion).map(Number).sort((a, b) => b - a);
-  return `<div class="card-title" style="margin-top:16px">📂 Files</div>` + versions.map((v, idx) => {
+  return `<div class="card-title" style="margin-top:16px">Files</div>` + versions.map((v, idx) => {
     const group = byVersion[v];
     const date = group[0].created_at ? new Date(group[0].created_at).toLocaleDateString() : '';
     const grade = group[0].grade || '';
@@ -1334,7 +1447,7 @@ async function openProvider(name, providerId, submissionId) {
     const filesHtml = buildProviderFilesHtml(files, providerRow);
 
     content.innerHTML = `
-      <div class="card-title">🏢 ${name}</div>
+      <div class="card-title">${name}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
         ${prof.vertical || sub.vertical || '—'} · ${prof.location || sub.location || '—'} ·
         ${menuItems.length} menu items
@@ -1344,9 +1457,9 @@ async function openProvider(name, providerId, submissionId) {
 
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <button class="btn btn-navy" onclick="runPipelineFor('${name.replace(/'/g,"\\'")}','${(prof.vertical||sub.vertical||'').replace(/'/g,"\\'")}')">▶ Run Pipeline</button>
-        ${sub.id ? `<button class="btn btn-success" onclick="approveSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✅ Approve Submission</button>` : ''}
-        ${sub.id && sub.status === 'pending' ? `<button class="btn btn-danger" onclick="rejectSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">✕ Reject</button>` : ''}
-        ${isAdminOrManager() ? `<button class="btn btn-danger" style="margin-left:auto" onclick="deleteProviderModal('${name.replace(/'/g,"\\'")}', ${providerId ? `'${providerId}'` : 'null'}, '${submissionId||''}')">🗑 Delete Provider</button>` : ''}
+        ${sub.id ? `<button class="btn btn-success" onclick="approveSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">Approve Submission</button>` : ''}
+        ${sub.id && sub.status === 'pending' ? `<button class="btn btn-danger" onclick="rejectSubmissionModal('${sub.id}','${name.replace(/'/g,"\\'")}')">Reject</button>` : ''}
+        ${isAdminOrManager() ? `<button class="btn btn-danger" style="margin-left:auto" onclick="deleteProviderModal('${name.replace(/'/g,"\\'")}', ${providerId ? `'${providerId}'` : 'null'}, '${submissionId||''}')">Delete Provider</button>` : ''}
       </div>
 
       ${filesHtml}
@@ -1392,7 +1505,7 @@ async function deleteProviderModal(name, providerId, submissionId) {
     await loadDashboard();
   } catch (e) {
     showModalAlert('Delete failed: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '🗑 Delete Provider'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete Provider'; }
   }
 }
 
@@ -1422,10 +1535,10 @@ async function toggleAcceptOffer(btn, offerId, providerName, vertical, isAccepte
       btn.className = 'btn btn-success';
       btn.setAttribute('title', 'Click to undo');
       btn.setAttribute('onclick', btn.getAttribute('onclick').replace(', false)', ', true)'));
-      btn.textContent = '✓ Accepted · click to undo';
+      btn.textContent = 'Accepted · click to undo';
     }
   } catch (e) {
-    btn.textContent = isAccepted ? '✓ Accepted · click to undo' : 'Accept Offer';
+    btn.textContent = isAccepted ? 'Accepted · click to undo' : 'Accept Offer';
     showModalAlert('Failed: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
@@ -1513,7 +1626,7 @@ async function dispatchAction(action) {
       runningPipelines[action.provider] = 'running';
       showView('dashboard');
       startProgressBar(action.provider);
-      appendChatMsg(`🚀 Pipeline started for ${action.provider}${descBits.length ? ' (' + descBits.join(' · ') + ')' : ''}. Dashboard updated — progress bar at bottom.`, 'bot');
+      appendChatMsg(`Pipeline started for ${action.provider}${descBits.length ? ' (' + descBits.join(' · ') + ')' : ''}. Dashboard updated — progress bar at bottom.`, 'bot');
       try {
         await fetch(`${N8N}/new-provider`, { method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ provider_name: action.provider, vertical: action.vertical || '', pipeline_params: params }) });
@@ -1522,7 +1635,7 @@ async function dispatchAction(action) {
       } catch (e) {
         delete runningPipelines[action.provider];
         failProgressBar(e.message);
-        appendChatMsg(`❌ Failed to start: ${e.message}`, 'bot');
+        appendChatMsg(`Failed to start: ${e.message}`, 'bot');
       }
       renderProviderList();
     } else if (action.action === 'show_provider' || action.action === 'show_offers') {
@@ -1543,10 +1656,10 @@ async function dispatchAction(action) {
           status: 'accepted', accepted_date: new Date().toISOString().split('T')[0] });
       }
       await loadDashboard();
-      appendChatMsg(`✅ Accepted ${offers.length} offer(s) for ${action.provider}. Dashboard updated.`, 'bot');
+      appendChatMsg(`Accepted ${offers.length} offer(s) for ${action.provider}. Dashboard updated.`, 'bot');
     } else if (action.action === 'show_stats') {
       await loadDashboard();
-      appendChatMsg(`📊 Providers: ${cachedProviders.length} · Offers: ${cachedOffers.length} · Pending: ${cachedSubmissions.filter(s=>s.status==='pending').length} · Accepted: ${cachedAccepted.length}`, 'bot');
+      appendChatMsg(`Providers: ${cachedProviders.length} · Offers: ${cachedOffers.length} · Pending: ${cachedSubmissions.filter(s=>s.status==='pending').length} · Accepted: ${cachedAccepted.length}`, 'bot');
     } else if (action.action === 'list_providers') {
       await loadDashboard();
       const filter = action.filter;
@@ -1562,7 +1675,7 @@ async function dispatchAction(action) {
         due_date: action.due_date || null, created_by: 'chat'
       });
       await loadTasks();
-      appendChatMsg(`✅ Task created: "${action.title}"${action.due_date ? ' due ' + action.due_date : ''}. Check the Tasks tab.`, 'bot');
+      appendChatMsg(`Task created: "${action.title}"${action.due_date ? ' due ' + action.due_date : ''}. Check the Tasks tab.`, 'bot');
     } else if (action.action === 'list_tasks') {
       await loadTasks();
       const today = new Date().toISOString().split('T')[0];
@@ -1575,13 +1688,13 @@ async function dispatchAction(action) {
     } else if (action.action === 'complete_task') {
       await loadTasks();
       const task = cachedTasks.find(t => t.id === action.task_id || (t.title||'').toLowerCase().includes((action.task_id||'').toLowerCase()));
-      if (task) { await completeTask(task.id); appendChatMsg(`✅ Marked "${task.title}" as done.`, 'bot'); }
+      if (task) { await completeTask(task.id); appendChatMsg(`Marked "${task.title}" as done.`, 'bot'); }
       else appendChatMsg(`Couldn't find a task matching "${action.task_id}".`, 'bot');
     } else if (action.action === 'update_stage') {
       const provider = cachedProviders.find(p => (p.provider_name||'').toLowerCase() === (action.provider||'').toLowerCase());
       if (provider) {
         await updateProviderStage(provider.id, provider.provider_name, action.stage);
-        appendChatMsg(`✅ ${action.provider} stage updated to "${action.stage.replace('_',' ')}".`, 'bot');
+        appendChatMsg(`${action.provider} stage updated to "${action.stage.replace('_',' ')}".`, 'bot');
       } else appendChatMsg(`Couldn't find provider "${action.provider}".`, 'bot');
     }
   } catch (e) {
@@ -1739,11 +1852,11 @@ async function submitIntake() {
                     drive_folder_url: 'https://drive.google.com/drive/folders/1s6b3naDJRmMosIhe_GRdNAHz4ZI-xJmi',
                     version: 1
                   });
-                  if (statusEl) statusEl.textContent = ' ✓';
-                } else if (statusEl) { statusEl.textContent = ' ✗'; }
+                  if (statusEl) statusEl.textContent = ' ';
+                } else if (statusEl) { statusEl.textContent = ' Failed'; }
               } catch (uploadErr) {
                 console.error('menu file upload failed:', uploadErr);
-                if (statusEl) statusEl.textContent = ' ✗';
+                if (statusEl) statusEl.textContent = ' Failed';
               }
             }
             if (uploadedFiles.length) {
@@ -1762,7 +1875,7 @@ async function submitIntake() {
       } catch (createErr) { console.error('deal-breaker provider auto-create failed:', createErr); }
     }
 
-    showAlertEl('alertIntake3', `✅ Submitted! ${role === 'deal_breaker' ? `"${name}" is now on your Deal Breakers board.` : `The WeIN team will review "${name}" shortly.`}`, 'success');
+    showAlertEl('alertIntake3', `Submitted! ${role === 'deal_breaker' ? `"${name}" is now on your Deal Breakers board.` : `The WeIN team will review "${name}" shortly.`}`, 'success');
     const pendEl = document.getElementById('statPending');
     if (pendEl) pendEl.textContent = (parseInt(pendEl.textContent) || 0) + 1;
     loadDashboard();
@@ -2270,8 +2383,13 @@ function attemptLogin() {
   showApp(role);
 }
 
-function logout() {
+async function logout() {
+  if (sessionStorage.getItem('weinAuthMode') === 'email') {
+    try { await sbAuth.auth.signOut(); } catch (e) {}
+  }
   sessionStorage.removeItem('weinRole');
+  sessionStorage.removeItem('weinAuthMode');
+  window.WEIN = { user: null, role: null, fullName: null, theme: window.WEIN.theme };
   if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
   if (activityRefreshInterval) { clearInterval(activityRefreshInterval); activityRefreshInterval = null; }
   document.getElementById('appHeader').style.display = 'none';
@@ -2281,6 +2399,8 @@ function logout() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.querySelectorAll('.pin-box').forEach(b => b.value = '');
   document.getElementById('loginError').textContent = '';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPassword').value = '';
 }
 
 // PIN box auto-advance / auto-submit
@@ -2588,8 +2708,8 @@ function anRenderHealthScores() {
   }).sort((a,b) => b.score - a.score);
 
   document.getElementById('anHealthList').innerHTML = rows.length ? rows.map(r => {
-    const tier = r.score>=80?['🟢','var(--success)']:r.score>=60?['🟡','#f5c542']:r.score>=40?['🟠','var(--warn)']:['🔴','var(--danger)'];
-    return `<div class="health-row"><span>${tier[0]}</span><span style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+    const tier = r.score>=80?['','var(--success)']:r.score>=60?['','#f5c542']:r.score>=40?['','var(--warn)']:['','var(--danger)'];
+    return `<div class="health-row"><span style="width:8px;height:8px;border-radius:50%;background:${tier[1]};display:inline-block"></span><span style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
       <div class="health-bar-bg"><div class="health-bar-fill" style="width:${r.score.toFixed(0)}%;background:${tier[1]}"></div></div>
       <span style="width:32px;text-align:right">${r.score.toFixed(0)}</span></div>`;
   }).join('') : '<div class="empty">No providers yet.</div>';
@@ -2801,17 +2921,17 @@ async function anRefreshAlerts() {
 
   if (last) {
     if ((last.discount_violations||0) > 0) {
-      alerts.push(anAlertCard('#E24B4A', '⚠️ Discount violations', `${last.discount_violations} violation(s) in last run`));
+      alerts.push(anAlertCard('#E24B4A', 'Discount violations', `${last.discount_violations} violation(s) in last run`));
     }
     if (last.final_grade === 'REJECT') {
-      alerts.push(anAlertCard('#E24B4A', '❌ Last run rejected', 'Most recent pipeline run was REJECTED'));
+      alerts.push(anAlertCard('#E24B4A', 'Last run rejected', 'Most recent pipeline run was REJECTED'));
     }
     const daysSinceLast = (Date.now() - new Date(last.created_at).getTime()) / 86400000;
     if (daysSinceLast > 5) {
-      alerts.push(anAlertCard('#E24B4A', '🔴 DB inactivity risk', `Not pinged in ${daysSinceLast.toFixed(0)}+ days`));
+      alerts.push(anAlertCard('#E24B4A', 'DB inactivity risk', `Not pinged in ${daysSinceLast.toFixed(0)}+ days`));
     }
     if ((last.duplicate_slots||0) > 3) {
-      alerts.push(anAlertCard('#f59e0b', '🟠 Duplicate slots', `${last.duplicate_slots} duplicate slots in last run`));
+      alerts.push(anAlertCard('#f59e0b', 'Duplicate slots', `${last.duplicate_slots} duplicate slots in last run`));
     }
   } else {
     alerts.push(anAlertCard('#5d6678', 'No pipeline runs yet', 'offer_outcomes has no rows — run the pipeline to populate analytics'));
@@ -2821,25 +2941,25 @@ async function anRefreshAlerts() {
   const lastRunByProvider = new Map();
   AN_DATA.outcomes.forEach(o => { const p = lookup(o.provider_id); if (p && o.created_at) { const cur = lastRunByProvider.get(p.id); if (!cur || new Date(o.created_at) > new Date(cur)) lastRunByProvider.set(p.id, o.created_at); } });
   const staleCount = AN_DATA.providers.filter(p => { const last = lastRunByProvider.get(p.id); return !last || (Date.now() - new Date(last).getTime())/86400000 > 7; }).length;
-  if (staleCount > 0) alerts.push(anAlertCard('#f59e0b', '🟠 Stale providers', `${staleCount} provider(s) haven't run in 7+ days`));
+  if (staleCount > 0) alerts.push(anAlertCard('#f59e0b', 'Stale providers', `${staleCount} provider(s) haven't run in 7+ days`));
 
   const recent3 = outcomesSorted.slice(0,3).map(o=>o.offers_passing||0);
   const prev3 = outcomesSorted.slice(3,6).map(o=>o.offers_passing||0);
   if (recent3.length === 3 && prev3.length === 3) {
     const recentAvg = recent3.reduce((a,b)=>a+b,0)/3, prevAvg = prev3.reduce((a,b)=>a+b,0)/3;
-    if (prevAvg > 0 && (recentAvg - prevAvg)/prevAvg < -0.1) alerts.push(anAlertCard('#f59e0b', '🟠 Grade trending down', `Recent avg ${recentAvg.toFixed(1)} vs prior ${prevAvg.toFixed(1)}`));
+    if (prevAvg > 0 && (recentAvg - prevAvg)/prevAvg < -0.1) alerts.push(anAlertCard('#f59e0b', 'Grade trending down', `Recent avg ${recentAvg.toFixed(1)} vs prior ${prevAvg.toFixed(1)}`));
   }
 
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7);
   const last7 = AN_DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= sevenDaysAgo);
   const violations7 = last7.reduce((s,o)=>s+(o.discount_violations||0),0);
-  if (last7.length && violations7 === 0) alerts.push(anAlertCard('#1D9E75', '✅ Discount caps clean', '0 violations in the last 7 days'));
+  if (last7.length && violations7 === 0) alerts.push(anAlertCard('#1D9E75', 'Discount caps clean', '0 violations in the last 7 days'));
 
   const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate()-3);
   const last3 = AN_DATA.outcomes.filter(o => o.created_at && new Date(o.created_at) >= threeDaysAgo);
   if (last3.length) {
     const avg3 = last3.reduce((s,o)=>s+(o.offers_passing||0),0)/last3.length;
-    if (avg3 >= 16) alerts.push(anAlertCard('#1D9E75', '✅ Pipeline healthy', 'GOOD baseline maintained (last 3 days)'));
+    if (avg3 >= 16) alerts.push(anAlertCard('#1D9E75', 'Pipeline healthy', 'GOOD baseline maintained (last 3 days)'));
   }
 
   const alertsListEl = document.getElementById('alerts-list');
@@ -2909,16 +3029,16 @@ const DB_STAGE_ORDER = ['new','briefed','menu_collected','waiting_founder','offe
 const ACTIVE_STAGES = ['new','briefed','menu_collected','waiting_founder','offers_generated','sent_back','negotiating'];
 
 const STAGE_META = {
-  new:              { label: 'New',                owner: 'deal_breaker', badge: 'orange', next: 'Brief this provider and start collecting their menu.' },
-  briefed:          { label: 'Briefed',             owner: 'deal_breaker', badge: 'orange', next: 'Collect the menu from the provider.' },
-  menu_collected:   { label: 'Menu collected',      owner: 'founder',      badge: 'red',    next: 'Review the menu and generate offers.' },
-  waiting_founder:  { label: 'Waiting for founder', owner: 'founder',      badge: 'red',    next: 'Generate offers.' },
-  offers_generated: { label: 'Offers generated',    owner: 'founder',      badge: 'red',    next: 'Review offers, then send back to the deal breaker.' },
-  sent_back:        { label: 'Sent back',           owner: 'deal_breaker', badge: 'orange', next: 'Present the offers to the provider.' },
-  negotiating:      { label: 'Negotiating',         owner: 'deal_breaker', badge: 'orange', next: 'Close the deal — mark which offers the provider accepts.' },
-  accepted:         { label: 'Accepted',            owner: 'both',         badge: 'green',  next: 'Deal done.' },
-  paused:           { label: 'Paused',               owner: 'both',         badge: 'gray',   next: 'On hold — resume when ready.' },
-  closed:           { label: 'Closed',               owner: 'both',         badge: 'gray',   next: 'Closed.' },
+  new:              { label: 'New',                  owner: 'deal_breaker', badge: 'orange', next: 'Brief this provider and start collecting their menu.' },
+  briefed:          { label: 'Briefed',               owner: 'deal_breaker', badge: 'orange', next: 'Collect the menu from the provider.' },
+  menu_collected:   { label: 'Menu ready',            owner: 'founder',      badge: 'red',    next: 'Review the menu and generate offers.' },
+  waiting_founder:  { label: 'Waiting for Ahmed',     owner: 'founder',      badge: 'red',    next: 'Generate offers.' },
+  offers_generated: { label: 'Offers ready',          owner: 'founder',      badge: 'red',    next: 'Review offers, then send back to the deal breaker.' },
+  sent_back:        { label: 'Sent to provider',      owner: 'deal_breaker', badge: 'orange', next: 'Present the offers to the provider.' },
+  negotiating:      { label: 'Negotiating',           owner: 'deal_breaker', badge: 'orange', next: 'Close the deal — mark which offers the provider accepts.' },
+  accepted:         { label: 'Accepted',              owner: 'both',         badge: 'green',  next: 'Deal done.' },
+  paused:           { label: 'Paused',                owner: 'both',         badge: 'gray',   next: 'On hold — resume when ready.' },
+  closed:           { label: 'Closed',                owner: 'both',         badge: 'gray',   next: 'Closed.' },
 };
 
 // One primary transition per stage. founderOnly = button only active for admin/manager role.
@@ -3000,7 +3120,7 @@ function renderStageTimeline(currentStage, compact=true) {
           justify-content:center;background:${dotBg};
           ${dotBorder}">
           ${isDone ?
-            '<span style="color:#fff;font-size:8px">✓</span>' :
+            '<span style="color:#fff;font-size:8px"></span>' :
             ''}
         </div>
         <div style="color:${labelColor};font-weight:${labelWeight};
@@ -3038,11 +3158,11 @@ function dbStatusBadge(stage) {
   const meta = STAGE_META[stage] || STAGE_META.new;
   const founder = dbIsFounder();
   let label;
-  if (stage === 'accepted') label = '✅ Deal done';
-  else if (stage === 'paused') label = '⏸ On hold';
-  else if (stage === 'closed') label = '🔒 Closed';
-  else if (meta.owner === 'founder') label = founder ? '⏳ Waiting for you' : '⏳ Waiting for founder';
-  else if (meta.owner === 'deal_breaker') label = founder ? '⏳ Waiting for deal breaker' : `🔄 ${meta.label}`;
+  if (stage === 'accepted') label = 'Deal done';
+  else if (stage === 'paused') label = 'On hold';
+  else if (stage === 'closed') label = 'Closed';
+  else if (meta.owner === 'founder') label = founder ? 'Waiting for you' : 'Waiting for Ahmed';
+  else if (meta.owner === 'deal_breaker') label = founder ? 'Waiting for deal breaker' : `${meta.label}`;
   else label = meta.label;
   return { label, color: meta.badge };
 }
@@ -3262,7 +3382,7 @@ function dbOpenKanbanDoneSheet(containerId) {
   const withStage = providers.map(p => ({ p, stage: dbStageOf(p.id) }));
   const doneCol = KANBAN_COLUMNS.find(c => c.id === 'done');
   const content = document.getElementById('modalContent');
-  content.innerHTML = `<div class="card-title">✅ Done</div><div class="kanban-col-body" style="max-height:70vh">${dbRenderKanbanColumn(doneCol, withStage).match(/<div class="kanban-col-body"[^>]*>([\s\S]*)<\/div>\s*<\/div>$/)[1]}</div>`;
+  content.innerHTML = `<div class="card-title">Done</div><div class="kanban-col-body" style="max-height:70vh">${dbRenderKanbanColumn(doneCol, withStage).match(/<div class="kanban-col-body"[^>]*>([\s\S]*)<\/div>\s*<\/div>$/)[1]}</div>`;
   document.getElementById('providerModal').classList.add('active');
 }
 
@@ -3327,23 +3447,23 @@ function dbBuildFieldCard(p, mode) {
   let badge = { label: meta.label, color: 'gray' }, actionHtml = '', nextLine = '';
 
   if (isGenerating) {
-    badge = { label: '🔄 Generating offers… (~3-6 min)', color: 'red' };
+    badge = { label: 'Generating offers… (~3-6 min)', color: 'red' };
   } else if (isFailed) {
-    badge = { label: '⚠️ Pipeline failed', color: 'red' };
+    badge = { label: 'Pipeline failed', color: 'red' };
   } else if (mode === 'action') {
-    badge = { label: `🔄 ${meta.label}`, color: 'orange' };
+    badge = { label: `${meta.label}`, color: 'orange' };
     nextLine = `<div class="db-card-line">Next: <b>${meta.next}</b></div>`;
     const trans = STAGE_TRANSITIONS[stage];
     if (trans) actionHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">${trans.label}</button>`;
   } else if (mode === 'waiting') {
-    badge = { label: '⏳ Waiting for founder', color: 'red' };
+    badge = { label: 'Waiting for founder', color: 'red' };
     if (dbFilesExistSet.has(p.provider_name)) {
       actionHtml = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleDbCard('${p.id}')">Files</button>`;
     }
   } else { // done
-    badge = stage === 'accepted' ? { label: '✅ Deal done', color: 'green' }
+    badge = stage === 'accepted' ? { label: 'Deal done', color: 'green' }
       : stage === 'paused' ? { label: '⏸ On hold', color: 'gray' }
-      : { label: '🔒 Closed', color: 'gray' };
+      : { label: 'Closed', color: 'gray' };
     if (stage === 'paused') actionHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbResume('${p.id}')">Resume</button>`;
   }
 
@@ -3360,7 +3480,7 @@ function dbBuildFieldCard(p, mode) {
       </div>
       <div class="db-card-actions">
         ${actionHtml}
-        ${isAdminOrManager() ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">🔄 Sync</button>` : ''}
+        ${isAdminOrManager() ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">Sync</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleDbCard('${p.id}')">Details</button>
       </div>
       <div class="db-card-expand" id="db-expand-${pid}"></div>
@@ -3389,16 +3509,16 @@ function renderDbCards(containerId, providers) {
 
     let primaryBtnHtml = '', pauseBtnHtml = '', statusBadge = badge, nextLine = meta.next;
     if (isGenerating) {
-      statusBadge = { label: '🔄 Generating offers… (~3-6 min)', color: 'red' };
+      statusBadge = { label: 'Generating offers… (~3-6 min)', color: 'red' };
       nextLine = 'Pipeline is running — this card will update automatically.';
       primaryBtnHtml = `<button class="btn btn-ghost" disabled>Generating…</button>`;
     } else if (isFailed) {
-      statusBadge = { label: '⚠️ Pipeline failed', color: 'red' };
+      statusBadge = { label: 'Pipeline failed', color: 'red' };
       nextLine = 'Generation timed out or failed — check Telegram, then try again.';
-      primaryBtnHtml = founder ? `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">Retry — generate offers</button>` : `<button class="btn btn-ghost" disabled>⏳ Waiting for founder</button>`;
+      primaryBtnHtml = founder ? `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">Retry — generate offers</button>` : `<button class="btn btn-ghost" disabled>Waiting for founder</button>`;
     } else if (trans) {
       if (trans.founderOnly && !founder) {
-        primaryBtnHtml = `<button class="btn btn-ghost" disabled>⏳ Waiting for founder</button>`;
+        primaryBtnHtml = `<button class="btn btn-ghost" disabled>Waiting for founder</button>`;
       } else {
         primaryBtnHtml = `<button class="btn btn-orange" onclick="event.stopPropagation();dbAdvance('${p.id}','${stage}')">${trans.label}</button>`;
       }
@@ -3416,7 +3536,7 @@ function renderDbCards(containerId, providers) {
     // from the actual wein_offers/wein_accepted_offers data instead of having
     // to click through every intermediate stage manually.
     const syncBtnHtml = isAdminOrManager()
-      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">🔄 Sync</button>`
+      ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();dbSyncStageFromOffers('${p.id}','${p.provider_name.replace(/'/g,"\\'")}')">Sync</button>`
       : '';
 
     // founder-owned stages (menu_collected/waiting_founder/offers_generated)
@@ -3537,7 +3657,7 @@ function dbMenuSectionHtml(p) {
   }
   if (p.top_selling_items || p.mid_selling_items || p.low_selling_items) {
     parts.push(`<div class="file-card" style="align-items:flex-start;flex-direction:column;gap:6px">
-      <div class="file-name">📊 Sales intelligence</div>
+      <div class="file-name">Sales intelligence</div>
       ${p.top_selling_items ? `<div style="font-size:12px;color:var(--text-dim)"><b style="color:var(--success)">Top:</b> ${p.top_selling_items.replace(/</g,'&lt;')}</div>` : ''}
       ${p.mid_selling_items ? `<div style="font-size:12px;color:var(--text-dim)"><b style="color:var(--orange)">Mid:</b> ${p.mid_selling_items.replace(/</g,'&lt;')}</div>` : ''}
       ${p.low_selling_items ? `<div style="font-size:12px;color:var(--text-dim)"><b style="color:var(--text-faint)">Low:</b> ${p.low_selling_items.replace(/</g,'&lt;')}</div>` : ''}
@@ -3603,7 +3723,7 @@ async function dbRenderExpand(providerId, el) {
     </div>` : ''}
     ${showAcceptedOffers ? `
     <div class="db-expand-section">
-      <div class="db-expand-label">✅ Accepted offer</div>
+      <div class="db-expand-label">Accepted offer</div>
       <div id="db-accepted-${pid}"><div class="empty">Loading…</div></div>
     </div>` : ''}
     <div class="db-expand-section">
@@ -3739,6 +3859,7 @@ async function dbSetStage(providerId, providerName, toStage, extraNegFields) {
   }
   await sbPatch(`wein_providers?id=eq.${providerId}`, { current_stage: toStage });
   await sbPost('wein_provider_stages', { provider_id: providerId, provider_name: providerName, stage: toStage, changed_by: sessionStorage.getItem('weinRole') || 'portal' });
+  await sbPost('wein_events', { event_type: 'stage_changed', entity_type: 'provider', entity_id: providerId, data: { stage: toStage, provider_name: providerName } }).catch(() => {});
 }
 
 let dbGeneratingIds = new Set();
@@ -3878,7 +3999,7 @@ async function dbSaveAcceptedOffers(providerId) {
 
     await dbSetStage(providerId, p?.provider_name || '', 'accepted', { offers_accepted: [...dbSelectedOfferIds] });
 
-    if (btn) btn.textContent = `✅ ${dbSelectedOfferIds.size} offers saved`;
+    if (btn) btn.textContent = `${dbSelectedOfferIds.size} offers saved`;
     setTimeout(() => loadDealBreakers(), 1200);
   } catch (e) {
     console.error('dbSaveAcceptedOffers error:', e);
@@ -3905,7 +4026,7 @@ async function dbSaveNotes(providerId, ev) {
       await sbPost('wein_negotiations', { provider_id: providerId, provider_name: p?.provider_name || '', deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: dbStageOf(providerId), ...data });
     }
     const btn = ev?.target;
-    if (btn) { const orig = btn.textContent; btn.textContent = '✅ Saved'; setTimeout(() => btn.textContent = orig, 2000); }
+    if (btn) { const orig = btn.textContent; btn.textContent = 'Saved'; setTimeout(() => btn.textContent = orig, 2000); }
   } catch (e) { console.error('dbSaveNotes error:', e); }
 }
 
@@ -3937,13 +4058,19 @@ if (window.location.pathname.includes('intake')) {
   document.getElementById('loginScreen').style.display = 'none';
   showView('intake');
 } else {
-  const savedRole = sessionStorage.getItem('weinRole');
-  if (Object.values(PIN_ROLES).includes(savedRole)) {
-    showApp(savedRole);
-  } else {
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.querySelector('.pin-box').focus();
-  }
+  (async () => {
+    const { data: { session } } = await sbAuth.auth.getSession();
+    if (session) {
+      await loadPortalForSession(session);
+      return;
+    }
+    const savedRole = sessionStorage.getItem('weinRole');
+    if (Object.values(PIN_ROLES).includes(savedRole)) {
+      showApp(savedRole);
+    } else {
+      document.getElementById('loginScreen').style.display = 'flex';
+    }
+  })();
 }
 </script>
 </body>
