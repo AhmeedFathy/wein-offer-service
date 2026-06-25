@@ -455,6 +455,14 @@
         <a href="javascript:void(0)" onclick="showEmailLoginForm()" style="font-size:11px;color:var(--w-muted);text-decoration:underline">Use email + password instead</a>
       </div>
     </div>
+
+    <!-- SET NEW PASSWORD (shown after clicking a password-recovery email link) -->
+    <div id="setPasswordForm" style="display:none;width:100%">
+      <div style="color:var(--w-text);font-size:13px;margin-bottom:14px;text-align:center">Choose a new password for your account.</div>
+      <input type="password" id="newPassword" placeholder="New password" autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:8px;background:var(--w-surface2);border:1px solid var(--w-border);border-radius:7px;color:var(--w-text);font-size:13px;font-family:inherit">
+      <input type="password" id="newPasswordConfirm" placeholder="Confirm new password" autocomplete="new-password" style="width:100%;padding:10px 12px;margin-bottom:14px;background:var(--w-surface2);border:1px solid var(--w-border);border-radius:7px;color:var(--w-text);font-size:13px;font-family:inherit" onkeydown="if(event.key==='Enter')attemptSetNewPassword()">
+      <button class="btn btn-orange" style="width:100%;height:40px;border-radius:7px" onclick="attemptSetNewPassword()">Set password and sign in</button>
+    </div>
   </div>
 </div>
 <style>
@@ -1000,6 +1008,18 @@
 </div>
 
 <script>
+// ════════════════════════════════════════════════════════════════════
+// CONFIG (must come first — sbAuth is referenced at top level below)
+// ════════════════════════════════════════════════════════════════════
+const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
+const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' };
+
+// Supabase Auth client (separate from the SB_HEADERS REST helpers below,
+// which keep using the anon key directly for data reads/writes unchanged).
+const sbAuth = supabase.createClient(SB_URL, SB_ANON);
+window.WEIN = window.WEIN || { user: null, role: null, fullName: null, theme: 'dark' };
+
 function showPinLogin() {
   document.getElementById('emailLoginForm').style.display = 'none';
   document.getElementById('pinLoginForm').style.display = 'block';
@@ -1047,7 +1067,33 @@ async function attemptForgotPassword() {
     errEl.style.color = 'var(--w-green)';
     errEl.textContent = 'Password reset email sent. Check your inbox.';
   } catch (e) {
-    errEl.textContent = 'Could not send reset email — try again';
+    console.error('resetPasswordForEmail threw', e);
+    errEl.textContent = 'Could not send reset email (' + (e.message || e) + ')';
+  }
+}
+
+function showSetNewPasswordForm() {
+  document.getElementById('emailLoginForm').style.display = 'none';
+  document.getElementById('pinLoginForm').style.display = 'none';
+  document.getElementById('setPasswordForm').style.display = 'block';
+}
+
+async function attemptSetNewPassword() {
+  const pw = document.getElementById('newPassword').value;
+  const pw2 = document.getElementById('newPasswordConfirm').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!pw || pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match'; return; }
+  try {
+    const { error } = await sbAuth.auth.updateUser({ password: pw });
+    if (error) { errEl.textContent = error.message; return; }
+    const { data: { session } } = await sbAuth.auth.getSession();
+    history.replaceState(null, '', window.location.pathname);
+    if (session) await loadPortalForSession(session);
+  } catch (e) {
+    console.error('updateUser threw', e);
+    errEl.textContent = 'Could not set password (' + (e.message || e) + ')';
   }
 }
 
@@ -1069,6 +1115,14 @@ sbAuth.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     sessionStorage.removeItem('weinAuthMode');
   }
+  if (event === 'PASSWORD_RECOVERY') {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appHeader').style.display = 'none';
+    document.getElementById('appShell').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'none';
+    document.getElementById('bottomNav').style.display = 'none';
+    showSetNewPasswordForm();
+  }
 });
 function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'light';
@@ -1078,17 +1132,9 @@ function toggleTheme() {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// CONFIG
+// CONFIG (SB_URL/SB_ANON/SB_HEADERS/sbAuth defined at top of script)
 // ════════════════════════════════════════════════════════════════════
-const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
-const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
-const N8N     = 'https://weinflow.app.n8n.cloud/webhook';
-const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' };
-
-// Supabase Auth client (separate from the SB_HEADERS REST helpers above,
-// which keep using the anon key directly for data reads/writes unchanged).
-const sbAuth = supabase.createClient(SB_URL, SB_ANON);
-window.WEIN = window.WEIN || { user: null, role: null, fullName: null, theme: 'dark' };
+const N8N = 'https://weinflow.app.n8n.cloud/webhook';
 
 async function sbGet(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
@@ -4065,6 +4111,11 @@ if (window.location.pathname.includes('intake')) {
   document.getElementById('bottomNav').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'none';
   showView('intake');
+} else if (window.location.hash.includes('type=recovery')) {
+  // Password-recovery redirect — wait for the PASSWORD_RECOVERY event
+  // (fired by the onAuthStateChange listener above) to show the set-password
+  // form, instead of racing it by loading the portal straight away.
+  document.getElementById('loginScreen').style.display = 'flex';
 } else {
   (async () => {
     const { data: { session } } = await sbAuth.auth.getSession();
