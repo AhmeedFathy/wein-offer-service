@@ -321,6 +321,7 @@ a { color: var(--amber); text-decoration: none; }
 <aside id="sidebar">
   <div class="nav-item active" data-view="overview" title="Overview"><i class="ti ti-layout-dashboard"></i></div>
   <div class="nav-item" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
+  <div class="nav-item" data-view="leads" title="Leads"><i class="ti ti-target-arrow"></i></div>
   <div class="nav-item" data-view="providers" title="Providers"><i class="ti ti-building-store"></i></div>
   <div class="nav-item" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></div>
   <div class="nav-item" data-view="offers" title="Offers"><i class="ti ti-tag"></i></div>
@@ -331,42 +332,32 @@ a { color: var(--amber); text-decoration: none; }
 </aside>
 
 <!-- ══════════════ MAIN CONTENT ══════════════ -->
+<!-- mainArea.innerHTML is fully replaced per-view by renderCurrentView() in JS below -->
 <main id="mainArea">
 
-  <!-- KPI ROW -->
-  <div class="kpi-row">
-    <div class="kpi-card">
-      <div class="kpi-label">Providers</div>
-      <div class="kpi-value mono" id="kpiProviders">—</div>
-      <div class="kpi-delta" id="kpiProvidersDelta"></div>
+  <div class="view-panel" id="view-leads" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);">Leads</div>
+      <button class="btn-amber" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="showAddLeadForm()">+ Add Lead</button>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Negotiating</div>
-      <div class="kpi-value mono" id="kpiNegotiating">—</div>
-      <div class="kpi-delta" id="kpiNegotiatingDelta"></div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Offers Built</div>
-      <div class="kpi-value mono" id="kpiOffers">—</div>
-      <div class="kpi-delta" id="kpiOffersDelta"></div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Pending</div>
-      <div class="kpi-value mono" id="kpiPending">—</div>
-      <div class="kpi-delta" id="kpiPendingDelta"></div>
-    </div>
-  </div>
 
-  <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
-    <span style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
-    <button class="db-filter active" data-role="all">All</button>
-    <button class="db-filter" data-role="deal_breaker">Deal Breaker</button>
-    <button class="db-filter" data-role="admin">Admin</button>
-  </div>
+    <div id="addLeadForm" style="display:none;background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadBusinessName" placeholder="Business name" class="login-input" style="margin-bottom:0;">
+        <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="login-input" style="margin-bottom:0;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadLocation" placeholder="Location" class="login-input" style="margin-bottom:0;">
+        <input type="text" id="leadSource" placeholder="Source (e.g. Instagram, referral)" class="login-input" style="margin-bottom:0;">
+      </div>
+      <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-ghost" style="width:auto;padding:6px 14px;" onclick="hideAddLeadForm()">Cancel</button>
+        <button class="btn-amber" style="width:auto;height:32px;padding:0 14px;border-radius:6px;font-size:12px;" onclick="submitLead()">Save lead</button>
+      </div>
+    </div>
 
-  <!-- KANBAN BOARD -->
-  <div class="kanban-board" id="kanbanBoard">
-    <!-- 4 columns injected by JS: renderKanban() -->
+    <div id="leadsList" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 
 </main>
@@ -424,6 +415,21 @@ a { color: var(--amber); text-decoration: none; }
         color:var(--text-secondary);font-size:16px;cursor:pointer;
         display:flex;align-items:center;justify-content:center;margin-left:8px;
       ">x</button>
+    </div>
+
+    <!-- Contact person + deal value -- closes the "Contacts"/"Deals value" gaps vs. a standard CRM -->
+    <div style="padding:10px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:18px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <i class="ti ti-user" style="font-size:13px;color:var(--text-tertiary);"></i>
+        <input type="text" id="modal-contact-name" placeholder="Contact name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
+        <input type="text" id="modal-contact-phone" placeholder="Phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
+        <input type="text" id="modal-contact-whatsapp" placeholder="WhatsApp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">Deal value</span>
+        <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);">EGP</span>
+        <input type="number" id="modal-deal-value" placeholder="0" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-family:'JetBrains Mono';font-size:12px;padding:2px 0;outline:none;width:80px;" onblur="saveDealValue()">
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
@@ -794,7 +800,7 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { overview: 'Overview', pipeline: 'Pipeline', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const PAGE_TITLES = { overview: 'Overview', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
 let currentView = 'overview';
 function showView(name) {
   currentView = name;
@@ -807,7 +813,7 @@ document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListene
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD DATA + KANBAN
 // ════════════════════════════════════════════════════════════════════
-let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [];
+let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [];
 
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
@@ -830,13 +836,14 @@ const STAGE_PROGRESS = {
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files] = await Promise.all([
+    const [providers, offers, negotiations, files, leads] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
       sbGet('wein_offers?select=id,provider_id'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
       sbGet('wein_files?select=*&order=created_at.desc').catch(() => []),
+      sbGet('wein_leads?select=*&order=created_at.desc').catch(() => []),
     ]);
-    cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files;
+    cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads;
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
@@ -846,6 +853,7 @@ async function loadDashboard() {
 function renderCurrentView() {
   if (currentView === 'providers') { renderProvidersView(); return; }
   if (currentView === 'files') { renderFilesView(); return; }
+  if (currentView === 'leads') { renderLeadsView(); return; }
   renderPipelineView();
 }
 
@@ -1173,6 +1181,140 @@ function renderFilesGrid() {
   }).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No files found</div>`;
 }
 
+// ════════════════════════════════════════════════════════════════════
+// LEADS (pre-provider stage -- closes the "Leads" gap vs. a standard CRM)
+// ════════════════════════════════════════════════════════════════════
+let leadFormVisible = false;
+
+function leadStatusLabel(status) {
+  return { new: 'New', contacted: 'Contacted', promoted: 'Promoted', dropped: 'Dropped' }[status] || 'New';
+}
+
+function renderLeadsView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Leads</div>
+        <div class="view-count">${cachedLeads.length} total</div>
+      </div>
+      <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
+    </div>
+    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadBusinessName" placeholder="Business name" class="view-input" style="min-width:0;">
+        <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="view-input" style="min-width:0;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadLocation" placeholder="Location" class="view-input" style="min-width:0;">
+        <input type="text" id="leadSource" placeholder="Source (e.g. Instagram, referral)" class="view-input" style="min-width:0;">
+      </div>
+      <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;font-family:inherit;"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddLeadForm()">Cancel</button>
+        <button class="view-action" type="button" onclick="submitLead()"><span>Save lead</span></button>
+      </div>
+    </div>
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Vertical</th>
+            <th>Location</th>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Added</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="leadsTableBody"></tbody>
+      </table>
+    </div>`;
+  renderLeadsTable();
+}
+
+function toggleAddLeadForm() {
+  leadFormVisible = !leadFormVisible;
+  const form = document.getElementById('addLeadForm');
+  if (form) form.style.display = leadFormVisible ? 'block' : 'none';
+}
+
+function renderLeadsTable() {
+  const body = document.getElementById('leadsTableBody');
+  if (!body) return;
+  body.innerHTML = cachedLeads.length ? cachedLeads.map(lead => {
+    const created = lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+    const isOpen = lead.status === 'new' || lead.status === 'contacted';
+    return `
+      <tr>
+        <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(lead.business_name || 'Unnamed')}</td>
+        <td>${escapeHtml(lead.vertical || '—')}</td>
+        <td>${escapeHtml(lead.location || '—')}</td>
+        <td>${escapeHtml(lead.source || '—')}</td>
+        <td><span class="stage-pill ${lead.status === 'promoted' ? 'active' : ''}">${escapeHtml(leadStatusLabel(lead.status))}</span></td>
+        <td class="mono">${created}</td>
+        <td>
+          <div class="table-actions">
+            ${lead.status === 'new' ? `<button class="mini-btn" type="button" onclick="markLeadContacted('${lead.id}')"><span>Mark contacted</span></button>` : ''}
+            ${isOpen ? `<button class="mini-btn" type="button" onclick="promoteLead('${lead.id}')"><span>Promote</span></button>` : ''}
+            ${isOpen ? `<button class="mini-btn" type="button" onclick="dropLead('${lead.id}')"><span>Drop</span></button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No leads yet</td></tr>`;
+}
+
+async function submitLead() {
+  const business_name = document.getElementById('leadBusinessName').value.trim();
+  if (!business_name) return;
+  const vertical = document.getElementById('leadVertical').value.trim();
+  const location = document.getElementById('leadLocation').value.trim();
+  const source = document.getElementById('leadSource').value.trim();
+  const why_promising = document.getElementById('leadWhyPromising').value.trim();
+  try {
+    await sbPost('wein_leads', {
+      business_name, vertical: vertical || null, location: location || null,
+      source: source || null, why_promising: why_promising || null,
+      created_by: sessionStorage.getItem('weinRole') || 'portal',
+    });
+    leadFormVisible = false;
+    await loadDashboard();
+  } catch (e) { console.error('submitLead error:', e); alert('Could not save lead: ' + e.message); }
+}
+
+async function markLeadContacted(leadId) {
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'contacted', updated_at: new Date().toISOString() });
+    await loadDashboard();
+  } catch (e) { console.error('markLeadContacted error:', e); }
+}
+
+async function dropLead(leadId) {
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'dropped', updated_at: new Date().toISOString() });
+    await loadDashboard();
+  } catch (e) { console.error('dropLead error:', e); }
+}
+
+async function promoteLead(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  try {
+    const [provider] = await sbPost('wein_providers', {
+      provider_name: lead.business_name,
+      vertical: lead.vertical || null,
+      category: lead.vertical || null,
+      location: lead.location || null,
+    });
+    await sbPost('wein_negotiations', {
+      provider_id: provider.id, provider_name: provider.provider_name,
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'new',
+    });
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'promoted', promoted_provider_id: provider.id, updated_at: new Date().toISOString() });
+    await loadDashboard();
+  } catch (e) { console.error('promoteLead error:', e); alert('Could not promote lead: ' + e.message); }
+}
+
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -1235,6 +1377,7 @@ async function openProviderModal(providerUuid, negotiationId) {
 
   const providerId = p.id || neg?.provider_id || providerUuid;
   window.currentNegotiationId = negotiationId || neg?.id || null;
+  window.currentProviderId = providerId;
 
   document.getElementById('provider-modal-backdrop').style.display = 'flex';
 
@@ -1248,6 +1391,14 @@ async function openProviderModal(providerUuid, negotiationId) {
   const pill = document.getElementById('modal-stage-pill');
   pill.textContent = stage;
   pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
+
+  document.getElementById('modal-contact-name').value = p.contact_name || '';
+  document.getElementById('modal-contact-phone').value = p.contact_phone || '';
+  document.getElementById('modal-contact-whatsapp').value = p.contact_whatsapp || '';
+  const dealValueInput = document.getElementById('modal-deal-value');
+  dealValueInput.value = activeNeg?.estimated_value_egp ?? '';
+  dealValueInput.disabled = !window.currentNegotiationId;
+  dealValueInput.title = window.currentNegotiationId ? '' : 'No negotiation record yet for this provider';
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
   offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
@@ -1336,9 +1487,35 @@ async function submitComment() {
   renderComments(comments);
 }
 
+async function saveProviderContact() {
+  if (!window.currentProviderId) return;
+  const contact_name = document.getElementById('modal-contact-name').value.trim();
+  const contact_phone = document.getElementById('modal-contact-phone').value.trim();
+  const contact_whatsapp = document.getElementById('modal-contact-whatsapp').value.trim();
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, {
+      contact_name: contact_name || null, contact_phone: contact_phone || null, contact_whatsapp: contact_whatsapp || null,
+    });
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) { cached.contact_name = contact_name; cached.contact_phone = contact_phone; cached.contact_whatsapp = contact_whatsapp; }
+  } catch (e) { console.error('saveProviderContact error:', e); }
+}
+
+async function saveDealValue() {
+  if (!window.currentNegotiationId) return;
+  const raw = document.getElementById('modal-deal-value').value;
+  const estimated_value_egp = raw === '' ? null : Number(raw);
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${window.currentNegotiationId}`, { estimated_value_egp });
+    const cached = cachedNegotiations.find(n => n.id === window.currentNegotiationId);
+    if (cached) cached.estimated_value_egp = estimated_value_egp;
+  } catch (e) { console.error('saveDealValue error:', e); }
+}
+
 function closeProviderModal() {
   document.getElementById('provider-modal-backdrop').style.display = 'none';
   window.currentNegotiationId = null;
+  window.currentProviderId = null;
 }
 
 document.getElementById('provider-modal-backdrop').addEventListener('click', function (e) {
