@@ -109,6 +109,14 @@ a { color: var(--amber); text-decoration: none; }
 .pc-progress { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
 .pc-progress-fill { height: 2px; border-radius: 1px; }
 .empty-col { padding: 20px 8px; text-align: center; font-size: 11px; color: var(--text-tertiary); }
+.db-filter {
+  font-size:10px; padding:4px 10px; border-radius:4px;
+  border:0.5px solid #2a2208; color:#7a6a4a;
+  background:transparent; cursor:pointer; font-family:'Instrument Sans',sans-serif;
+}
+.db-filter.active {
+  background:#f59e0b12; border-color:#f59e0b35; color:#f59e0b;
+}
 
 /* ── Right panel ── */
 #rightPanel { position: fixed; right: 0; top: 52px; bottom: 0; width: 300px; background: var(--bg-deep); border-left: .5px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; z-index: 98; }
@@ -271,6 +279,13 @@ a { color: var(--amber); text-decoration: none; }
       <div class="kpi-value mono" id="kpiHealth">—</div>
       <div class="kpi-delta" id="kpiHealthDelta"></div>
     </div>
+  </div>
+
+  <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
+    <span style="font-size:9px;color:#3a3020;text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
+    <button class="db-filter active" data-role="all">All</button>
+    <button class="db-filter" data-role="deal_breaker">Deal Breaker</button>
+    <button class="db-filter" data-role="admin">Admin</button>
   </div>
 
   <!-- KANBAN BOARD -->
@@ -686,7 +701,8 @@ function renderKanban() {
     const col = STAGE_COLUMNS[stage];
     if (!col) return; // rejected/unmapped -- not shown, matches STAGE_COLUMNS.rejected = null intent
     const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
-    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at });
+    const dealBreaker = (neg && neg.deal_breaker) ? neg.deal_breaker : 'deal_breaker';
+    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker });
   });
 
   board.innerHTML = COLUMNS.map(col => {
@@ -705,6 +721,17 @@ function renderKanban() {
   }).join('');
 }
 
+document.querySelectorAll('.db-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.db-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const role = btn.dataset.role;
+    document.querySelectorAll('.provider-card').forEach(card => {
+      card.style.display = (role === 'all' || card.dataset.role === role) ? '' : 'none';
+    });
+  });
+});
+
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -712,8 +739,9 @@ function providerCardHtml(item) {
   const progressColor = item.stage === 'accepted' || item.stage === 'closed' ? 'var(--green)' : 'var(--amber)';
   const date = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
   const safeName = p.provider_name.replace(/'/g, "\\'");
+  const dealBreaker = item.dealBreaker;
   return `
-    <div class="provider-card">
+    <div class="provider-card" data-role="${dealBreaker}">
       <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}</div>
       <div class="pc-meta">
         <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
@@ -724,6 +752,12 @@ function providerCardHtml(item) {
         <button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>
       </div>
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
+      <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid #1c1808;margin-top:4px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:#f59e0b20;border:0.5px solid #f59e0b40;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:#f59e0b;">
+          ${dealBreaker === 'admin' ? 'AD' : 'DB'}
+        </div>
+        <span style="font-size:11px;color:#7a6a4a;">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
+      </div>
     </div>`;
 }
 
