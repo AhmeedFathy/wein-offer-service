@@ -632,16 +632,11 @@ document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListene
 // ════════════════════════════════════════════════════════════════════
 let cachedProviders = [], cachedOffers = [], cachedNegotiations = [];
 
-// Real stage names used in wein_negotiations.stage (see STAGE_META in the
-// production portal) mapped down into the 4 kanban columns this redesign
-// calls for. "sent_back" (offers handed back for the deal breaker to
-// present) reads most naturally as "Offer Sent"; "negotiating" (closing
-// with the provider) groups with it too.
 const STAGE_COLUMNS = {
-  new: 'contacted', briefed: 'contacted',
-  menu_collected: 'negotiating', waiting_founder: 'negotiating', offers_generated: 'negotiating',
-  sent_back: 'offer_sent', negotiating: 'offer_sent',
-  accepted: 'accepted', paused: 'accepted', closed: 'accepted',
+  'menu_collected': 'contacted',
+  'paused':         'contacted',
+  'negotiating':    'negotiating',
+  'accepted':       'accepted'
 };
 const COLUMNS = [
   { id: 'contacted',   label: 'Contacted',   color: 'var(--text-tertiary)' },
@@ -650,8 +645,10 @@ const COLUMNS = [
   { id: 'accepted',    label: 'Accepted',    color: 'var(--green)' },
 ];
 const STAGE_PROGRESS = {
-  new: 10, briefed: 15, menu_collected: 35, waiting_founder: 45, offers_generated: 55,
-  sent_back: 70, negotiating: 80, accepted: 95, paused: 60, closed: 100,
+  'menu_collected': 25,
+  'paused':         15,
+  'negotiating':    55,
+  'accepted':       100
 };
 
 async function loadDashboard() {
