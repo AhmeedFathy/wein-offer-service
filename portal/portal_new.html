@@ -81,10 +81,10 @@ a { color: var(--amber); text-decoration: none; }
 
 /* ── KPI row ── */
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
-.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 12px 16px; }
 .kpi-card:hover { border-color: var(--border-amber); }
-.kpi-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
-.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600; color: var(--text-primary); line-height: 1; }
+.kpi-label { font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
 .kpi-delta.up { color: var(--green); }
 .kpi-delta.down { color: var(--red); }
@@ -275,9 +275,9 @@ a { color: var(--amber); text-decoration: none; }
       <div class="kpi-delta" id="kpiOffersDelta"></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Pipeline Health</div>
-      <div class="kpi-value mono" id="kpiHealth">—</div>
-      <div class="kpi-delta" id="kpiHealthDelta"></div>
+      <div class="kpi-label">Pending</div>
+      <div class="kpi-value mono" id="kpiPending">—</div>
+      <div class="kpi-delta" id="kpiPendingDelta"></div>
     </div>
   </div>
 
@@ -678,15 +678,15 @@ function renderKpis() {
     return neg && STAGE_COLUMNS[neg.stage] === 'negotiating';
   }).length;
   const offersBuilt = cachedOffers.length;
-  const withOffers = cachedProviders.filter(p => cachedOffers.some(o => o.provider_id === p.id)).length;
-  const health = totalProviders ? Math.round((withOffers / totalProviders) * 100) : 0;
+  const pendingCount = cachedProviders.filter(p => {
+    const neg = negotiationFor(p);
+    return neg && (neg.stage === 'paused' || neg.stage === 'menu_collected');
+  }).length;
 
   document.getElementById('kpiProviders').textContent = totalProviders;
   document.getElementById('kpiNegotiating').textContent = negotiatingCount;
   document.getElementById('kpiOffers').textContent = offersBuilt;
-  document.getElementById('kpiHealth').textContent = health + '%';
-  document.getElementById('kpiHealthDelta').textContent = health >= 80 ? 'Healthy' : health >= 50 ? 'Needs attention' : 'At risk';
-  document.getElementById('kpiHealthDelta').className = 'kpi-delta ' + (health >= 80 ? 'up' : health < 50 ? 'down' : '');
+  document.getElementById('kpiPending').textContent = pendingCount;
 }
 
 function renderKanban() {
