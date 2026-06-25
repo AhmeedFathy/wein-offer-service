@@ -36,22 +36,22 @@
   --red-tint:       #ef444415;
 }
 [data-theme="light"] {
-  --bg-base:        #f5f3ef;
-  --bg-surface:     #ffffff;
-  --bg-elevated:    #ede9e1;
-  --bg-deep:        #e8e4dc;
+  --bg-base:        #f7f3ec;
+  --bg-surface:     #fdfaf5;
+  --bg-elevated:    #ede8dc;
+  --bg-deep:        #e8e2d6;
 
-  --border:         #d4cfc4;
-  --border-subtle:  #e4dfd6;
-  --border-amber:   #f59e0b50;
+  --border:         #d6cfc0;
+  --border-subtle:  #e8e2d6;
+  --border-amber:   #f59e0b45;
 
   --amber:          #d97706;
   --amber-muted:    #92400e;
-  --amber-tint:     #f59e0b18;
+  --amber-tint:     #f59e0b15;
 
   --text-primary:   #1a1208;
-  --text-secondary: #6b5e3e;
-  --text-tertiary:  #a8956e;
+  --text-secondary: #5c4f35;
+  --text-tertiary:  #8c7a58;
 
   --green:          #16a34a;
   --green-tint:     #16a34a15;
@@ -140,7 +140,7 @@ a { color: var(--amber); text-decoration: none; }
   background:transparent; cursor:pointer; font-family:'Instrument Sans',sans-serif;
 }
 .db-filter.active {
-  background:#f59e0b12; border-color:#f59e0b35; color:#f59e0b;
+  background:var(--amber-tint); border-color:var(--border-amber); color:#f59e0b;
 }
 
 /* ── Right panel ── */
@@ -420,7 +420,7 @@ a { color: var(--amber); text-decoration: none; }
             </select>
             <button onclick="submitComment()" style="
               font-family:'Instrument Sans';font-size:11px;
-              background:#f59e0b12;border:0.5px solid #f59e0b35;
+              background:var(--amber-tint);border:0.5px solid var(--border-amber);
               color:#f59e0b;border-radius:4px;padding:5px 14px;cursor:pointer;
             ">Send</button>
           </div>
@@ -913,10 +913,10 @@ function providerCardHtml(item) {
 let modalOpenToken = 0;
 
 const STAGE_COLORS = {
-  'menu_collected': { bg: '#f59e0b15', border: '#f59e0b35', text: '#f59e0b', dot: '#f59e0b' },
+  'menu_collected': { bg: '#f59e0b15', border: 'var(--border-amber)', text: '#f59e0b', dot: '#f59e0b' },
   'paused':         { bg: '#6b728015', border: '#6b728035', text: '#9ca3af', dot: '#6b7280' },
-  'negotiating':    { bg: '#3b82f615', border: '#3b82f635', text: '#3b82f6', dot: '#3b82f6' },
-  'accepted':       { bg: '#22c55e15', border: '#22c55e35', text: '#22c55e', dot: '#22c55e' },
+  'negotiating':    { bg: 'var(--blue-tint)', border: '#3b82f635', text: '#3b82f6', dot: '#3b82f6' },
+  'accepted':       { bg: 'var(--green-tint)', border: '#22c55e35', text: '#22c55e', dot: '#22c55e' },
 };
 
 async function openProviderModal(providerUuid, negotiationId) {
@@ -984,7 +984,7 @@ function renderComments(comments) {
     const isAdmin = c.author_role === 'admin';
     return isAdmin ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
-        <div style="background:#f59e0b12;border:0.5px solid #f59e0b25;border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
+        <div style="background:var(--amber-tint);border:0.5px solid #f59e0b25;border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
           <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
         </div>
         <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
