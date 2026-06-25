@@ -138,6 +138,30 @@ a { color: var(--amber); text-decoration: none; }
 .rp-chat-log .from-user { color: var(--text-primary); }
 .rp-chat-log .from-bot { color: var(--amber); }
 
+/* ── Provider detail panel (slides over the right panel) ── */
+#providerDetailPanel {
+  position: fixed; right: 0; top: 52px; bottom: 0; width: 300px; background: var(--bg-deep);
+  border-left: .5px solid var(--border); display: flex; flex-direction: column; overflow-y: auto;
+  z-index: 99; transform: translateX(100%); transition: transform 200ms ease;
+}
+#providerDetailPanel.open { transform: translateX(0); }
+.pdp-header { padding: 14px 16px; border-bottom: .5px solid var(--border); position: relative; }
+.pdp-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 6px; background: transparent; border: none; color: var(--text-secondary); font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.pdp-close:hover { color: var(--text-primary); background: var(--bg-elevated); }
+.pdp-header-main { display: flex; align-items: center; gap: 8px; padding-right: 30px; }
+.pdp-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.pdp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pdp-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.pdp-offer-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 5px; padding: 8px 10px; }
+.pdp-offer-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pdp-offer-title { font-size: 12px; color: var(--text-primary); }
+.pdp-offer-price { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--amber); flex-shrink: 0; }
+.pdp-offer-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.pdp-file-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.pdp-file-name { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdp-file-row a { color: var(--amber); font-size: 11px; flex-shrink: 0; margin-left: 8px; }
+.pdp-empty { font-size: 12px; color: var(--text-tertiary); padding: 4px 0; }
+
 /* ── Notification dropdown ── */
 #notif-panel { display: none; position: fixed; top: 52px; right: 52px; width: 320px; background: var(--bg-surface); border: .5px solid var(--border); border-radius: 0 0 8px 8px; z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.4); max-height: 420px; display: none; flex-direction: column; }
 .notif-header { padding: 10px 14px; border-bottom: .5px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
@@ -317,6 +341,27 @@ a { color: var(--amber); text-decoration: none; }
     </div>
     <div class="rp-chat-log" id="rpChatLog"></div>
   </div>
+</aside>
+
+<!-- ══════════════ PROVIDER DETAIL PANEL (slides in over the right panel) ══════════════ -->
+<aside id="providerDetailPanel">
+  <div class="pdp-header">
+    <button class="pdp-close" onclick="closeProviderDetail()" title="Close"><i class="ti ti-x"></i></button>
+    <div class="pdp-header-main">
+      <span class="pdp-name" id="pdpName">—</span>
+      <span class="pdp-dot" id="pdpDot"></span>
+    </div>
+    <div class="pdp-sub" id="pdpSub">—</div>
+  </div>
+
+  <div class="rp-section-title" style="color:var(--amber)">Offers</div>
+  <div id="pdpOffers" style="padding:8px 10px;display:flex;flex-direction:column;gap:6px"></div>
+
+  <div class="rp-section-title" style="color:var(--amber)">Files</div>
+  <div id="pdpFiles" style="padding:8px 14px;display:flex;flex-direction:column;gap:6px"></div>
+
+  <div class="rp-section-title" style="color:var(--amber)">Notes</div>
+  <div id="pdpNotes" style="padding:8px 14px 16px;font-size:12px;color:var(--text-secondary)">—</div>
 </aside>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
@@ -699,7 +744,7 @@ function renderKanban() {
     if (!col) return; // rejected/unmapped -- not shown, matches STAGE_COLUMNS.rejected = null intent
     const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
     const dealBreaker = (neg && neg.deal_breaker) ? neg.deal_breaker : 'deal_breaker';
-    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker });
+    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker, negotiationId: neg ? neg.id : null });
   });
 
   board.innerHTML = COLUMNS.map(col => {
@@ -738,7 +783,7 @@ function providerCardHtml(item) {
   const safeName = p.provider_name.replace(/'/g, "\\'");
   const dealBreaker = item.dealBreaker;
   return `
-    <div class="provider-card" data-role="${dealBreaker}">
+    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderDetail('${p.id}', '${item.negotiationId || ''}')">
       <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}</div>
       <div class="pc-meta">
         <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
@@ -756,6 +801,59 @@ function providerCardHtml(item) {
         <span style="font-size:11px;color:#7a6a4a;">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
       </div>
     </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROVIDER DETAIL PANEL
+// Field names below match the live schema, not the prompt's literal
+// names: wein_offers has `title`/`promo_egp`/`category`/`title_strategy`
+// (no offer_title/price_egp/party_size/tier columns), and wein_files has
+// `file_name`/`drive_view_url` (no file_url).
+// ════════════════════════════════════════════════════════════════════
+async function openProviderDetail(providerId, negotiationId) {
+  const p = cachedProviders.find(p => p.id === providerId);
+  if (!p) return;
+  const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : negotiationFor(p);
+  const stage = neg ? neg.stage : 'new';
+  const col = COLUMNS.find(c => c.id === STAGE_COLUMNS[stage]);
+
+  document.getElementById('pdpName').textContent = p.provider_name;
+  document.getElementById('pdpSub').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
+  document.getElementById('pdpDot').style.background = col ? col.color : 'var(--text-tertiary)';
+  document.getElementById('pdpNotes').textContent = (neg && neg.notes) ? neg.notes : '—';
+
+  document.getElementById('rightPanel').style.display = 'none';
+  document.getElementById('providerDetailPanel').classList.add('open');
+
+  const offersEl = document.getElementById('pdpOffers'), filesEl = document.getElementById('pdpFiles');
+  offersEl.innerHTML = '<div class="pdp-empty">Loading…</div>';
+  filesEl.innerHTML = '<div class="pdp-empty">Loading…</div>';
+
+  try {
+    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*`);
+    offersEl.innerHTML = offers.length ? offers.map(o => `
+      <div class="pdp-offer-card">
+        <div class="pdp-offer-top">
+          <span class="pdp-offer-title">${o.title || 'Untitled offer'}</span>
+          <span class="pdp-offer-price mono">${o.promo_egp != null ? 'EGP ' + o.promo_egp : '—'}</span>
+        </div>
+        <div class="pdp-offer-meta">${[o.category, o.title_strategy].filter(Boolean).join(' · ') || '—'}</div>
+      </div>`).join('') : '<div class="pdp-empty">No offers yet</div>';
+  } catch (e) { offersEl.innerHTML = '<div class="pdp-empty">No offers yet</div>'; }
+
+  try {
+    const files = await sbGet(`wein_files?provider_id=eq.${providerId}&select=*`);
+    filesEl.innerHTML = files.length ? files.map(f => `
+      <div class="pdp-file-row">
+        <span class="pdp-file-name">${f.file_name}</span>
+        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener">View</a>` : ''}
+      </div>`).join('') : '<div class="pdp-empty">No files yet</div>';
+  } catch (e) { filesEl.innerHTML = '<div class="pdp-empty">No files yet</div>'; }
+}
+
+function closeProviderDetail() {
+  document.getElementById('providerDetailPanel').classList.remove('open');
+  document.getElementById('rightPanel').style.display = 'flex';
 }
 
 // ════════════════════════════════════════════════════════════════════
