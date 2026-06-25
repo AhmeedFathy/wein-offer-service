@@ -1018,12 +1018,20 @@ async function attemptEmailLogin() {
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
   if (!email || !password) { errEl.textContent = 'Enter your email and password'; return; }
+  let data, error;
   try {
-    const { data, error } = await sbAuth.auth.signInWithPassword({ email, password });
-    if (error) { errEl.textContent = error.message || 'Invalid email or password'; return; }
+    ({ data, error } = await sbAuth.auth.signInWithPassword({ email, password }));
+  } catch (e) {
+    console.error('signInWithPassword threw', e);
+    errEl.textContent = 'Sign in failed — check your connection and try again (' + (e.message || e) + ')';
+    return;
+  }
+  if (error) { errEl.textContent = error.message || 'Invalid email or password'; return; }
+  try {
     await loadPortalForSession(data.session);
   } catch (e) {
-    errEl.textContent = 'Sign in failed — check your connection and try again';
+    console.error('loadPortalForSession threw', e);
+    errEl.textContent = 'Signed in, but loading the portal failed: ' + (e.message || e);
   }
 }
 
