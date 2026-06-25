@@ -122,7 +122,7 @@ a { color: var(--amber); text-decoration: none; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
 .provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; }
-.provider-card:hover { border-color: var(--border-amber); background: #221c0e; }
+.provider-card:hover { border-color: var(--border-amber); background: var(--bg-elevated); }
 .pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
 .pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
@@ -141,6 +141,9 @@ a { color: var(--amber); text-decoration: none; }
 }
 .db-filter.active {
   background:var(--amber-tint); border-color:var(--border-amber); color:#f59e0b;
+}
+.db-filter:hover {
+  background: var(--bg-elevated);
 }
 
 /* ── Right panel ── */
@@ -984,7 +987,7 @@ function renderComments(comments) {
     const isAdmin = c.author_role === 'admin';
     return isAdmin ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
-        <div style="background:var(--amber-tint);border:0.5px solid #f59e0b25;border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
+        <div style="background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
           <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
         </div>
         <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}</div>
