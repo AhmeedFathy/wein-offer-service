@@ -2608,21 +2608,38 @@ document.getElementById('provider-modal-backdrop').addEventListener('click', fun
 // ════════════════════════════════════════════════════════════════════
 // PIPELINE HEALTH (right panel)
 // ════════════════════════════════════════════════════════════════════
+function namesList(providers, max) {
+  const names = providers.map(p => p.provider_name || 'Unnamed');
+  if (names.length <= max) return names.join(', ');
+  return names.slice(0, max).join(', ') + ` +${names.length - max} more`;
+}
+
 async function loadPipelineHealth() {
   try {
-    const outcomes = await sbGet('offer_outcomes?select=*&order=created_at.desc&limit=10').catch(() => []);
-    const last = outcomes[0];
+    const outcomes = await sbGet('offer_outcomes?select=*&order=created_at.desc&limit=100').catch(() => []);
+    const sevenDaysAgo = Date.now() - 7 * 86400000;
+    const activeProviders = cachedProviders.filter(p => p.contract_status === 'active');
 
     const alerts = [];
-    if (last && last.discount_violations > 0) alerts.push({ title: 'Discount violations', body: `${last.discount_violations} violation(s) in last run` });
-    const sevenDaysAgo = Date.now() - 7 * 86400000;
-    const stale = cachedProviders.filter(p => {
+
+    const recentViolationProviderIds = new Set(
+      outcomes.filter(o => o.discount_violations > 0 && new Date(o.created_at).getTime() >= sevenDaysAgo).map(o => o.provider_id)
+    );
+    const violationProviders = activeProviders.filter(p => recentViolationProviderIds.has(p.id));
+    if (violationProviders.length) {
+      alerts.push({ title: 'Discount violations (last 7 days)', body: namesList(violationProviders, 3) });
+    }
+
+    const staleProviders = activeProviders.filter(p => {
       const recent = outcomes.find(o => o.provider_id === p.id);
       return !recent || new Date(recent.created_at).getTime() < sevenDaysAgo;
-    }).length;
-    if (stale > 0) alerts.push({ title: 'Stale providers', body: `${stale} provider(s) haven't run in 7+ days` });
+    });
+    if (staleProviders.length) {
+      alerts.push({ title: `Stale active providers (${staleProviders.length})`, body: namesList(staleProviders, 3) });
+    }
+
     document.getElementById('rpAlerts').innerHTML = alerts.length
-      ? alerts.map(a => `<div class="rp-alert"><div class="rp-alert-title">${a.title}</div><div class="rp-alert-body">${a.body}</div></div>`).join('')
+      ? alerts.map(a => `<div class="rp-alert"><div class="rp-alert-title">${a.title}</div><div class="rp-alert-body">${escapeHtml(a.body)}</div></div>`).join('')
       : `<div class="rp-alert" style="border-left-color:var(--green)"><div class="rp-alert-title">All clear</div><div class="rp-alert-body">No active alerts</div></div>`;
   } catch (e) { /* right panel is non-critical -- fail quietly */ }
 }
