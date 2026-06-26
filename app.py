@@ -444,12 +444,16 @@ def invite_user():
         "Content-Type": "application/json",
     }
 
-    invite_resp = requests_lib.post(
-        f"{supabase_url}/auth/v1/invite",
-        headers=headers,
-        json={"email": email},
-        timeout=20,
-    )
+    try:
+        invite_resp = requests_lib.post(
+            f"{supabase_url}/auth/v1/invite",
+            headers=headers,
+            json={"email": email},
+            timeout=20,
+        )
+    except requests_lib.exceptions.RequestException as e:
+        return jsonify({"error": f"Could not reach Supabase to send the invite: {e}"}), 502
+
     if invite_resp.status_code >= 300:
         return jsonify({"error": f"Invite failed: {invite_resp.text}"}), 502
 
@@ -457,12 +461,16 @@ def invite_user():
     if not user_id:
         return jsonify({"error": "Invite succeeded but no user id was returned."}), 502
 
-    profile_resp = requests_lib.post(
-        f"{supabase_url}/rest/v1/profiles",
-        headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
-        json={"id": user_id, "role": role, "full_name": full_name},
-        timeout=20,
-    )
+    try:
+        profile_resp = requests_lib.post(
+            f"{supabase_url}/rest/v1/profiles",
+            headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
+            json={"id": user_id, "role": role, "full_name": full_name},
+            timeout=20,
+        )
+    except requests_lib.exceptions.RequestException as e:
+        return jsonify({"error": f"Invite was sent, but writing the profile failed: {e}"}), 502
+
     if profile_resp.status_code >= 300:
         return jsonify({"error": f"Invite sent but writing the profile failed: {profile_resp.text}"}), 502
 
