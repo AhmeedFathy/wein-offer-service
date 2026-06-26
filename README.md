@@ -2,7 +2,9 @@
 
 Flask service for the WeIN marketplace pipeline — menu extraction, offer file generation, the admin portal ("WeIN OS"), the team intake form, and the NL chat backend.
 
-Full project documentation (pipeline flow, DB schema, deployment guide, n8n workflow backups) lives outside this repo at `D:\Fady\outputs\_WeIN_System\` (local) — see `MASTER_CONTEXT.md` there for the complete picture.
+**This is the real, deployed backend** — not a temp/scratch folder (renamed from `_temp_wein_offer_service` in June 2026 once that name became misleading). Root only contains what's actually used: `app.py`, `build_offer_files.py`, `build_pdfs.py`, the two `Template - *.xlsx` input templates, `requirements.txt`, `Procfile`, `portal/`. ~100 one-off debug/check/poll/fix scripts from past n8n debugging sessions have been moved to `_archive_debug_scripts/` — kept for reference, not part of the running app.
+
+Full project documentation (pipeline flow, DB schema, deployment guide, n8n workflow backups, onboarding) lives outside this repo at `D:\Fady\outputs\_WeIN_System\` (local, its own git repo) — see `MASTER_CONTEXT.md` there for the complete picture, and `ONBOARDING.md` if you're new to the project.
 
 ## Routes
 

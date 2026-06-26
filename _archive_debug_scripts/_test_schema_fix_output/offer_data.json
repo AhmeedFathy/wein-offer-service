@@ -1,0 +1,107 @@
+{
+  "provider": "Soho House Cairo",
+  "vertical": "Dining",
+  "eur_rate": 61,
+  "provider_profile": {
+    "location_hook": "Cairo's truffle-lit rooftop oasis",
+    "view_or_atmosphere": "Panoramic Nile views with chic industrial interiors",
+    "peak_moments": [
+      "Golden hour aperitivo",
+      "Truffle-focused tasting menus",
+      "Late-night dessert pairings"
+    ],
+    "tourist_fit": "Luxury-seeking foodies and honeymooners from GCC/Europe",
+    "unique_format": "Members-only fine dining with truffle-forward menu",
+    "wein_exclusives": [
+      "Private Cairo city tour add-ons",
+      "Truffle tasting bundles",
+      "Family-style luxury platters"
+    ]
+  },
+  "waffarha_benchmark": {
+    "competitor_max_discount": 51.2,
+    "wein_floor_discount": 37,
+    "gaps_identified": [
+      "No in-venue dining bundles in Sharm",
+      "No Cairo day-trip + dining packages",
+      "No premium truffle-focused bundles",
+      "No family-style luxury platters",
+      "No romance/scarcity framed offers",
+      "No dessert-first solo bundles",
+      "No late-night premium dining"
+    ]
+  },
+  "offers": [
+    {
+      "id": 1,
+      "title": "Golden hour aperitivo middle dot Classic Caesar Salad + Tiramisu middle dot 28 percent off @Soho House Cairo",
+      "hook": "Taste Cairo's finest Caesar salad for just EGP 219 — normally EGP 280 — on us",
+      "category": "Salads & Starters",
+      "items": [
+        {"name": "Classic Caesar Salad", "me_class": "Star", "bundle_role": "Hero"},
+        {"name": "Tiramisu", "me_class": "Star", "bundle_role": "Support"}
+      ],
+      "regular_egp": 280,
+      "promo_egp": 219,
+      "discount_pct": 21.79,
+      "price_ending_ok": true,
+      "upgrade_tier": "+EGP 90 to upgrade to premium mocktail pairing",
+      "lead_item_type": "Soft",
+      "title_strategy": "Time / Ritual Hook",
+      "cultural_flags": {"wein_exclusive": false, "gap_offer": true},
+      "terms": [
+        "Valid for in-venue dining only",
+        "No minimum spend required",
+        "Cannot be combined with other offers",
+        "Subject to 15% service charge"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Truffle obsession middle dot Truffle Arancini + Chocolate Fondant middle dot 38 percent off @Soho House Cairo",
+      "hook": "Indulge in truffle perfection with EGP 875 — save EGP 475 off the Cairo price",
+      "category": "Appetizers & Desserts",
+      "items": [
+        {"name": "Truffle Arancini", "me_class": "Puzzle", "bundle_role": "Hero"},
+        {"name": "Chocolate Fondant", "me_class": "Star", "bundle_role": "Support"}
+      ],
+      "regular_egp": 1350,
+      "promo_egp": 875,
+      "discount_pct": 35.19,
+      "price_ending_ok": true,
+      "upgrade_tier": "+EGP 150 to add a glass of dessert wine",
+      "lead_item_type": "Hard",
+      "title_strategy": "Scarcity / Indulgence",
+      "cultural_flags": {"wein_exclusive": true, "gap_offer": false},
+      "terms": [
+        "Valid for dinner service only",
+        "Subject to availability",
+        "Cannot be combined with other offers"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Family feast middle dot Grilled Branzino + Truffle Fries + Burrata middle dot 30 percent off @Soho House Cairo",
+      "hook": "Bring the whole family for a Nile-view feast — save big on our signature branzino spread",
+      "category": "Mains & Sharing",
+      "items": [
+        {"name": "Grilled Branzino", "me_class": "Star", "bundle_role": "Hero"},
+        {"name": "Truffle Fries", "me_class": "Plowhorse", "bundle_role": "Support"},
+        {"name": "Burrata & Heirloom Tomato", "me_class": "Star", "bundle_role": "Support"}
+      ],
+      "regular_egp": 1480,
+      "promo_egp": 1036,
+      "discount_pct": 30.0,
+      "price_ending_ok": true,
+      "upgrade_tier": "+EGP 200 for a private rooftop table",
+      "lead_item_type": "Hard",
+      "title_strategy": "Family / Sharing Frame",
+      "cultural_flags": {"wein_exclusive": false, "gap_offer": true},
+      "terms": [
+        "Valid for groups of 3 or more",
+        "Subject to 15% service charge",
+        "Advance booking recommended"
+      ]
+    }
+  ]
+}
