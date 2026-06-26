@@ -151,7 +151,7 @@ a { color: var(--blue); text-decoration: none; }
 .nav-divider { height: 1px; background: var(--border); margin: 6px 4px; flex-shrink: 0; }
 
 /* ── Main / layout ── */
-#mainArea { margin-left: 200px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
+#mainArea { margin-left: 200px; margin-top: 52px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
 #appShell { display: none; }
 
 /* ── KPI row ── */
@@ -227,8 +227,7 @@ a { color: var(--blue); text-decoration: none; }
   background: var(--bg-elevated);
 }
 
-/* ── Right panel ── */
-#rightPanel { position: fixed; right: 0; top: 52px; bottom: 0; width: 300px; background: var(--bg-deep); border-left: .5px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; z-index: 98; }
+/* ── Pipeline alerts (now shown in Settings) ── */
 .rp-section-title { padding: 12px 16px 6px; font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; border-bottom: .5px solid var(--border-subtle); }
 .rp-alerts { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .rp-alert { background: var(--bg-elevated); border: .5px solid var(--border); border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; padding: 8px 10px; }
@@ -304,8 +303,6 @@ a { color: var(--blue); text-decoration: none; }
 .status-running { animation: pulse-amber 2s ease-in-out infinite; }
 
 @media (max-width: 1023px) {
-  #rightPanel { display: none !important; }
-  #mainArea { margin-right: 0; }
   .kanban-board { grid-template-columns: 1fr !important; }
   .kpi-row { grid-template-columns: repeat(2,1fr); }
   .files-grid { grid-template-columns:1fr; }
@@ -335,13 +332,12 @@ html.is-mobile .mobile-menu-btn { display: flex; }
 html.is-mobile .tb-logo-zone { width: 40px; }
 html.is-mobile #sidebar { transform: translateX(-100%); transition: transform .2s ease; z-index: 160; box-shadow: 4px 0 16px rgba(0,0,0,.3); }
 html.is-mobile #sidebar.mobile-open { transform: translateX(0); }
-html.is-mobile #mainArea { margin-left: 0 !important; margin-right: 0 !important; padding: 14px; }
+html.is-mobile #mainArea { margin-left: 0 !important; padding: 14px; }
 html.is-mobile #pipelineProgress { left: 0 !important; }
 html.is-mobile #sidebarBackdrop.mobile-open { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,.5); z-index: 155; }
 html.is-mobile .kpi-row { grid-template-columns: 1fr 1fr; }
 html.is-mobile #chatDrawer { width: 92vw; max-width: 340px; }
 html.is-mobile .view-header { flex-direction: column; align-items: stretch; gap: 10px; }
-html.is-mobile #rightPanel { display: none !important; }
 html.is-mobile .kanban-board { grid-template-columns: 1fr !important; }
 html.is-mobile .files-grid { grid-template-columns: 1fr; }
 html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width: 0; }
@@ -536,12 +532,6 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
 </main>
 </div>
 
-<!-- ══════════════ RIGHT PANEL ══════════════ -->
-<aside id="rightPanel" style="display:none">
-
-  <div class="rp-section-title">Pipeline Alerts</div>
-  <div class="rp-alerts" id="rpAlerts"></div>
-</aside>
 
 <!-- ══════════════ AI CHAT (floating drawer, opened from topbar) ══════════════ -->
 <aside id="chatDrawer">
@@ -922,7 +912,6 @@ sbAuth.auth.onAuthStateChange((event) => {
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('topbar').style.display = 'none';
     document.getElementById('appShell').style.display = 'none';
-    document.getElementById('rightPanel').style.display = 'none';
     document.getElementById('chatFab').classList.remove('visible');
     document.getElementById('chatDrawer').classList.remove('open');
     showSetNewPasswordForm();
@@ -936,7 +925,6 @@ async function logout() {
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('appShell').style.display = 'none';
-  document.getElementById('rightPanel').style.display = 'none';
   document.getElementById('chatFab').classList.remove('visible');
   document.getElementById('chatDrawer').classList.remove('open');
   document.getElementById('loginScreen').style.display = 'flex';
@@ -960,7 +948,6 @@ function showApp(role) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('appShell').style.display = 'block';
-  document.getElementById('rightPanel').style.display = 'flex';
   document.getElementById('chatFab').classList.add('visible');
   applyNavPermissions(role);
   setTimeout(() => setNavGroupOpen(VIEW_GROUP[currentView], true), 0);
@@ -970,7 +957,6 @@ function showApp(role) {
   document.getElementById('tbAvatar').title = nameSrc;
   initNotifications();
   loadDashboard();
-  loadPipelineHealth();
   if (!autoRefreshInterval) autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
 }
 
@@ -1281,7 +1267,12 @@ function renderSettingsView() {
           </tbody>
         </table>
       </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Pipeline alerts</div>
+      <div class="rp-alerts" id="rpAlerts"><div class="rp-alert"><div class="rp-alert-title">Loading...</div></div></div>
     </div>`;
+  loadPipelineHealth();
 }
 
 async function sendInvite() {
