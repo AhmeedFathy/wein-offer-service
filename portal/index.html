@@ -873,12 +873,22 @@ async function logout() {
 
 let autoRefreshInterval = null;
 
+const NAV_HIDDEN_FOR_ROLE = { deal_breaker: ['analytics', 'settings'], team: ['analytics', 'settings'] };
+
+function applyNavPermissions(role) {
+  const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
+  document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    item.style.display = hidden.includes(item.dataset.view) ? 'none' : '';
+  });
+}
+
 function showApp(role) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('appShell').style.display = 'block';
   document.getElementById('rightPanel').style.display = 'flex';
   document.getElementById('chatFab').classList.add('visible');
+  applyNavPermissions(role);
   setTimeout(() => setNavGroupOpen(VIEW_GROUP[currentView], true), 0);
   const nameSrc = window.WEIN.fullName || role || 'W';
   const initials = nameSrc.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1064,6 +1074,8 @@ function toggleMobileSidebar(force) {
 }
 
 function showView(name) {
+  const hidden = NAV_HIDDEN_FOR_ROLE[sessionStorage.getItem('weinRole')] || [];
+  if (hidden.includes(name)) name = 'pipeline';
   currentView = name;
   document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
