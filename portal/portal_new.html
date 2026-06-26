@@ -1047,10 +1047,7 @@ async function runPipelineFromCard(name, vertical) {
 // ── AI chat (same /api/chat backend as production) ──
 let rpChatHistory = [];
 function toggleChatDrawer() {
-  const drawer = document.getElementById('chatDrawer');
-  const isOpen = drawer.classList.contains('open');
-  drawer.classList.toggle('open', !isOpen);
-  drawer.style.right = isOpen ? '-320px' : '0px';
+  document.getElementById('chatDrawer').classList.toggle('open');
 }
 async function sendRpChat(prefill) {
   const input = document.getElementById('rpChatInput');
