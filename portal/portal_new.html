@@ -180,6 +180,7 @@ a { color: var(--blue); text-decoration: none; }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
+.mini-btn.active { border-color:var(--border-blue-strong);color:var(--blue);background:var(--blue-tint); }
 .files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
 .file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0; }
 .file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated); }
@@ -359,6 +360,7 @@ a { color: var(--blue); text-decoration: none; }
   <div class="nav-item active" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
   <div class="nav-item" data-view="leads" title="Leads"><i class="ti ti-target-arrow"></i></div>
   <div class="nav-item" data-view="providers" title="Providers"><i class="ti ti-building-store"></i></div>
+  <div class="nav-item" data-view="deals" title="Deals"><i class="ti ti-file-text"></i></div>
   <div class="nav-item" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></div>
   <div class="nav-item" data-view="offers" title="Offers"><i class="ti ti-tag"></i></div>
   <div class="nav-item" data-view="files" title="Files"><i class="ti ti-files"></i></div>
@@ -897,7 +899,7 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
 let currentView = 'pipeline';
 function showView(name) {
   currentView = name;
@@ -953,6 +955,7 @@ function renderCurrentView() {
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
   if (currentView === 'offers') { renderOffersView(); return; }
+  if (currentView === 'deals') { renderDealsView(); return; }
   if (currentView === 'analytics') { renderAnalyticsView(); return; }
   renderPipelineView();
 }
@@ -1474,6 +1477,135 @@ function renderAnalyticsView() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// DEALS (Contracts + Featured/Hot Deals -- closes the monday.com
+// "Deals/Client Projects" gap, every provider needs a contract before
+// their offers can go live on the public site)
+// ════════════════════════════════════════════════════════════════════
+let dealsSubView = 'contracts';
+
+function renderDealsView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Deals</div>
+        <div class="view-count">${cachedProviders.length} providers</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="mini-btn ${dealsSubView === 'contracts' ? 'active' : ''}" type="button" onclick="switchDealsSubView('contracts')"><i class="ti ti-file-text"></i><span>Contracts</span></button>
+      <button class="mini-btn ${dealsSubView === 'hotdeals' ? 'active' : ''}" type="button" onclick="switchDealsSubView('hotdeals')"><i class="ti ti-flame"></i><span>Hot Deals</span></button>
+    </div>
+    <div id="dealsSubViewBody"></div>`;
+  renderDealsSubView();
+}
+
+function switchDealsSubView(name) {
+  dealsSubView = name;
+  renderDealsView();
+}
+
+function renderDealsSubView() {
+  if (dealsSubView === 'hotdeals') { renderHotDealsTable(); return; }
+  renderContractsTable();
+}
+
+function renderContractsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const rows = cachedProviders.slice().sort((a, b) => {
+    const order = { active: 0, draft: 1, none: 2, expired: 3, terminated: 4 };
+    return (order[a.contract_status || 'none'] ?? 5) - (order[b.contract_status || 'none'] ?? 5);
+  });
+  body.innerHTML = `
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr><th>Provider</th><th>Status</th><th>Commission</th><th>Contract period</th><th>Featured</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(p => {
+            const status = p.contract_status || 'none';
+            const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+            const period = (p.contract_start || p.contract_end)
+              ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}`
+              : '—';
+            return `
+              <tr>
+                <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                <td><span style="font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span></td>
+                <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
+                <td class="mono">${period}</td>
+                <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
+                <td>
+                  <div class="table-actions">
+                    <button class="mini-btn" type="button" onclick="openProviderModal('${p.id}', '${(cachedNegotiations.find(n => n.provider_id === p.id) || {}).id || ''}', true)"><i class="ti ti-edit"></i><span>Edit contract</span></button>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderHotDealsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const featured = cachedProviders.filter(p => p.featured);
+  const eligible = cachedProviders.filter(p => !p.featured && p.contract_status === 'active');
+  body.innerHTML = `
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Currently featured (${featured.length})</div>
+      ${featured.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Contract</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${featured.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flame" style="font-size:13px;color:var(--amber);margin-right:5px;"></i>${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td><span style="font-family:'Instrument Sans';font-size:11px;color:${(CONTRACT_STATUS_COLORS[p.contract_status || 'none'] || CONTRACT_STATUS_COLORS.none).text};">${CONTRACT_STATUS_LABELS[p.contract_status || 'none']}</span></td>
+                  <td><button class="mini-btn" type="button" onclick="unfeatureProvider('${p.id}')">Remove from Hot Deals</button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers featured yet</div>'}
+    </div>
+    <div class="kpi-card" style="padding:16px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Eligible (active contract, not yet featured)</div>
+      ${eligible.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${eligible.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td><button class="mini-btn" type="button" onclick="featureProvider('${p.id}')"><i class="ti ti-flame"></i><span>Add to Hot Deals</span></button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers with an active contract yet</div>'}
+    </div>`;
+}
+
+async function featureProvider(providerId) {
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: true });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = true;
+    renderDealsSubView();
+  } catch (e) { console.error('featureProvider error:', e); alert('Could not feature provider: ' + e.message); }
+}
+
+async function unfeatureProvider(providerId) {
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: false });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = false;
+    renderDealsSubView();
+  } catch (e) { console.error('unfeatureProvider error:', e); alert('Could not unfeature provider: ' + e.message); }
+}
+
+// ════════════════════════════════════════════════════════════════════
 // LEADS (pre-provider stage -- closes the "Leads" gap vs. a standard CRM)
 // ════════════════════════════════════════════════════════════════════
 let leadFormVisible = false;
@@ -1683,7 +1815,7 @@ async function deleteFile(fileId) {
   } catch (e) { console.error('deleteFile error:', e); alert('Could not delete file: ' + e.message); }
 }
 
-async function openProviderModal(providerUuid, negotiationId) {
+async function openProviderModal(providerUuid, negotiationId, openContract) {
   const token = ++modalOpenToken;
   const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : null;
   const p = cachedProviders.find(p => p.id === providerUuid)
@@ -1720,7 +1852,7 @@ async function openProviderModal(providerUuid, negotiationId) {
   document.getElementById('modal-contract-start').value = p.contract_start || '';
   document.getElementById('modal-contract-end').value = p.contract_end || '';
   document.getElementById('modal-featured').checked = !!p.featured;
-  document.getElementById('modal-contract-panel').style.display = 'none';
+  document.getElementById('modal-contract-panel').style.display = openContract ? 'block' : 'none';
   updateContractPill(p);
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
