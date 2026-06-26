@@ -124,6 +124,8 @@ a { color: var(--blue); text-decoration: none; }
 .nav-item.active { background: var(--blue-tint); color: var(--blue); border-left: 2px solid var(--blue); border-radius: 0 6px 6px 0; margin-left: -1px; }
 .nav-item.disabled { opacity: .3; cursor: not-allowed; }
 .nav-spacer { flex: 1; }
+.nav-divider { width: 28px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
+.nav-group-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 /* ── Main / layout ── */
 #mainArea { margin-left: 52px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
@@ -357,17 +359,23 @@ a { color: var(--blue); text-decoration: none; }
 <!-- ══════════════ SIDEBAR ══════════════ -->
 <div id="appShell">
 <aside id="sidebar">
-  <div class="nav-item active" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
-  <div class="nav-item" data-view="leads" title="Leads"><i class="ti ti-target-arrow"></i></div>
-  <div class="nav-item" data-view="providers" title="Providers"><i class="ti ti-building-store"></i></div>
-  <div class="nav-item" data-view="deals" title="Deals"><i class="ti ti-file-text"></i></div>
-  <div class="nav-item" data-view="launch" title="Launch"><i class="ti ti-rocket"></i></div>
-  <div class="nav-item" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></div>
-  <div class="nav-item" data-view="offers" title="Offers"><i class="ti ti-tag"></i></div>
-  <div class="nav-item" data-view="files" title="Files"><i class="ti ti-files"></i></div>
-  <div class="nav-spacer"></div>
-  <div class="nav-item disabled" title="Team (coming soon)"><i class="ti ti-users"></i></div>
-  <div class="nav-item" data-view="settings" title="Settings"><i class="ti ti-settings"></i></div>
+  <div class="nav-group-label">Sales</div>
+  <div class="nav-item" data-view="leads" title="Sales / Leads"><i class="ti ti-target-arrow"></i></div>
+  <div class="nav-item active" data-view="pipeline" title="Sales / Pipeline"><i class="ti ti-git-branch"></i></div>
+  <div class="nav-item" data-view="deals" title="Sales / Deals"><i class="ti ti-file-text"></i></div>
+  <div class="nav-divider"></div>
+  <div class="nav-group-label">Partners</div>
+  <div class="nav-item" data-view="launch" title="Partners / Launch"><i class="ti ti-rocket"></i></div>
+  <div class="nav-item" data-view="providers" title="Partners / Providers"><i class="ti ti-building-store"></i></div>
+  <div class="nav-divider"></div>
+  <div class="nav-group-label">Insights</div>
+  <div class="nav-item" data-view="analytics" title="Insights / Analytics"><i class="ti ti-chart-bar"></i></div>
+  <div class="nav-item" data-view="offers" title="Insights / Offers"><i class="ti ti-tag"></i></div>
+  <div class="nav-divider"></div>
+  <div class="nav-group-label">System</div>
+  <div class="nav-item" data-view="files" title="System / Files"><i class="ti ti-files"></i></div>
+  <div class="nav-item disabled" title="System / Team (coming soon)"><i class="ti ti-users"></i></div>
+  <div class="nav-item" data-view="settings" title="System / Settings"><i class="ti ti-settings"></i></div>
 </aside>
 
 <!-- ══════════════ MAIN CONTENT ══════════════ -->
