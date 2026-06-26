@@ -514,18 +514,13 @@ a { color: var(--blue); text-decoration: none; }
       ">x</button>
     </div>
 
-    <!-- Contact person + deal value -- closes the "Contacts"/"Deals value" gaps vs. a standard CRM -->
+    <!-- Contact person -- closes the "Contacts" gap vs. a standard CRM. Deal value moved to the Deals tab. -->
     <div style="padding:10px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:18px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
       <div style="display:flex;align-items:center;gap:6px;">
         <i class="ti ti-user" style="font-size:13px;color:var(--text-tertiary);"></i>
         <input type="text" id="modal-contact-name" placeholder="Contact name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
         <input type="text" id="modal-contact-phone" placeholder="Phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
         <input type="text" id="modal-contact-whatsapp" placeholder="WhatsApp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">Deal value</span>
-        <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);">EGP</span>
-        <input type="number" id="modal-deal-value" placeholder="0" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-family:'JetBrains Mono';font-size:12px;padding:2px 0;outline:none;width:80px;" onblur="saveDealValue()">
       </div>
     </div>
 
@@ -1573,7 +1568,7 @@ function renderContractsTable() {
   body.innerHTML = `
     <div class="providers-table-wrap">
       <table class="providers-table">
-        <thead><tr><th>Provider</th><th>Status</th><th>Commission</th><th>Contract period</th><th>Featured</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Provider</th><th>Status</th><th>Commission</th><th>Contract period</th><th>Deal value</th><th>Featured</th><th>Actions</th></tr></thead>
         <tbody>
           ${rows.length ? rows.map(p => {
             const status = p.contract_status || 'none';
@@ -1581,12 +1576,20 @@ function renderContractsTable() {
             const period = (p.contract_start || p.contract_end)
               ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}`
               : '—';
+            const neg = cachedNegotiations.find(n => n.provider_id === p.id);
             return `
               <tr>
                 <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
                 <td><span style="font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span></td>
                 <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
                 <td class="mono">${period}</td>
+                <td>
+                  ${neg ? `
+                    <div style="display:flex;align-items:center;gap:4px;">
+                      <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-tertiary);">EGP</span>
+                      <input type="number" value="${neg.estimated_value_egp ?? ''}" placeholder="0" class="mono" style="width:70px;background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-size:12px;padding:2px 0;outline:none;" onblur="saveDealValue('${neg.id}', this.value)">
+                    </div>` : '<span style="color:var(--text-tertiary);">—</span>'}
+                </td>
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
                   <div class="table-actions">
@@ -1594,7 +1597,7 @@ function renderContractsTable() {
                   </div>
                 </td>
               </tr>`;
-          }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+          }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
         </tbody>
       </table>
     </div>`;
@@ -1817,9 +1820,10 @@ function providerCardHtml(item) {
   const dealBreaker = item.dealBreaker;
   return `
     <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
-      <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}</div>
+      <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}${p.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-left:4px;" title="Featured / Hot Deal"></i>` : ''}</div>
       <div class="pc-meta">
         <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
+        ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
         <span class="pc-meta-date mono">${date}</span>
       </div>
       <div class="pc-row">
@@ -1897,10 +1901,6 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   document.getElementById('modal-contact-name').value = p.contact_name || '';
   document.getElementById('modal-contact-phone').value = p.contact_phone || '';
   document.getElementById('modal-contact-whatsapp').value = p.contact_whatsapp || '';
-  const dealValueInput = document.getElementById('modal-deal-value');
-  dealValueInput.value = activeNeg?.estimated_value_egp ?? '';
-  dealValueInput.disabled = !window.currentNegotiationId;
-  dealValueInput.title = window.currentNegotiationId ? '' : 'No negotiation record yet for this provider';
 
   document.getElementById('modal-contract-status').value = p.contract_status || 'none';
   document.getElementById('modal-commission-pct').value = p.commission_pct ?? '';
@@ -2025,15 +2025,14 @@ async function saveProviderContact() {
   } catch (e) { console.error('saveProviderContact error:', e); }
 }
 
-async function saveDealValue() {
-  if (!window.currentNegotiationId) return;
-  const raw = document.getElementById('modal-deal-value').value;
-  const estimated_value_egp = raw === '' ? null : Number(raw);
+async function saveDealValue(negotiationId, rawValue) {
+  if (!negotiationId) return;
+  const estimated_value_egp = rawValue === '' ? null : Number(rawValue);
   try {
-    await sbPatch(`wein_negotiations?id=eq.${window.currentNegotiationId}`, { estimated_value_egp });
-    const cached = cachedNegotiations.find(n => n.id === window.currentNegotiationId);
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, { estimated_value_egp });
+    const cached = cachedNegotiations.find(n => n.id === negotiationId);
     if (cached) cached.estimated_value_egp = estimated_value_egp;
-  } catch (e) { console.error('saveDealValue error:', e); }
+  } catch (e) { console.error('saveDealValue error:', e); alert('Could not save deal value: ' + e.message); }
 }
 
 async function saveContract() {
