@@ -406,5 +406,68 @@ def chat():
         return jsonify({"error": str(e)}), 502
 
 
+VALID_ROLES = {"admin", "manager", "deal_breaker", "team"}
+
+
+@app.route("/api/invite-user", methods=["POST"])
+def invite_user():
+    """Invites a teammate by email and sets their role in `profiles`.
+
+    Requires SUPABASE_SERVICE_ROLE_KEY -- never exposed to the browser.
+    Role-gating (admin-only) is still asserted by the client today, same
+    trust model as every other role check in the portal (see
+    SECURITY_NOTE_role_enforcement.md) -- the part this endpoint actually
+    fixes is that the service-role key itself, which can read/write any
+    table and create arbitrary users, never has to leave the server.
+    """
+    supabase_url = os.environ.get("SUPABASE_URL")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        return jsonify({"error": "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured on the server."}), 500
+
+    payload = request.get_json(force=True, silent=True) or {}
+    caller_role = payload.get("callerRole")
+    email = (payload.get("email") or "").strip()
+    role = payload.get("role")
+    full_name = (payload.get("fullName") or "").strip() or None
+
+    if caller_role != "admin":
+        return jsonify({"error": "Only admins can invite teammates."}), 403
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email is required."}), 400
+    if role not in VALID_ROLES:
+        return jsonify({"error": f"role must be one of {sorted(VALID_ROLES)}"}), 400
+
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+    }
+
+    invite_resp = requests_lib.post(
+        f"{supabase_url}/auth/v1/invite",
+        headers=headers,
+        json={"email": email},
+        timeout=20,
+    )
+    if invite_resp.status_code >= 300:
+        return jsonify({"error": f"Invite failed: {invite_resp.text}"}), 502
+
+    user_id = (invite_resp.json() or {}).get("id")
+    if not user_id:
+        return jsonify({"error": "Invite succeeded but no user id was returned."}), 502
+
+    profile_resp = requests_lib.post(
+        f"{supabase_url}/rest/v1/profiles",
+        headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
+        json={"id": user_id, "role": role, "full_name": full_name},
+        timeout=20,
+    )
+    if profile_resp.status_code >= 300:
+        return jsonify({"error": f"Invite sent but writing the profile failed: {profile_resp.text}"}), 502
+
+    return jsonify({"success": True, "userId": user_id})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5055)))
