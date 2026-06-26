@@ -143,6 +143,9 @@ a { color: var(--blue); text-decoration: none; }
 .nav-parent.group-active .chevron { transform: rotate(180deg); }
 .nav-subitems { display: flex; flex-direction: column; height: 0; overflow: hidden; opacity: 0; transition: height .2s ease, opacity .15s ease; }
 .nav-subitems.expanded { opacity: 1; }
+.avatar-menu-item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
+.avatar-menu-item i { font-size: 14px; }
+.avatar-menu-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
 .nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px 0 30px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); flex-shrink: 0; font-size: 13px; font-weight: 500; box-sizing: border-box; }
 .nav-item i { font-size: 15px; flex-shrink: 0; }
 .nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
@@ -439,10 +442,16 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
   ">
     <i id="theme-icon" class="ti ti-sun" style="font-size:15px;" aria-hidden="true"></i>
   </button>
-  <div id="tbAvatar" style="width:28px;height:28px;border-radius:50%;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;margin-right:12px;cursor:pointer" title="">
-    <span style="font-size:10px;font-weight:600;color:var(--blue)" id="tbAvatarInitials">W</span>
+  <div id="tbAvatarWrap" style="position:relative;">
+    <div id="tbAvatar" style="width:28px;height:28px;border-radius:50%;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;cursor:pointer" title="" onclick="toggleAvatarMenu()">
+      <span style="font-size:10px;font-weight:600;color:var(--blue)" id="tbAvatarInitials">W</span>
+    </div>
+    <div id="avatarMenu" style="display:none;position:absolute;top:38px;right:0;min-width:160px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);overflow:hidden;z-index:200;">
+      <div id="avatarMenuName" style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text-primary);border-bottom:.5px solid var(--border-subtle);"></div>
+      <div id="avatarMenuSettings" class="avatar-menu-item" onclick="closeAvatarMenu();showView('settings')"><i class="ti ti-settings"></i><span>Settings</span></div>
+      <div class="avatar-menu-item" style="color:var(--red);" onclick="closeAvatarMenu();logout()"><i class="ti ti-logout"></i><span>Log out</span></div>
+    </div>
   </div>
-  <button onclick="logout()" style="font-size:12px;color:var(--text-secondary);background:transparent;border:.5px solid var(--border);border-radius:5px;padding:5px 10px">Logout</button>
 </header>
 
 <!-- ══════════════ SIDEBAR ══════════════ -->
@@ -494,7 +503,6 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     <div class="nav-subitems" data-group-items="system">
       <div class="nav-item" data-view="files"><i class="ti ti-files"></i><span>Files</span></div>
       <div class="nav-item disabled"><i class="ti ti-users"></i><span>Team (soon)</span></div>
-      <div class="nav-item" data-view="settings"><i class="ti ti-settings"></i><span>Settings</span></div>
     </div>
   </div>
 </aside>
@@ -942,7 +950,20 @@ function applyNavPermissions(role) {
   document.querySelectorAll('.nav-item[data-view]').forEach(item => {
     item.style.display = hidden.includes(item.dataset.view) ? 'none' : '';
   });
+  document.getElementById('avatarMenuSettings').style.display = hidden.includes('settings') ? 'none' : '';
 }
+
+function toggleAvatarMenu() {
+  document.getElementById('avatarMenu').style.display =
+    document.getElementById('avatarMenu').style.display === 'block' ? 'none' : 'block';
+}
+function closeAvatarMenu() {
+  document.getElementById('avatarMenu').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('tbAvatarWrap');
+  if (wrap && !wrap.contains(e.target)) closeAvatarMenu();
+});
 
 function showApp(role) {
   document.getElementById('loginScreen').style.display = 'none';
@@ -955,6 +976,7 @@ function showApp(role) {
   const initials = nameSrc.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   document.getElementById('tbAvatarInitials').textContent = initials || 'W';
   document.getElementById('tbAvatar').title = nameSrc;
+  document.getElementById('avatarMenuName').textContent = nameSrc;
   initNotifications();
   loadDashboard();
   if (!autoRefreshInterval) autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
