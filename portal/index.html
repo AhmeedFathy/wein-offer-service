@@ -165,6 +165,8 @@ a { color: var(--blue); text-decoration: none; }
 .view-action { height:34px;border-radius:6px;border:.5px solid var(--border-blue);background:transparent;color:var(--blue);font-size:12px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px; }
 .view-filterbar { display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap; }
 .view-input,.view-select { height:34px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;padding:0 10px;outline:none; }
+.contract-field { width:100%;height:32px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:0 9px;outline:none;box-sizing:border-box; }
+.contract-field:focus { border-color:var(--border-blue-strong); }
 .view-input { min-width:220px;flex:1; }
 .view-select { min-width:140px; }
 .providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;overflow:auto; }
@@ -178,6 +180,7 @@ a { color: var(--blue); text-decoration: none; }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
+.mini-btn.active { border-color:var(--border-blue-strong);color:var(--blue);background:var(--blue-tint); }
 .files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
 .file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0; }
 .file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated); }
@@ -357,6 +360,7 @@ a { color: var(--blue); text-decoration: none; }
   <div class="nav-item active" data-view="pipeline" title="Pipeline"><i class="ti ti-git-branch"></i></div>
   <div class="nav-item" data-view="leads" title="Leads"><i class="ti ti-target-arrow"></i></div>
   <div class="nav-item" data-view="providers" title="Providers"><i class="ti ti-building-store"></i></div>
+  <div class="nav-item" data-view="deals" title="Deals"><i class="ti ti-file-text"></i></div>
   <div class="nav-item" data-view="analytics" title="Analytics"><i class="ti ti-chart-bar"></i></div>
   <div class="nav-item" data-view="offers" title="Offers"><i class="ti ti-tag"></i></div>
   <div class="nav-item" data-view="files" title="Files"><i class="ti ti-files"></i></div>
@@ -421,6 +425,61 @@ a { color: var(--blue); text-decoration: none; }
 </aside>
 
 <!-- ══════════════ PROVIDER MODAL (centered overlay) ══════════════ -->
+<div id="contract-editor-backdrop" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.7); z-index:600;
+  align-items:center; justify-content:center;
+">
+  <div style="
+    background:var(--bg-surface); border:0.5px solid var(--border);
+    border-radius:10px; width:320px; max-width:92vw; padding:18px;
+  ">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);" id="ce-provider-name"></div>
+      <button type="button" onclick="closeContractEditor()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Status</label>
+      <select id="ce-status" class="contract-field">
+        <option value="none" style="color:#0a1018;background:#fff;">No contract</option>
+        <option value="draft" style="color:#0a1018;background:#fff;">Draft</option>
+        <option value="active" style="color:#0a1018;background:#fff;">Active</option>
+        <option value="expired" style="color:#0a1018;background:#fff;">Expired</option>
+        <option value="terminated" style="color:#0a1018;background:#fff;">Terminated</option>
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Commission</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="ce-commission" placeholder="0" class="contract-field" style="font-family:'JetBrains Mono';">
+        <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-tertiary);">%</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:14px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Contract period</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="date" id="ce-start" class="contract-field" style="flex:1;min-width:0;">
+        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">→</span>
+        <input type="date" id="ce-end" class="contract-field" style="flex:1;min-width:0;">
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:9px 10px;background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:7px;margin-bottom:16px;">
+      <input type="checkbox" id="ce-featured" style="accent-color:var(--amber);cursor:pointer;">
+      <i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>
+      <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);font-weight:500;">Featured / Hot Deal</span>
+    </label>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" onclick="closeContractEditor()" class="mini-btn" style="height:32px;padding:0 14px;">Cancel</button>
+      <button type="button" onclick="saveContractEditor()" style="height:32px;padding:0 16px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-family:'Instrument Sans';font-size:12px;font-weight:600;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="provider-modal-backdrop" style="
   display:none; position:fixed; inset:0;
   background:rgba(0,0,0,0.7); z-index:500;
@@ -443,6 +502,10 @@ a { color: var(--blue); text-decoration: none; }
         <div id="modal-provider-meta" style="font-family:'Instrument Sans';font-size:12px;color:var(--text-secondary);margin-top:2px;"></div>
       </div>
       <div id="modal-stage-pill" style="font-family:'Instrument Sans';font-size:11px;padding:3px 10px;border-radius:4px;font-weight:500;"></div>
+      <button id="modal-contract-pill" type="button" onclick="toggleContractPanel()" style="
+        font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 10px 3px 8px;border-radius:4px;
+        display:flex;align-items:center;gap:4px;cursor:pointer;background:none;flex-shrink:0;
+      "></button>
       <button onclick="closeProviderModal()" style="
         width:28px;height:28px;border-radius:5px;
         background:transparent;border:0.5px solid var(--border);
@@ -451,7 +514,7 @@ a { color: var(--blue); text-decoration: none; }
       ">x</button>
     </div>
 
-    <!-- Contact person + deal value -- closes the "Contacts"/"Deals value" gaps vs. a standard CRM -->
+    <!-- Contact person -- closes the "Contacts" gap vs. a standard CRM. Deal value moved to the Deals tab. -->
     <div style="padding:10px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:18px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
       <div style="display:flex;align-items:center;gap:6px;">
         <i class="ti ti-user" style="font-size:13px;color:var(--text-tertiary);"></i>
@@ -459,11 +522,54 @@ a { color: var(--blue); text-decoration: none; }
         <input type="text" id="modal-contact-phone" placeholder="Phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
         <input type="text" id="modal-contact-whatsapp" placeholder="WhatsApp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">Deal value</span>
-        <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);">EGP</span>
-        <input type="number" id="modal-deal-value" placeholder="0" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-family:'JetBrains Mono';font-size:12px;padding:2px 0;outline:none;width:80px;" onblur="saveDealValue()">
+    </div>
+
+    <!-- Contract popover -- triggered by #modal-contract-pill, absolutely positioned against the modal -->
+    <div id="modal-contract-panel" style="
+      display:none; position:absolute; top:54px; right:48px; z-index:20; width:300px;
+      background:var(--bg-elevated); border:0.5px solid var(--border); border-radius:10px;
+      box-shadow:0 12px 32px rgba(0,0,0,0.45); padding:16px;
+    ">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-family:'Instrument Sans';font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+          <i class="ti ti-file-text" style="font-size:14px;color:var(--blue);"></i>Contract
+        </div>
+        <button type="button" onclick="toggleContractPanel()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
       </div>
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Status</label>
+        <select id="modal-contract-status" class="contract-field" onchange="saveContract()">
+          <option value="none" style="color:#0a1018;background:#fff;">No contract</option>
+          <option value="draft" style="color:#0a1018;background:#fff;">Draft</option>
+          <option value="active" style="color:#0a1018;background:#fff;">Active</option>
+          <option value="expired" style="color:#0a1018;background:#fff;">Expired</option>
+          <option value="terminated" style="color:#0a1018;background:#fff;">Terminated</option>
+        </select>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Commission</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="modal-commission-pct" placeholder="0" class="contract-field" style="font-family:'JetBrains Mono';" onblur="saveContract()">
+          <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-tertiary);">%</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:14px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Contract period</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="date" id="modal-contract-start" class="contract-field" style="flex:1;min-width:0;" onblur="saveContract()">
+          <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">→</span>
+          <input type="date" id="modal-contract-end" class="contract-field" style="flex:1;min-width:0;" onblur="saveContract()">
+        </div>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:9px 10px;background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:7px;">
+        <input type="checkbox" id="modal-featured" onchange="saveContract()" style="accent-color:var(--amber);cursor:pointer;">
+        <i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>
+        <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);font-weight:500;">Featured / Hot Deal</span>
+      </label>
     </div>
 
     <div style="display:grid;grid-template-columns:1.6fr 0.8fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
@@ -559,6 +665,7 @@ function canDelete() {
   const role = sessionStorage.getItem('weinRole');
   return role === 'admin' || role === 'manager';
 }
+const canManageDeals = canDelete;
 
 // ── Auth: PIN fallback ──
 const PIN_ROLES = { '1986': 'admin', '2026': 'manager', '5555': 'deal_breaker', '1234': 'team' };
@@ -843,7 +950,7 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
 let currentView = 'pipeline';
 function showView(name) {
   currentView = name;
@@ -899,8 +1006,47 @@ function renderCurrentView() {
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
   if (currentView === 'offers') { renderOffersView(); return; }
+  if (currentView === 'deals') { renderDealsView(); return; }
   if (currentView === 'analytics') { renderAnalyticsView(); return; }
+  if (currentView === 'settings') { renderSettingsView(); return; }
   renderPipelineView();
+}
+
+function renderSettingsView() {
+  const role = sessionStorage.getItem('weinRole') || '—';
+  const fullName = window.WEIN?.fullName || role;
+  const authMode = sessionStorage.getItem('weinAuthMode') === 'email' ? 'Email account' : 'Access code';
+  const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Settings</div>
+        <div class="view-count">Account &amp; permissions</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Signed in as</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-family:'Instrument Sans';font-size:13px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Name</span><span style="color:var(--text-primary);font-weight:600;">${escapeHtml(fullName)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Role</span><span style="color:var(--text-primary);font-weight:600;">${ROLE_LABELS[role] || role}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Signed in via</span><span style="color:var(--text-primary);">${authMode}</span></div>
+      </div>
+      <button class="mini-btn" type="button" onclick="logout()" style="margin-top:14px;color:var(--red);"><i class="ti ti-logout"></i><span>Log out</span></button>
+    </div>
+    <div class="kpi-card" style="padding:16px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Role permissions</div>
+      <div class="providers-table-wrap">
+        <table class="providers-table">
+          <thead><tr><th>Role</th><th>Deals (contracts, deal value)</th><th>Delete records</th></tr></thead>
+          <tbody>
+            <tr><td>Admin</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Manager</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Deal Breaker</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+            <tr><td>Team</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function renderPipelineView() {
@@ -1128,7 +1274,7 @@ function renderProvidersTable() {
     const date = row.visitDate ? new Date(row.visitDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
     return `
       <tr data-provider-id="${provider.id}" data-negotiation-id="${row.negotiationId}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
-        <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(provider.provider_name || 'Unnamed')}</td>
+        <td style="color:var(--text-primary);font-weight:600;">${provider.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-right:4px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(provider.provider_name || 'Unnamed')}</td>
         <td>${escapeHtml(categoryLabel(provider))}</td>
         <td><span class="stage-pill ${row.stage === 'accepted' || row.stage === 'negotiating' ? 'active' : ''}">${escapeHtml(stageLabel(row.stage))}</span></td>
         <td><span class="count-pill mono">${row.offerCount}</span></td>
@@ -1279,6 +1425,7 @@ function renderOffersView() {
         ${providerOptions}
       </select>
       <select id="offerSort" class="view-select">
+        <option value="featured">Featured first</option>
         <option value="newest">Newest first</option>
         <option value="discount">Highest discount</option>
         <option value="price">Lowest price</option>
@@ -1307,6 +1454,12 @@ function renderOffersGrid() {
   });
 
   offers = offers.slice().sort((a, b) => {
+    if (sortBy === 'featured') {
+      const af = cachedProviders.find(p => p.id === a.provider_id)?.featured ? 1 : 0;
+      const bf = cachedProviders.find(p => p.id === b.provider_id)?.featured ? 1 : 0;
+      if (af !== bf) return bf - af;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    }
     if (sortBy === 'discount') return (b.discount_pct || 0) - (a.discount_pct || 0);
     if (sortBy === 'price') return (a.promo_egp ?? Infinity) - (b.promo_egp ?? Infinity);
     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
@@ -1318,7 +1471,7 @@ function renderOffersGrid() {
         <div class="file-icon"><i class="ti ti-tag"></i></div>
         <div style="min-width:0;flex:1;">
           <div class="file-name" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled offer')}</div>
-          <div class="file-provider">${escapeHtml(offerProviderName(o))}</div>
+          <div class="file-provider">${cachedProviders.find(p => p.id === o.provider_id)?.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-right:3px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(offerProviderName(o))}</div>
         </div>
         ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
       </div>
@@ -1410,6 +1563,149 @@ function renderAnalyticsView() {
           </tbody>
         </table>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:16px;">No pipeline runs yet</div>'}
     </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DEALS (Contracts + Featured/Hot Deals -- closes the monday.com
+// "Deals/Client Projects" gap, every provider needs a contract before
+// their offers can go live on the public site)
+// ════════════════════════════════════════════════════════════════════
+let dealsSubView = 'contracts';
+
+function renderDealsView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Deals</div>
+        <div class="view-count">${cachedProviders.length} providers</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="mini-btn ${dealsSubView === 'contracts' ? 'active' : ''}" type="button" onclick="switchDealsSubView('contracts')"><i class="ti ti-file-text"></i><span>Contracts</span></button>
+      <button class="mini-btn ${dealsSubView === 'hotdeals' ? 'active' : ''}" type="button" onclick="switchDealsSubView('hotdeals')"><i class="ti ti-flame"></i><span>Hot Deals</span></button>
+    </div>
+    <div id="dealsSubViewBody"></div>`;
+  renderDealsSubView();
+}
+
+function switchDealsSubView(name) {
+  dealsSubView = name;
+  renderDealsView();
+}
+
+function renderDealsSubView() {
+  if (dealsSubView === 'hotdeals') { renderHotDealsTable(); return; }
+  renderContractsTable();
+}
+
+function renderContractsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const rows = cachedProviders.slice().sort((a, b) => {
+    const order = { active: 0, draft: 1, none: 2, expired: 3, terminated: 4 };
+    return (order[a.contract_status || 'none'] ?? 5) - (order[b.contract_status || 'none'] ?? 5);
+  });
+  body.innerHTML = `
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr><th>Provider</th><th>Status</th><th>Commission</th><th>Contract period</th><th>Deal value</th><th>Featured</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(p => {
+            const status = p.contract_status || 'none';
+            const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+            const period = (p.contract_start || p.contract_end)
+              ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}`
+              : '—';
+            const neg = cachedNegotiations.find(n => n.provider_id === p.id);
+            return `
+              <tr>
+                <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                <td><span style="font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span></td>
+                <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
+                <td class="mono">${period}</td>
+                <td>
+                  ${neg
+                    ? (canManageDeals()
+                        ? `<div style="display:flex;align-items:center;gap:4px;">
+                            <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-tertiary);">EGP</span>
+                            <input type="number" value="${neg.estimated_value_egp ?? ''}" placeholder="0" class="mono" style="width:70px;background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-size:12px;padding:2px 0;outline:none;" onblur="saveDealValue('${neg.id}', this.value)">
+                          </div>`
+                        : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
+                    : '<span style="color:var(--text-tertiary);">—</span>'}
+                </td>
+                <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
+                <td>
+                  ${canManageDeals() ? `
+                    <div class="table-actions">
+                      <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
+                    </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
+                </td>
+              </tr>`;
+          }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderHotDealsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const featured = cachedProviders.filter(p => p.featured);
+  const eligible = cachedProviders.filter(p => !p.featured && p.contract_status === 'active');
+  body.innerHTML = `
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Currently featured (${featured.length})</div>
+      ${featured.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Contract</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${featured.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flame" style="font-size:13px;color:var(--amber);margin-right:5px;"></i>${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td><span style="font-family:'Instrument Sans';font-size:11px;color:${(CONTRACT_STATUS_COLORS[p.contract_status || 'none'] || CONTRACT_STATUS_COLORS.none).text};">${CONTRACT_STATUS_LABELS[p.contract_status || 'none']}</span></td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="unfeatureProvider('${p.id}')">Remove from Hot Deals</button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers featured yet</div>'}
+    </div>
+    <div class="kpi-card" style="padding:16px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Eligible (active contract, not yet featured)</div>
+      ${eligible.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${eligible.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="featureProvider('${p.id}')"><i class="ti ti-flame"></i><span>Add to Hot Deals</span></button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers with an active contract yet</div>'}
+    </div>`;
+}
+
+async function featureProvider(providerId) {
+  if (!canManageDeals()) return;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: true });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = true;
+    renderDealsSubView();
+  } catch (e) { console.error('featureProvider error:', e); alert('Could not feature provider: ' + e.message); }
+}
+
+async function unfeatureProvider(providerId) {
+  if (!canManageDeals()) return;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: false });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = false;
+    renderDealsSubView();
+  } catch (e) { console.error('unfeatureProvider error:', e); alert('Could not unfeature provider: ' + e.message); }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1569,9 +1865,10 @@ function providerCardHtml(item) {
   const dealBreaker = item.dealBreaker;
   return `
     <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
-      <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}</div>
+      <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}${p.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-left:4px;" title="Featured / Hot Deal"></i>` : ''}</div>
       <div class="pc-meta">
         <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
+        ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
         <span class="pc-meta-date mono">${date}</span>
       </div>
       <div class="pc-row">
@@ -1622,7 +1919,7 @@ async function deleteFile(fileId) {
   } catch (e) { console.error('deleteFile error:', e); alert('Could not delete file: ' + e.message); }
 }
 
-async function openProviderModal(providerUuid, negotiationId) {
+async function openProviderModal(providerUuid, negotiationId, openContract) {
   const token = ++modalOpenToken;
   const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : null;
   const p = cachedProviders.find(p => p.id === providerUuid)
@@ -1649,10 +1946,14 @@ async function openProviderModal(providerUuid, negotiationId) {
   document.getElementById('modal-contact-name').value = p.contact_name || '';
   document.getElementById('modal-contact-phone').value = p.contact_phone || '';
   document.getElementById('modal-contact-whatsapp').value = p.contact_whatsapp || '';
-  const dealValueInput = document.getElementById('modal-deal-value');
-  dealValueInput.value = activeNeg?.estimated_value_egp ?? '';
-  dealValueInput.disabled = !window.currentNegotiationId;
-  dealValueInput.title = window.currentNegotiationId ? '' : 'No negotiation record yet for this provider';
+
+  document.getElementById('modal-contract-status').value = p.contract_status || 'none';
+  document.getElementById('modal-commission-pct').value = p.commission_pct ?? '';
+  document.getElementById('modal-contract-start').value = p.contract_start || '';
+  document.getElementById('modal-contract-end').value = p.contract_end || '';
+  document.getElementById('modal-featured').checked = !!p.featured;
+  document.getElementById('modal-contract-panel').style.display = openContract ? 'block' : 'none';
+  updateContractPill(p);
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
   offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
@@ -1769,19 +2070,114 @@ async function saveProviderContact() {
   } catch (e) { console.error('saveProviderContact error:', e); }
 }
 
-async function saveDealValue() {
-  if (!window.currentNegotiationId) return;
-  const raw = document.getElementById('modal-deal-value').value;
-  const estimated_value_egp = raw === '' ? null : Number(raw);
+async function saveDealValue(negotiationId, rawValue) {
+  if (!negotiationId || !canManageDeals()) return;
+  const estimated_value_egp = rawValue === '' ? null : Number(rawValue);
   try {
-    await sbPatch(`wein_negotiations?id=eq.${window.currentNegotiationId}`, { estimated_value_egp });
-    const cached = cachedNegotiations.find(n => n.id === window.currentNegotiationId);
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, { estimated_value_egp });
+    const cached = cachedNegotiations.find(n => n.id === negotiationId);
     if (cached) cached.estimated_value_egp = estimated_value_egp;
-  } catch (e) { console.error('saveDealValue error:', e); }
+  } catch (e) { console.error('saveDealValue error:', e); alert('Could not save deal value: ' + e.message); }
 }
+
+async function saveContract() {
+  if (!window.currentProviderId || !canManageDeals()) return;
+  const contract_status = document.getElementById('modal-contract-status').value;
+  const rawCommission = document.getElementById('modal-commission-pct').value;
+  const commission_pct = rawCommission === '' ? null : Number(rawCommission);
+  const contract_start = document.getElementById('modal-contract-start').value || null;
+  const contract_end = document.getElementById('modal-contract-end').value || null;
+  const featured = document.getElementById('modal-featured').checked;
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, {
+      contract_status, commission_pct, contract_start, contract_end, featured,
+    });
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    updateContractPill({ contract_status, featured });
+  } catch (e) { console.error('saveContract error:', e); alert('Could not save contract: ' + e.message); }
+}
+
+const CONTRACT_STATUS_COLORS = {
+  none:       { bg: 'var(--bg-elevated)', border: 'var(--border)',        text: 'var(--text-tertiary)' },
+  draft:      { bg: 'var(--blue-tint)',   border: 'var(--border-blue)',   text: 'var(--blue)' },
+  active:     { bg: 'var(--green-tint)',  border: 'var(--green)',         text: 'var(--green)' },
+  expired:    { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+  terminated: { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+};
+const CONTRACT_STATUS_LABELS = { none: 'No contract', draft: 'Draft', active: 'Active', expired: 'Expired', terminated: 'Terminated' };
+
+function updateContractPill(p) {
+  const pill = document.getElementById('modal-contract-pill');
+  const status = p.contract_status || 'none';
+  const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+  pill.style.background = colors.bg;
+  pill.style.border = `0.5px solid ${colors.border}`;
+  pill.style.color = colors.text;
+  pill.style.cursor = canManageDeals() ? 'pointer' : 'default';
+  pill.innerHTML = `<i class="ti ti-file-text" style="font-size:12px;"></i>${CONTRACT_STATUS_LABELS[status]}${p.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-left:2px;"></i>` : ''}`;
+}
+
+function toggleContractPanel() {
+  if (!canManageDeals()) return;
+  const panel = document.getElementById('modal-contract-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function openContractEditor(providerId) {
+  if (!canManageDeals()) return;
+  const p = cachedProviders.find(p => p.id === providerId);
+  if (!p) return;
+  window.contractEditorProviderId = providerId;
+  document.getElementById('ce-provider-name').textContent = p.provider_name || 'Unnamed';
+  document.getElementById('ce-status').value = p.contract_status || 'none';
+  document.getElementById('ce-commission').value = p.commission_pct ?? '';
+  document.getElementById('ce-start').value = p.contract_start || '';
+  document.getElementById('ce-end').value = p.contract_end || '';
+  document.getElementById('ce-featured').checked = !!p.featured;
+  document.getElementById('contract-editor-backdrop').style.display = 'flex';
+}
+
+function closeContractEditor() {
+  document.getElementById('contract-editor-backdrop').style.display = 'none';
+  window.contractEditorProviderId = null;
+}
+
+async function saveContractEditor() {
+  const providerId = window.contractEditorProviderId;
+  if (!providerId || !canManageDeals()) return;
+  const contract_status = document.getElementById('ce-status').value;
+  const rawCommission = document.getElementById('ce-commission').value;
+  const commission_pct = rawCommission === '' ? null : Number(rawCommission);
+  const contract_start = document.getElementById('ce-start').value || null;
+  const contract_end = document.getElementById('ce-end').value || null;
+  const featured = document.getElementById('ce-featured').checked;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, {
+      contract_status, commission_pct, contract_start, contract_end, featured,
+    });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    closeContractEditor();
+    if (currentView === 'deals') renderDealsSubView();
+  } catch (e) { console.error('saveContractEditor error:', e); alert('Could not save contract: ' + e.message); }
+}
+
+document.getElementById('contract-editor-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeContractEditor();
+});
+
+document.addEventListener('click', function (e) {
+  const panel = document.getElementById('modal-contract-panel');
+  const pill = document.getElementById('modal-contract-pill');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && !pill.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
 
 function closeProviderModal() {
   document.getElementById('provider-modal-backdrop').style.display = 'none';
+  document.getElementById('modal-contract-panel').style.display = 'none';
   window.currentNegotiationId = null;
   window.currentProviderId = null;
 }
