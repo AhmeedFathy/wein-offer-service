@@ -136,10 +136,6 @@ a { color: var(--blue); text-decoration: none; }
 .nav-item.active { background: var(--blue-tint); color: var(--blue); }
 .nav-item.disabled { opacity: .35; cursor: not-allowed; }
 .nav-divider { height: 1px; background: var(--border); margin: 6px 4px; flex-shrink: 0; }
-.nav-expand-all-btn { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; margin-bottom: 8px; border-radius: 6px; background: transparent; border: .5px solid var(--border); color: var(--text-tertiary); font-size: 11px; cursor: pointer; flex-shrink: 0; width: 100%; box-sizing: border-box; }
-.nav-expand-all-btn:hover { background: var(--bg-elevated); color: var(--text-secondary); }
-.nav-expand-all-btn i { font-size: 14px; flex-shrink: 0; }
-.nav-expand-all-btn.all-expanded { color: var(--blue); border-color: var(--border-blue); }
 
 /* ── Main / layout ── */
 #mainArea { margin-left: 200px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
@@ -373,9 +369,6 @@ a { color: var(--blue); text-decoration: none; }
 <!-- ══════════════ SIDEBAR ══════════════ -->
 <div id="appShell">
 <aside id="sidebar">
-  <button type="button" id="navExpandAllBtn" class="nav-expand-all-btn" onclick="toggleAllNavGroups()">
-    <i class="ti ti-layout-grid"></i><span>Expand all</span>
-  </button>
   <div class="nav-group" data-group="sales">
     <div class="nav-parent" data-group-toggle="sales">
       <span class="icon-badge"><i class="ti ti-trending-up"></i></span>
@@ -857,7 +850,7 @@ function showApp(role) {
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('appShell').style.display = 'block';
   document.getElementById('rightPanel').style.display = 'flex';
-  setTimeout(() => { expandNavGroup(VIEW_GROUP[currentView]); syncExpandAllBtn(); }, 0);
+  setTimeout(() => setNavGroupOpen(VIEW_GROUP[currentView], true), 0);
   const nameSrc = window.WEIN.fullName || role || 'W';
   const initials = nameSrc.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   document.getElementById('tbAvatarInitials').textContent = initials || 'W';
@@ -1013,53 +1006,32 @@ const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Provider
 const VIEW_GROUP = { leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', offers: 'insights', files: 'system', settings: 'system' };
 let currentView = 'pipeline';
 
-function expandNavGroup(groupId) {
-  document.querySelectorAll('.nav-subitems').forEach(el => {
-    const isTarget = el.dataset.groupItems === groupId;
-    el.classList.toggle('expanded', isTarget);
-    el.style.height = isTarget ? el.scrollHeight + 'px' : '0px';
-  });
-  document.querySelectorAll('.nav-parent').forEach(el => el.classList.toggle('group-active', el.dataset.groupToggle === groupId));
+function setNavGroupOpen(groupId, open) {
+  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
+  const parent = document.querySelector(`.nav-parent[data-group-toggle="${groupId}"]`);
+  if (!items || !parent) return;
+  items.classList.toggle('expanded', open);
+  items.style.height = open ? items.scrollHeight + 'px' : '0px';
+  parent.classList.toggle('group-active', open);
+}
+
+function isNavGroupOpen(groupId) {
+  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
+  return !!items && items.classList.contains('expanded');
 }
 
 function showView(name) {
   currentView = name;
   document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
-  expandNavGroup(VIEW_GROUP[name]);
-  syncExpandAllBtn();
+  if (!isNavGroupOpen(VIEW_GROUP[name])) setNavGroupOpen(VIEW_GROUP[name], true);
   renderCurrentView();
 }
 document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click', () => {
   const groupId = b.dataset.groupToggle;
-  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
-  const isOpen = items.classList.contains('expanded');
-  expandNavGroup(isOpen ? null : groupId);
-  syncExpandAllBtn();
+  setNavGroupOpen(groupId, !isNavGroupOpen(groupId));
 }));
-
-function setAllNavGroups(expand) {
-  document.querySelectorAll('.nav-subitems').forEach(el => {
-    el.classList.toggle('expanded', expand);
-    el.style.height = expand ? el.scrollHeight + 'px' : '0px';
-  });
-  document.querySelectorAll('.nav-parent').forEach(el => el.classList.toggle('group-active', expand));
-  syncExpandAllBtn();
-}
-
-function toggleAllNavGroups() {
-  const allExpanded = [...document.querySelectorAll('.nav-subitems')].every(el => el.classList.contains('expanded'));
-  setAllNavGroups(!allExpanded);
-}
-
-function syncExpandAllBtn() {
-  const btn = document.getElementById('navExpandAllBtn');
-  if (!btn) return;
-  const allExpanded = [...document.querySelectorAll('.nav-subitems')].every(el => el.classList.contains('expanded'));
-  btn.classList.toggle('all-expanded', allExpanded);
-  btn.querySelector('span').textContent = allExpanded ? 'Collapse all' : 'Expand all';
-}
 
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD DATA + KANBAN
