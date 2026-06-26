@@ -665,6 +665,7 @@ function canDelete() {
   const role = sessionStorage.getItem('weinRole');
   return role === 'admin' || role === 'manager';
 }
+const canManageDeals = canDelete;
 
 // ── Auth: PIN fallback ──
 const PIN_ROLES = { '1986': 'admin', '2026': 'manager', '5555': 'deal_breaker', '1234': 'team' };
@@ -1007,7 +1008,45 @@ function renderCurrentView() {
   if (currentView === 'offers') { renderOffersView(); return; }
   if (currentView === 'deals') { renderDealsView(); return; }
   if (currentView === 'analytics') { renderAnalyticsView(); return; }
+  if (currentView === 'settings') { renderSettingsView(); return; }
   renderPipelineView();
+}
+
+function renderSettingsView() {
+  const role = sessionStorage.getItem('weinRole') || '—';
+  const fullName = window.WEIN?.fullName || role;
+  const authMode = sessionStorage.getItem('weinAuthMode') === 'email' ? 'Email account' : 'Access code';
+  const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Settings</div>
+        <div class="view-count">Account &amp; permissions</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Signed in as</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-family:'Instrument Sans';font-size:13px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Name</span><span style="color:var(--text-primary);font-weight:600;">${escapeHtml(fullName)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Role</span><span style="color:var(--text-primary);font-weight:600;">${ROLE_LABELS[role] || role}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Signed in via</span><span style="color:var(--text-primary);">${authMode}</span></div>
+      </div>
+      <button class="mini-btn" type="button" onclick="logout()" style="margin-top:14px;color:var(--red);"><i class="ti ti-logout"></i><span>Log out</span></button>
+    </div>
+    <div class="kpi-card" style="padding:16px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Role permissions</div>
+      <div class="providers-table-wrap">
+        <table class="providers-table">
+          <thead><tr><th>Role</th><th>Deals (contracts, deal value)</th><th>Delete records</th></tr></thead>
+          <tbody>
+            <tr><td>Admin</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Manager</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Deal Breaker</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+            <tr><td>Team</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function renderPipelineView() {
@@ -1584,17 +1623,21 @@ function renderContractsTable() {
                 <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
                 <td class="mono">${period}</td>
                 <td>
-                  ${neg ? `
-                    <div style="display:flex;align-items:center;gap:4px;">
-                      <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-tertiary);">EGP</span>
-                      <input type="number" value="${neg.estimated_value_egp ?? ''}" placeholder="0" class="mono" style="width:70px;background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-size:12px;padding:2px 0;outline:none;" onblur="saveDealValue('${neg.id}', this.value)">
-                    </div>` : '<span style="color:var(--text-tertiary);">—</span>'}
+                  ${neg
+                    ? (canManageDeals()
+                        ? `<div style="display:flex;align-items:center;gap:4px;">
+                            <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-tertiary);">EGP</span>
+                            <input type="number" value="${neg.estimated_value_egp ?? ''}" placeholder="0" class="mono" style="width:70px;background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-size:12px;padding:2px 0;outline:none;" onblur="saveDealValue('${neg.id}', this.value)">
+                          </div>`
+                        : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
+                    : '<span style="color:var(--text-tertiary);">—</span>'}
                 </td>
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
-                  <div class="table-actions">
-                    <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
-                  </div>
+                  ${canManageDeals() ? `
+                    <div class="table-actions">
+                      <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
+                    </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
                 </td>
               </tr>`;
           }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
@@ -1620,7 +1663,7 @@ function renderHotDealsTable() {
                   <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flame" style="font-size:13px;color:var(--amber);margin-right:5px;"></i>${escapeHtml(p.provider_name || 'Unnamed')}</td>
                   <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
                   <td><span style="font-family:'Instrument Sans';font-size:11px;color:${(CONTRACT_STATUS_COLORS[p.contract_status || 'none'] || CONTRACT_STATUS_COLORS.none).text};">${CONTRACT_STATUS_LABELS[p.contract_status || 'none']}</span></td>
-                  <td><button class="mini-btn" type="button" onclick="unfeatureProvider('${p.id}')">Remove from Hot Deals</button></td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="unfeatureProvider('${p.id}')">Remove from Hot Deals</button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -1637,7 +1680,7 @@ function renderHotDealsTable() {
                 <tr>
                   <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
                   <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
-                  <td><button class="mini-btn" type="button" onclick="featureProvider('${p.id}')"><i class="ti ti-flame"></i><span>Add to Hot Deals</span></button></td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="featureProvider('${p.id}')"><i class="ti ti-flame"></i><span>Add to Hot Deals</span></button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -1646,6 +1689,7 @@ function renderHotDealsTable() {
 }
 
 async function featureProvider(providerId) {
+  if (!canManageDeals()) return;
   try {
     await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: true });
     const cached = cachedProviders.find(p => p.id === providerId);
@@ -1655,6 +1699,7 @@ async function featureProvider(providerId) {
 }
 
 async function unfeatureProvider(providerId) {
+  if (!canManageDeals()) return;
   try {
     await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: false });
     const cached = cachedProviders.find(p => p.id === providerId);
@@ -2026,7 +2071,7 @@ async function saveProviderContact() {
 }
 
 async function saveDealValue(negotiationId, rawValue) {
-  if (!negotiationId) return;
+  if (!negotiationId || !canManageDeals()) return;
   const estimated_value_egp = rawValue === '' ? null : Number(rawValue);
   try {
     await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, { estimated_value_egp });
@@ -2036,7 +2081,7 @@ async function saveDealValue(negotiationId, rawValue) {
 }
 
 async function saveContract() {
-  if (!window.currentProviderId) return;
+  if (!window.currentProviderId || !canManageDeals()) return;
   const contract_status = document.getElementById('modal-contract-status').value;
   const rawCommission = document.getElementById('modal-commission-pct').value;
   const commission_pct = rawCommission === '' ? null : Number(rawCommission);
@@ -2069,15 +2114,18 @@ function updateContractPill(p) {
   pill.style.background = colors.bg;
   pill.style.border = `0.5px solid ${colors.border}`;
   pill.style.color = colors.text;
+  pill.style.cursor = canManageDeals() ? 'pointer' : 'default';
   pill.innerHTML = `<i class="ti ti-file-text" style="font-size:12px;"></i>${CONTRACT_STATUS_LABELS[status]}${p.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-left:2px;"></i>` : ''}`;
 }
 
 function toggleContractPanel() {
+  if (!canManageDeals()) return;
   const panel = document.getElementById('modal-contract-panel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
 
 function openContractEditor(providerId) {
+  if (!canManageDeals()) return;
   const p = cachedProviders.find(p => p.id === providerId);
   if (!p) return;
   window.contractEditorProviderId = providerId;
@@ -2097,7 +2145,7 @@ function closeContractEditor() {
 
 async function saveContractEditor() {
   const providerId = window.contractEditorProviderId;
-  if (!providerId) return;
+  if (!providerId || !canManageDeals()) return;
   const contract_status = document.getElementById('ce-status').value;
   const rawCommission = document.getElementById('ce-commission').value;
   const commission_pct = rawCommission === '' ? null : Number(rawCommission);
