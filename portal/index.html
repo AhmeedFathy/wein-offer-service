@@ -125,7 +125,11 @@ a { color: var(--blue); text-decoration: none; }
 .nav-item.disabled { opacity: .3; cursor: not-allowed; }
 .nav-spacer { flex: 1; }
 .nav-divider { width: 28px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
-.nav-group-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.nav-group { display: flex; flex-direction: column; align-items: center; }
+.nav-parent { color: var(--text-secondary); }
+.nav-parent.group-active { background: var(--bg-elevated); color: var(--text-primary); }
+.nav-subitems { display: flex; flex-direction: column; align-items: center; max-height: 0; overflow: hidden; transition: max-height .18s ease; }
+.nav-subitems.expanded { max-height: 200px; }
 
 /* ── Main / layout ── */
 #mainArea { margin-left: 52px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
@@ -359,23 +363,39 @@ a { color: var(--blue); text-decoration: none; }
 <!-- ══════════════ SIDEBAR ══════════════ -->
 <div id="appShell">
 <aside id="sidebar">
-  <div class="nav-group-label">Sales</div>
-  <div class="nav-item" data-view="leads" title="Sales / Leads"><i class="ti ti-target-arrow"></i></div>
-  <div class="nav-item active" data-view="pipeline" title="Sales / Pipeline"><i class="ti ti-git-branch"></i></div>
-  <div class="nav-item" data-view="deals" title="Sales / Deals"><i class="ti ti-file-text"></i></div>
+  <div class="nav-group" data-group="sales">
+    <div class="nav-item nav-parent" data-group-toggle="sales" title="Sales"><i class="ti ti-trending-up"></i></div>
+    <div class="nav-subitems" data-group-items="sales">
+      <div class="nav-item" data-view="leads" title="Sales / Leads"><i class="ti ti-target-arrow"></i></div>
+      <div class="nav-item active" data-view="pipeline" title="Sales / Pipeline"><i class="ti ti-git-branch"></i></div>
+      <div class="nav-item" data-view="deals" title="Sales / Deals"><i class="ti ti-file-text"></i></div>
+    </div>
+  </div>
   <div class="nav-divider"></div>
-  <div class="nav-group-label">Partners</div>
-  <div class="nav-item" data-view="launch" title="Partners / Launch"><i class="ti ti-rocket"></i></div>
-  <div class="nav-item" data-view="providers" title="Partners / Providers"><i class="ti ti-building-store"></i></div>
+  <div class="nav-group" data-group="partners">
+    <div class="nav-item nav-parent" data-group-toggle="partners" title="Partners"><i class="ti ti-handshake"></i></div>
+    <div class="nav-subitems" data-group-items="partners">
+      <div class="nav-item" data-view="launch" title="Partners / Launch"><i class="ti ti-rocket"></i></div>
+      <div class="nav-item" data-view="providers" title="Partners / Providers"><i class="ti ti-building-store"></i></div>
+    </div>
+  </div>
   <div class="nav-divider"></div>
-  <div class="nav-group-label">Insights</div>
-  <div class="nav-item" data-view="analytics" title="Insights / Analytics"><i class="ti ti-chart-bar"></i></div>
-  <div class="nav-item" data-view="offers" title="Insights / Offers"><i class="ti ti-tag"></i></div>
+  <div class="nav-group" data-group="insights">
+    <div class="nav-item nav-parent" data-group-toggle="insights" title="Insights"><i class="ti ti-bulb"></i></div>
+    <div class="nav-subitems" data-group-items="insights">
+      <div class="nav-item" data-view="analytics" title="Insights / Analytics"><i class="ti ti-chart-bar"></i></div>
+      <div class="nav-item" data-view="offers" title="Insights / Offers"><i class="ti ti-tag"></i></div>
+    </div>
+  </div>
   <div class="nav-divider"></div>
-  <div class="nav-group-label">System</div>
-  <div class="nav-item" data-view="files" title="System / Files"><i class="ti ti-files"></i></div>
-  <div class="nav-item disabled" title="System / Team (coming soon)"><i class="ti ti-users"></i></div>
-  <div class="nav-item" data-view="settings" title="System / Settings"><i class="ti ti-settings"></i></div>
+  <div class="nav-group" data-group="system">
+    <div class="nav-item nav-parent" data-group-toggle="system" title="System"><i class="ti ti-adjustments"></i></div>
+    <div class="nav-subitems" data-group-items="system">
+      <div class="nav-item" data-view="files" title="System / Files"><i class="ti ti-files"></i></div>
+      <div class="nav-item disabled" title="System / Team (coming soon)"><i class="ti ti-users"></i></div>
+      <div class="nav-item" data-view="settings" title="System / Settings"><i class="ti ti-settings"></i></div>
+    </div>
+  </div>
 </aside>
 
 <!-- ══════════════ MAIN CONTENT ══════════════ -->
@@ -960,14 +980,29 @@ initTheme();
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
 const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const VIEW_GROUP = { leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', offers: 'insights', files: 'system', settings: 'system' };
 let currentView = 'pipeline';
+
+function expandNavGroup(groupId) {
+  document.querySelectorAll('.nav-subitems').forEach(el => el.classList.toggle('expanded', el.dataset.groupItems === groupId));
+  document.querySelectorAll('.nav-parent').forEach(el => el.classList.toggle('group-active', el.dataset.groupToggle === groupId));
+}
+
 function showView(name) {
   currentView = name;
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
+  expandNavGroup(VIEW_GROUP[name]);
   renderCurrentView();
 }
 document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click', () => {
+  const groupId = b.dataset.groupToggle;
+  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
+  const isOpen = items.classList.contains('expanded');
+  expandNavGroup(isOpen ? null : groupId);
+}));
+expandNavGroup(VIEW_GROUP[currentView]);
 
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD DATA + KANBAN
