@@ -425,6 +425,61 @@ a { color: var(--blue); text-decoration: none; }
 </aside>
 
 <!-- ══════════════ PROVIDER MODAL (centered overlay) ══════════════ -->
+<div id="contract-editor-backdrop" style="
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.7); z-index:600;
+  align-items:center; justify-content:center;
+">
+  <div style="
+    background:var(--bg-surface); border:0.5px solid var(--border);
+    border-radius:10px; width:320px; max-width:92vw; padding:18px;
+  ">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);" id="ce-provider-name"></div>
+      <button type="button" onclick="closeContractEditor()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Status</label>
+      <select id="ce-status" class="contract-field">
+        <option value="none" style="color:#0a1018;background:#fff;">No contract</option>
+        <option value="draft" style="color:#0a1018;background:#fff;">Draft</option>
+        <option value="active" style="color:#0a1018;background:#fff;">Active</option>
+        <option value="expired" style="color:#0a1018;background:#fff;">Expired</option>
+        <option value="terminated" style="color:#0a1018;background:#fff;">Terminated</option>
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Commission</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="ce-commission" placeholder="0" class="contract-field" style="font-family:'JetBrains Mono';">
+        <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-tertiary);">%</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:14px;">
+      <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Contract period</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="date" id="ce-start" class="contract-field" style="flex:1;min-width:0;">
+        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">→</span>
+        <input type="date" id="ce-end" class="contract-field" style="flex:1;min-width:0;">
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:9px 10px;background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:7px;margin-bottom:16px;">
+      <input type="checkbox" id="ce-featured" style="accent-color:var(--amber);cursor:pointer;">
+      <i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>
+      <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);font-weight:500;">Featured / Hot Deal</span>
+    </label>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" onclick="closeContractEditor()" class="mini-btn" style="height:32px;padding:0 14px;">Cancel</button>
+      <button type="button" onclick="saveContractEditor()" style="height:32px;padding:0 16px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-family:'Instrument Sans';font-size:12px;font-weight:600;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="provider-modal-backdrop" style="
   display:none; position:fixed; inset:0;
   background:rgba(0,0,0,0.7); z-index:500;
@@ -1535,7 +1590,7 @@ function renderContractsTable() {
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="mini-btn" type="button" onclick="openProviderModal('${p.id}', '${(cachedNegotiations.find(n => n.provider_id === p.id) || {}).id || ''}', true)"><i class="ti ti-edit"></i><span>Edit contract</span></button>
+                    <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
                   </div>
                 </td>
               </tr>`;
@@ -2022,6 +2077,48 @@ function toggleContractPanel() {
   const panel = document.getElementById('modal-contract-panel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
 }
+
+function openContractEditor(providerId) {
+  const p = cachedProviders.find(p => p.id === providerId);
+  if (!p) return;
+  window.contractEditorProviderId = providerId;
+  document.getElementById('ce-provider-name').textContent = p.provider_name || 'Unnamed';
+  document.getElementById('ce-status').value = p.contract_status || 'none';
+  document.getElementById('ce-commission').value = p.commission_pct ?? '';
+  document.getElementById('ce-start').value = p.contract_start || '';
+  document.getElementById('ce-end').value = p.contract_end || '';
+  document.getElementById('ce-featured').checked = !!p.featured;
+  document.getElementById('contract-editor-backdrop').style.display = 'flex';
+}
+
+function closeContractEditor() {
+  document.getElementById('contract-editor-backdrop').style.display = 'none';
+  window.contractEditorProviderId = null;
+}
+
+async function saveContractEditor() {
+  const providerId = window.contractEditorProviderId;
+  if (!providerId) return;
+  const contract_status = document.getElementById('ce-status').value;
+  const rawCommission = document.getElementById('ce-commission').value;
+  const commission_pct = rawCommission === '' ? null : Number(rawCommission);
+  const contract_start = document.getElementById('ce-start').value || null;
+  const contract_end = document.getElementById('ce-end').value || null;
+  const featured = document.getElementById('ce-featured').checked;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, {
+      contract_status, commission_pct, contract_start, contract_end, featured,
+    });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    closeContractEditor();
+    if (currentView === 'deals') renderDealsSubView();
+  } catch (e) { console.error('saveContractEditor error:', e); alert('Could not save contract: ' + e.message); }
+}
+
+document.getElementById('contract-editor-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeContractEditor();
+});
 
 document.addEventListener('click', function (e) {
   const panel = document.getElementById('modal-contract-panel');
