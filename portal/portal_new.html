@@ -165,6 +165,8 @@ a { color: var(--blue); text-decoration: none; }
 .view-action { height:34px;border-radius:6px;border:.5px solid var(--border-blue);background:transparent;color:var(--blue);font-size:12px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px; }
 .view-filterbar { display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap; }
 .view-input,.view-select { height:34px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;padding:0 10px;outline:none; }
+.contract-field { width:100%;height:32px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:0 9px;outline:none;box-sizing:border-box; }
+.contract-field:focus { border-color:var(--border-blue-strong); }
 .view-input { min-width:220px;flex:1; }
 .view-select { min-width:140px; }
 .providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;overflow:auto; }
@@ -443,6 +445,10 @@ a { color: var(--blue); text-decoration: none; }
         <div id="modal-provider-meta" style="font-family:'Instrument Sans';font-size:12px;color:var(--text-secondary);margin-top:2px;"></div>
       </div>
       <div id="modal-stage-pill" style="font-family:'Instrument Sans';font-size:11px;padding:3px 10px;border-radius:4px;font-weight:500;"></div>
+      <button id="modal-contract-pill" type="button" onclick="toggleContractPanel()" style="
+        font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 10px 3px 8px;border-radius:4px;
+        display:flex;align-items:center;gap:4px;cursor:pointer;background:none;flex-shrink:0;
+      "></button>
       <button onclick="closeProviderModal()" style="
         width:28px;height:28px;border-radius:5px;
         background:transparent;border:0.5px solid var(--border);
@@ -466,10 +472,22 @@ a { color: var(--blue); text-decoration: none; }
       </div>
     </div>
 
-    <div style="padding:8px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:16px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <i class="ti ti-file-text" style="font-size:13px;color:var(--text-tertiary);"></i>
-        <select id="modal-contract-status" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;" onchange="saveContract()">
+    <!-- Contract popover -- triggered by #modal-contract-pill, absolutely positioned against the modal -->
+    <div id="modal-contract-panel" style="
+      display:none; position:absolute; top:54px; right:48px; z-index:20; width:300px;
+      background:var(--bg-elevated); border:0.5px solid var(--border); border-radius:10px;
+      box-shadow:0 12px 32px rgba(0,0,0,0.45); padding:16px;
+    ">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-family:'Instrument Sans';font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
+          <i class="ti ti-file-text" style="font-size:14px;color:var(--blue);"></i>Contract
+        </div>
+        <button type="button" onclick="toggleContractPanel()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:14px;line-height:1;padding:0;">×</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Status</label>
+        <select id="modal-contract-status" class="contract-field" onchange="saveContract()">
           <option value="none" style="color:#0a1018;background:#fff;">No contract</option>
           <option value="draft" style="color:#0a1018;background:#fff;">Draft</option>
           <option value="active" style="color:#0a1018;background:#fff;">Active</option>
@@ -477,20 +495,28 @@ a { color: var(--blue); text-decoration: none; }
           <option value="terminated" style="color:#0a1018;background:#fff;">Terminated</option>
         </select>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">Commission</span>
-        <input type="number" id="modal-commission-pct" placeholder="0" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'JetBrains Mono';font-size:12px;padding:2px 0;outline:none;width:45px;" onblur="saveContract()">
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">%</span>
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Commission</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="modal-commission-pct" placeholder="0" class="contract-field" style="font-family:'JetBrains Mono';" onblur="saveContract()">
+          <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-tertiary);">%</span>
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <input type="date" id="modal-contract-start" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:11px;padding:2px 0;outline:none;" onblur="saveContract()">
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">→</span>
-        <input type="date" id="modal-contract-end" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:11px;padding:2px 0;outline:none;" onblur="saveContract()">
+
+      <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:14px;">
+        <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Contract period</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="date" id="modal-contract-start" class="contract-field" style="flex:1;min-width:0;" onblur="saveContract()">
+          <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);">→</span>
+          <input type="date" id="modal-contract-end" class="contract-field" style="flex:1;min-width:0;" onblur="saveContract()">
+        </div>
       </div>
-      <label style="display:flex;align-items:center;gap:5px;margin-left:auto;cursor:pointer;">
+
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:9px 10px;background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:7px;">
         <input type="checkbox" id="modal-featured" onchange="saveContract()" style="accent-color:var(--amber);cursor:pointer;">
-        <i class="ti ti-flame" style="font-size:13px;color:var(--amber);"></i>
-        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);">Featured / Hot Deal</span>
+        <i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>
+        <span style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);font-weight:500;">Featured / Hot Deal</span>
       </label>
     </div>
 
@@ -1694,6 +1720,8 @@ async function openProviderModal(providerUuid, negotiationId) {
   document.getElementById('modal-contract-start').value = p.contract_start || '';
   document.getElementById('modal-contract-end').value = p.contract_end || '';
   document.getElementById('modal-featured').checked = !!p.featured;
+  document.getElementById('modal-contract-panel').style.display = 'none';
+  updateContractPill(p);
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
   offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
@@ -1835,11 +1863,45 @@ async function saveContract() {
     });
     const cached = cachedProviders.find(p => p.id === window.currentProviderId);
     if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    updateContractPill({ contract_status, featured });
   } catch (e) { console.error('saveContract error:', e); alert('Could not save contract: ' + e.message); }
 }
 
+const CONTRACT_STATUS_COLORS = {
+  none:       { bg: 'var(--bg-elevated)', border: 'var(--border)',        text: 'var(--text-tertiary)' },
+  draft:      { bg: 'var(--blue-tint)',   border: 'var(--border-blue)',   text: 'var(--blue)' },
+  active:     { bg: 'var(--green-tint)',  border: 'var(--green)',         text: 'var(--green)' },
+  expired:    { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+  terminated: { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+};
+const CONTRACT_STATUS_LABELS = { none: 'No contract', draft: 'Draft', active: 'Active', expired: 'Expired', terminated: 'Terminated' };
+
+function updateContractPill(p) {
+  const pill = document.getElementById('modal-contract-pill');
+  const status = p.contract_status || 'none';
+  const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+  pill.style.background = colors.bg;
+  pill.style.border = `0.5px solid ${colors.border}`;
+  pill.style.color = colors.text;
+  pill.innerHTML = `<i class="ti ti-file-text" style="font-size:12px;"></i>${CONTRACT_STATUS_LABELS[status]}${p.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-left:2px;"></i>` : ''}`;
+}
+
+function toggleContractPanel() {
+  const panel = document.getElementById('modal-contract-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', function (e) {
+  const panel = document.getElementById('modal-contract-panel');
+  const pill = document.getElementById('modal-contract-pill');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && !pill.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
 function closeProviderModal() {
   document.getElementById('provider-modal-backdrop').style.display = 'none';
+  document.getElementById('modal-contract-panel').style.display = 'none';
   window.currentNegotiationId = null;
   window.currentProviderId = null;
 }
