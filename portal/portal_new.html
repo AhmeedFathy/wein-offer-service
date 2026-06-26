@@ -1805,6 +1805,22 @@ function leadStatusLabel(status) {
   return (LEAD_STAGES.find(s => s.id === status) || LEAD_STAGES[0]).label;
 }
 
+function recentLeadsActivityHtml() {
+  const recent = [...cachedLeads]
+    .filter(l => l.updated_at || l.created_at)
+    .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+    .slice(0, 6);
+  if (!recent.length) return `<div style="font-size:12px;color:var(--text-tertiary);padding:8px 0;">No activity yet</div>`;
+  return recent.map(l => `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:.5px solid var(--border-subtle);">
+      <div>
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary);">${escapeHtml(l.business_name || 'Unnamed')}</span>
+        <span style="font-size:11px;color:var(--text-tertiary);margin-left:6px;">${escapeHtml(leadStatusLabel(l.status))}</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-tertiary);" class="mono">${timeAgo(l.updated_at || l.created_at)}</span>
+    </div>`).join('');
+}
+
 function renderLeadsView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
@@ -1828,6 +1844,24 @@ function renderLeadsView() {
         <button class="mini-btn" type="button" onclick="toggleAddLeadForm()">Cancel</button>
         <button class="view-action" type="button" onclick="submitLead()"><span>Save lead</span></button>
       </div>
+    </div>
+    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+      <div class="kpi-card">
+        <div class="kpi-label">Total leads</div>
+        <div class="kpi-value">${cachedLeads.length}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Active</div>
+        <div class="kpi-value">${cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').length}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Promoted</div>
+        <div class="kpi-value" style="color:var(--green);">${cachedLeads.filter(l => l.status === 'promoted').length}</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Recent activity</div>
+      ${recentLeadsActivityHtml()}
     </div>
     <div class="kanban-board" style="grid-template-columns:repeat(${LEAD_STAGES.length},1fr);" id="leadsKanbanBoard"></div>
     <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);">Dropped leads (${cachedLeads.filter(l => l.status === 'dropped').length}) are hidden from the board above. <button class="mini-btn" type="button" onclick="toggleShowDroppedLeads()" id="droppedToggleBtn">${showDroppedLeads ? 'Hide dropped' : 'Show dropped'}</button></div>
