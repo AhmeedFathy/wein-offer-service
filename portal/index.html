@@ -275,7 +275,7 @@ a { color: var(--blue); text-decoration: none; }
 @media (max-width: 1023px) {
   #rightPanel { display: none !important; }
   #mainArea { margin-right: 0; }
-  .kanban-board { grid-template-columns: 1fr; }
+  .kanban-board { grid-template-columns: 1fr !important; }
   .kpi-row { grid-template-columns: repeat(2,1fr); }
   .files-grid { grid-template-columns:1fr; }
   .view-input,.view-select { width:100%;min-width:0; }
@@ -311,7 +311,7 @@ html.is-mobile .kpi-row { grid-template-columns: 1fr 1fr; }
 html.is-mobile #chatDrawer { width: 92vw; max-width: 320px; }
 html.is-mobile .view-header { flex-direction: column; align-items: stretch; gap: 10px; }
 html.is-mobile #rightPanel { display: none !important; }
-html.is-mobile .kanban-board { grid-template-columns: 1fr; }
+html.is-mobile .kanban-board { grid-template-columns: 1fr !important; }
 html.is-mobile .files-grid { grid-template-columns: 1fr; }
 html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width: 0; }
 </style>
