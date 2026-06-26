@@ -234,22 +234,53 @@ a { color: var(--blue); text-decoration: none; }
 .rp-alert { background: var(--bg-elevated); border: .5px solid var(--border); border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; padding: 8px 10px; }
 .rp-alert-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
 .rp-alert-body { font-size: 11px; color: var(--text-secondary); }
-.rp-chat { margin-top: auto; border-top: .5px solid var(--border); padding: 10px; }
-.rp-chat-input { width: 100%; background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 12px; color: var(--text-primary); outline: none; }
-.rp-chat-input:focus { border-color: var(--border-blue); }
-.rp-chat-quick { display: flex; gap: 6px; margin-top: 6px; }
-.rp-chat-quick button { flex: 1; font-size: 11px; color: var(--text-secondary); background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 5px; padding: 5px; }
-.rp-chat-log { font-size: 11px; color: var(--text-secondary); margin-top: 8px; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-.rp-chat-log .from-user { color: var(--text-primary); }
-.rp-chat-log .from-bot { color: var(--blue); }
-
-.chat-fab { position: fixed; right: 20px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--blue); color: #fff; display: none; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); z-index: 150; }
+.chat-fab { position: fixed; right: 20px; bottom: 20px; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; display: none; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,129,253,.4); z-index: 150; transition: transform .15s ease, box-shadow .15s ease; }
 .chat-fab.visible { display: flex; }
-.chat-fab:hover { opacity: .9; }
-#chatDrawer { position: fixed; right: -320px; top: 52px; bottom: 0; width: 320px; background: var(--bg-deep); border-left: .5px solid var(--border); display: flex; flex-direction: column; z-index: 151; transition: right .2s ease; }
+.chat-fab:hover { transform: scale(1.06); box-shadow: 0 8px 24px rgba(0,129,253,.5); }
+#chatDrawer { position: fixed; right: -340px; top: 0; bottom: 0; width: 340px; background: var(--bg-deep); border-left: .5px solid var(--border); display: flex; flex-direction: column; z-index: 151; transition: right .25s cubic-bezier(.4,0,.2,1); box-shadow: -8px 0 30px rgba(0,0,0,.25); }
 #chatDrawer.open { right: 0; }
-.chat-drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: .5px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px; }
-.chat-drawer-close { background: transparent; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 14px; padding: 4px; }
+
+.chat-drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: .5px solid var(--border); background: var(--bg-surface); }
+.chat-header-id { display: flex; align-items: center; gap: 10px; }
+.chat-bot-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.chat-bot-avatar-lg { width: 48px; height: 48px; font-size: 22px; margin: 0 auto 12px; }
+.chat-header-text { display: flex; flex-direction: column; gap: 1px; }
+.chat-header-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.chat-header-status { font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 5px; }
+.chat-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
+.chat-drawer-close { background: transparent; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 16px; padding: 6px; border-radius: 6px; }
+.chat-drawer-close:hover { color: var(--text-primary); background: var(--bg-elevated); }
+
+.rp-chat-log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.chat-empty { text-align: center; margin: auto 0; padding: 24px 12px; }
+.chat-empty-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.chat-empty-sub { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; max-width: 240px; margin: 0 auto; }
+.chat-msg-row { display: flex; gap: 8px; align-items: flex-end; max-width: 88%; }
+.chat-msg-row.user { align-self: flex-end; flex-direction: row-reverse; }
+.chat-msg-row.bot { align-self: flex-start; }
+.chat-msg-avatar { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.chat-msg-row.bot .chat-msg-avatar { background: linear-gradient(135deg, var(--blue), #5b8def); color: #fff; }
+.chat-msg-row.user .chat-msg-avatar { background: var(--bg-elevated); color: var(--text-secondary); border: .5px solid var(--border); }
+.chat-bubble { padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.45; word-break: break-word; white-space: pre-wrap; }
+.chat-msg-row.bot .chat-bubble { background: var(--bg-elevated); color: var(--text-primary); border-bottom-left-radius: 4px; }
+.chat-msg-row.user .chat-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.chat-typing { display: flex; gap: 4px; padding: 12px 13px; }
+.chat-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); animation: chat-typing-bounce 1.2s ease-in-out infinite; }
+.chat-typing span:nth-child(2) { animation-delay: .15s; }
+.chat-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes chat-typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+.rp-chat-quick { display: flex; gap: 8px; padding: 0 16px 10px; overflow-x: auto; }
+.rp-chat-quick button { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 11px; font-weight: 500; color: var(--text-secondary); background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 20px; padding: 7px 13px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+.rp-chat-quick button:hover { border-color: var(--border-blue); color: var(--text-primary); }
+.rp-chat-quick button i { font-size: 13px; }
+
+.rp-chat-inputbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-top: .5px solid var(--border); background: var(--bg-surface); }
+.rp-chat-input { flex: 1; background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 22px; padding: 10px 16px; font-size: 13px; color: var(--text-primary); outline: none; transition: border-color .15s ease; }
+.rp-chat-input:focus { border-color: var(--border-blue); }
+.chat-send-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--blue); color: #fff; border: none; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; flex-shrink: 0; transition: opacity .15s ease, transform .1s ease; }
+.chat-send-btn:hover { opacity: .9; }
+.chat-send-btn:active { transform: scale(.93); }
 .chat-drawer-close:hover { color: var(--text-secondary); }
 
 
@@ -294,7 +325,7 @@ a { color: var(--blue); text-decoration: none; }
   #pipelineProgress { left: 0 !important; }
   #sidebarBackdrop.mobile-open { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,.5); z-index: 155; }
   .kpi-row { grid-template-columns: 1fr 1fr; }
-  #chatDrawer { width: 92vw; max-width: 320px; }
+  #chatDrawer { width: 92vw; max-width: 340px; }
   .view-header { flex-direction: column; align-items: stretch; gap: 10px; }
 }
 
@@ -308,7 +339,7 @@ html.is-mobile #mainArea { margin-left: 0 !important; margin-right: 0 !important
 html.is-mobile #pipelineProgress { left: 0 !important; }
 html.is-mobile #sidebarBackdrop.mobile-open { display: block; position: fixed; inset: 52px 0 0 0; background: rgba(0,0,0,.5); z-index: 155; }
 html.is-mobile .kpi-row { grid-template-columns: 1fr 1fr; }
-html.is-mobile #chatDrawer { width: 92vw; max-width: 320px; }
+html.is-mobile #chatDrawer { width: 92vw; max-width: 340px; }
 html.is-mobile .view-header { flex-direction: column; align-items: stretch; gap: 10px; }
 html.is-mobile #rightPanel { display: none !important; }
 html.is-mobile .kanban-board { grid-template-columns: 1fr !important; }
@@ -515,16 +546,29 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
 <!-- ══════════════ AI CHAT (floating drawer, opened from topbar) ══════════════ -->
 <aside id="chatDrawer">
   <div class="chat-drawer-header">
-    <span>AI Chat</span>
+    <div class="chat-header-id">
+      <div class="chat-bot-avatar"><i class="ti ti-sparkles"></i></div>
+      <div class="chat-header-text">
+        <span class="chat-header-title">WeIN Assistant</span>
+        <span class="chat-header-status"><span class="chat-status-dot"></span>Online</span>
+      </div>
+    </div>
     <button type="button" onclick="toggleChatDrawer()" class="chat-drawer-close"><i class="ti ti-x"></i></button>
   </div>
-  <div class="rp-chat" style="margin-top:0;border-top:none;flex:1;display:flex;flex-direction:column;">
-    <input type="text" id="rpChatInput" class="rp-chat-input" placeholder="Ask anything or run a command..." onkeydown="if(event.key==='Enter')sendRpChat()">
-    <div class="rp-chat-quick">
-      <button onclick="sendRpChat('Show pending providers')">Show pending</button>
-      <button onclick="sendRpChat('Check pipeline status')">Check status</button>
+  <div class="rp-chat-log" id="rpChatLog">
+    <div class="chat-empty" id="chatEmptyState">
+      <div class="chat-bot-avatar chat-bot-avatar-lg"><i class="ti ti-sparkles"></i></div>
+      <div class="chat-empty-title">Ask me anything</div>
+      <div class="chat-empty-sub">I can check pipeline status, pull up providers, or answer questions about your data.</div>
     </div>
-    <div class="rp-chat-log" id="rpChatLog" style="flex:1;max-height:none;"></div>
+  </div>
+  <div class="rp-chat-quick" id="rpChatQuick">
+    <button onclick="sendRpChat('Show pending providers')"><i class="ti ti-building-store"></i>Show pending</button>
+    <button onclick="sendRpChat('Check pipeline status')"><i class="ti ti-git-branch"></i>Check status</button>
+  </div>
+  <div class="rp-chat-inputbar">
+    <input type="text" id="rpChatInput" class="rp-chat-input" placeholder="Message WeIN Assistant..." onkeydown="if(event.key==='Enter')sendRpChat()">
+    <button type="button" class="chat-send-btn" onclick="sendRpChat()" title="Send"><i class="ti ti-send"></i></button>
   </div>
 </aside>
 <div id="chatFab" class="chat-fab" onclick="toggleChatDrawer()" title="AI Chat"><i class="ti ti-message-circle"></i></div>
@@ -1029,21 +1073,36 @@ async function sendRpChat(prefill) {
   input.value = '';
   rpChatLog(text, 'user');
   rpChatHistory.push({ role: 'user', content: text });
+  const typingEl = rpChatTyping();
   try {
     const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: rpChatHistory }) });
     if (!res.ok) throw new Error(`Chat backend error: ${res.status}`);
     const data = await res.json();
     const reply = data.reply || '(no response)';
+    typingEl.remove();
     rpChatLog(reply.replace(/```json[\s\S]*?```/g, '').trim() || reply, 'bot');
     rpChatHistory.push({ role: 'assistant', content: reply });
-  } catch (e) { rpChatLog('Error: ' + e.message, 'bot'); }
+  } catch (e) { typingEl.remove(); rpChatLog('Error: ' + e.message, 'bot'); }
+}
+function rpChatTyping() {
+  const log = document.getElementById('rpChatLog');
+  const row = document.createElement('div');
+  row.className = 'chat-msg-row bot';
+  row.innerHTML = `<div class="chat-msg-avatar"><i class="ti ti-sparkles"></i></div><div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return row;
 }
 function rpChatLog(text, who) {
   const log = document.getElementById('rpChatLog');
-  const div = document.createElement('div');
-  div.className = 'from-' + who;
-  div.textContent = (who === 'user' ? 'You: ' : '') + text;
-  log.appendChild(div);
+  const empty = document.getElementById('chatEmptyState');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'chat-msg-row ' + who;
+  const avatarIcon = who === 'user' ? 'ti-user' : 'ti-sparkles';
+  row.innerHTML = `<div class="chat-msg-avatar"><i class="ti ${avatarIcon}"></i></div><div class="chat-bubble"></div>`;
+  row.querySelector('.chat-bubble').textContent = text;
+  log.appendChild(row);
   log.scrollTop = log.scrollHeight;
 }
 
