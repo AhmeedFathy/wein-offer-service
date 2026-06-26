@@ -117,24 +117,28 @@ a { color: var(--blue); text-decoration: none; }
 .tb-icon-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: transparent; border: none; color: var(--text-secondary); font-size: 17px; }
 .tb-icon-btn:hover { background: var(--bg-elevated); }
 
-/* ── Sidebar ── */
-#sidebar { position: fixed; left: 0; top: 52px; bottom: 0; width: 52px; background: var(--bg-deep); border-right: .5px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 8px 0; z-index: 99; }
-.nav-item { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; margin-bottom: 2px; position: relative; color: var(--text-tertiary); flex-shrink: 0; }
-.nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
-.nav-item.active { background: var(--blue-tint); color: var(--blue); border-left: 2px solid var(--blue); border-radius: 0 6px 6px 0; margin-left: -1px; }
-.nav-item.disabled { opacity: .3; cursor: not-allowed; }
-.nav-spacer { flex: 1; }
-.nav-divider { width: 28px; height: 1px; background: var(--border); margin: 6px 0; flex-shrink: 0; }
-.nav-group { display: flex; flex-direction: column; align-items: center; }
-.nav-parent { color: var(--text-secondary); background: var(--bg-elevated); border-radius: 8px; }
-.nav-parent.group-active { color: var(--blue); background: var(--blue-tint); }
-.nav-parent .chevron { position: absolute; bottom: -1px; right: -1px; font-size: 9px; transition: transform .18s ease; color: var(--text-tertiary); }
-.nav-parent.group-active .chevron { transform: rotate(180deg); color: var(--blue); }
-.nav-subitems { display: flex; flex-direction: column; align-items: center; height: 0; overflow: hidden; opacity: 0; transition: height .2s ease, opacity .15s ease; }
+/* ── Sidebar (ClickUp-style: labeled rows, collapsible groups) ── */
+#sidebar { position: fixed; left: 0; top: 52px; bottom: 0; width: 200px; background: var(--bg-deep); border-right: .5px solid var(--border); display: flex; flex-direction: column; padding: 10px 8px; z-index: 99; overflow-y: auto; }
+.nav-group { display: flex; flex-direction: column; margin-bottom: 2px; }
+.nav-parent { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 8px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); flex-shrink: 0; box-sizing: border-box; }
+.nav-parent:hover { background: var(--bg-elevated); }
+.nav-parent.group-active { color: var(--text-primary); }
+.nav-parent .icon-badge { width: 22px; height: 22px; border-radius: 5px; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.nav-parent.group-active .icon-badge { background: var(--blue-tint); color: var(--blue); }
+.nav-parent .group-label { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-parent .chevron { font-size: 13px; color: var(--text-tertiary); transition: transform .18s ease; flex-shrink: 0; }
+.nav-parent.group-active .chevron { transform: rotate(180deg); }
+.nav-subitems { display: flex; flex-direction: column; height: 0; overflow: hidden; opacity: 0; transition: height .2s ease, opacity .15s ease; }
 .nav-subitems.expanded { opacity: 1; }
+.nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px 0 30px; border-radius: 6px; cursor: pointer; color: var(--text-tertiary); flex-shrink: 0; font-size: 13px; box-sizing: border-box; }
+.nav-item i { font-size: 15px; flex-shrink: 0; }
+.nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
+.nav-item.active { background: var(--blue-tint); color: var(--blue); }
+.nav-item.disabled { opacity: .35; cursor: not-allowed; }
+.nav-divider { height: 1px; background: var(--border); margin: 6px 4px; flex-shrink: 0; }
 
 /* ── Main / layout ── */
-#mainArea { margin-left: 52px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
+#mainArea { margin-left: 200px; margin-top: 52px; margin-right: 300px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
 #appShell { display: none; }
 
 /* ── KPI row ── */
@@ -366,36 +370,52 @@ a { color: var(--blue); text-decoration: none; }
 <div id="appShell">
 <aside id="sidebar">
   <div class="nav-group" data-group="sales">
-    <div class="nav-item nav-parent" data-group-toggle="sales" title="Sales"><i class="ti ti-trending-up"></i><i class="ti ti-chevron-down chevron"></i></div>
+    <div class="nav-parent" data-group-toggle="sales">
+      <span class="icon-badge"><i class="ti ti-trending-up"></i></span>
+      <span class="group-label">Sales</span>
+      <i class="ti ti-chevron-down chevron"></i>
+    </div>
     <div class="nav-subitems" data-group-items="sales">
-      <div class="nav-item" data-view="leads" title="Sales / Leads"><i class="ti ti-target-arrow"></i></div>
-      <div class="nav-item active" data-view="pipeline" title="Sales / Pipeline"><i class="ti ti-git-branch"></i></div>
-      <div class="nav-item" data-view="deals" title="Sales / Deals"><i class="ti ti-file-text"></i></div>
+      <div class="nav-item" data-view="leads"><i class="ti ti-target-arrow"></i><span>Leads</span></div>
+      <div class="nav-item active" data-view="pipeline"><i class="ti ti-git-branch"></i><span>Pipeline</span></div>
+      <div class="nav-item" data-view="deals"><i class="ti ti-file-text"></i><span>Deals</span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
   <div class="nav-group" data-group="partners">
-    <div class="nav-item nav-parent" data-group-toggle="partners" title="Partners"><i class="ti ti-handshake"></i><i class="ti ti-chevron-down chevron"></i></div>
+    <div class="nav-parent" data-group-toggle="partners">
+      <span class="icon-badge"><i class="ti ti-users-group"></i></span>
+      <span class="group-label">Partners</span>
+      <i class="ti ti-chevron-down chevron"></i>
+    </div>
     <div class="nav-subitems" data-group-items="partners">
-      <div class="nav-item" data-view="launch" title="Partners / Launch"><i class="ti ti-rocket"></i></div>
-      <div class="nav-item" data-view="providers" title="Partners / Providers"><i class="ti ti-building-store"></i></div>
+      <div class="nav-item" data-view="launch"><i class="ti ti-rocket"></i><span>Launch</span></div>
+      <div class="nav-item" data-view="providers"><i class="ti ti-building-store"></i><span>Providers</span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
   <div class="nav-group" data-group="insights">
-    <div class="nav-item nav-parent" data-group-toggle="insights" title="Insights"><i class="ti ti-bulb"></i><i class="ti ti-chevron-down chevron"></i></div>
+    <div class="nav-parent" data-group-toggle="insights">
+      <span class="icon-badge"><i class="ti ti-bulb"></i></span>
+      <span class="group-label">Insights</span>
+      <i class="ti ti-chevron-down chevron"></i>
+    </div>
     <div class="nav-subitems" data-group-items="insights">
-      <div class="nav-item" data-view="analytics" title="Insights / Analytics"><i class="ti ti-chart-bar"></i></div>
-      <div class="nav-item" data-view="offers" title="Insights / Offers"><i class="ti ti-tag"></i></div>
+      <div class="nav-item" data-view="analytics"><i class="ti ti-chart-bar"></i><span>Analytics</span></div>
+      <div class="nav-item" data-view="offers"><i class="ti ti-tag"></i><span>Offers</span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
   <div class="nav-group" data-group="system">
-    <div class="nav-item nav-parent" data-group-toggle="system" title="System"><i class="ti ti-adjustments"></i><i class="ti ti-chevron-down chevron"></i></div>
+    <div class="nav-parent" data-group-toggle="system">
+      <span class="icon-badge"><i class="ti ti-adjustments"></i></span>
+      <span class="group-label">System</span>
+      <i class="ti ti-chevron-down chevron"></i>
+    </div>
     <div class="nav-subitems" data-group-items="system">
-      <div class="nav-item" data-view="files" title="System / Files"><i class="ti ti-files"></i></div>
-      <div class="nav-item disabled" title="System / Team (coming soon)"><i class="ti ti-users"></i></div>
-      <div class="nav-item" data-view="settings" title="System / Settings"><i class="ti ti-settings"></i></div>
+      <div class="nav-item" data-view="files"><i class="ti ti-files"></i><span>Files</span></div>
+      <div class="nav-item disabled"><i class="ti ti-users"></i><span>Team (soon)</span></div>
+      <div class="nav-item" data-view="settings"><i class="ti ti-settings"></i><span>Settings</span></div>
     </div>
   </div>
 </aside>
@@ -649,7 +669,7 @@ a { color: var(--blue); text-decoration: none; }
 </div>
 
 <!-- ══════════════ PIPELINE PROGRESS BAR (fixed bottom) ══════════════ -->
-<div id="pipelineProgress" style="display:none;position:fixed;bottom:0;left:52px;right:300px;background:var(--bg-deep);border-top:.5px solid var(--border);padding:12px 16px;z-index:300">
+<div id="pipelineProgress" style="display:none;position:fixed;bottom:0;left:200px;right:300px;background:var(--bg-deep);border-top:.5px solid var(--border);padding:12px 16px;z-index:300">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="color:var(--text-primary);font-size:13px;font-weight:600" id="progressProvider">Running...</span>
     <span style="color:var(--text-secondary);font-size:12px" id="progressEta">~2 min</span>
