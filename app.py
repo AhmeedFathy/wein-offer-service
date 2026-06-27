@@ -477,5 +477,78 @@ def invite_user():
     return jsonify({"success": True, "userId": user_id})
 
 
+CONTRACT_STATUSES = {"none", "draft", "active", "expired", "terminated"}
+DEALS_ROLES = {"admin", "manager"}
+
+
+@app.route("/api/update-contract", methods=["POST"])
+def update_contract():
+    """Updates a provider's contract/commission fields server-side.
+
+    This is the first write moved off the browser's anon key per
+    SECURITY_NOTE_role_enforcement.md Option B: the role check below is
+    enforced here, server-side, and the actual Supabase write uses the
+    service-role key -- so a deal_breaker can no longer edit a contract
+    by bypassing the UI and calling the Supabase REST API directly with
+    the anon key, the way every other write in the portal still can today.
+    """
+    supabase_url = os.environ.get("SUPABASE_URL")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not service_key:
+        return jsonify({"error": "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured on the server."}), 500
+
+    payload = request.get_json(force=True, silent=True) or {}
+    caller_role = payload.get("callerRole")
+    provider_id = (payload.get("providerId") or "").strip()
+
+    if caller_role not in DEALS_ROLES:
+        return jsonify({"error": "Only admins and managers can edit contracts."}), 403
+    if not provider_id:
+        return jsonify({"error": "providerId is required."}), 400
+
+    contract_status = payload.get("contract_status")
+    if contract_status is not None and contract_status not in CONTRACT_STATUSES:
+        return jsonify({"error": f"contract_status must be one of {sorted(CONTRACT_STATUSES)}"}), 400
+
+    commission_pct = payload.get("commission_pct")
+    if commission_pct is not None:
+        try:
+            commission_pct = float(commission_pct)
+        except (TypeError, ValueError):
+            return jsonify({"error": "commission_pct must be a number."}), 400
+
+    update_fields = {}
+    for key in ("contract_status", "commission_pct", "contract_start", "contract_end", "featured"):
+        if key in payload:
+            update_fields[key] = commission_pct if key == "commission_pct" else payload.get(key)
+    if not update_fields:
+        return jsonify({"error": "No fields to update."}), 400
+
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    try:
+        resp = requests_lib.patch(
+            f"{supabase_url}/rest/v1/wein_providers?id=eq.{provider_id}",
+            headers=headers,
+            json=update_fields,
+            timeout=20,
+        )
+    except requests_lib.exceptions.RequestException as e:
+        return jsonify({"error": f"Could not reach Supabase: {e}"}), 502
+
+    if resp.status_code >= 300:
+        return jsonify({"error": f"Update failed: {resp.text}"}), 502
+
+    rows = resp.json() or []
+    if not rows:
+        return jsonify({"error": "No provider matched that id."}), 404
+
+    return jsonify({"success": True, "provider": rows[0]})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5055)))

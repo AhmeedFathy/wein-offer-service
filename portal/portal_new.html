@@ -2475,6 +2475,17 @@ async function saveDealValue(negotiationId, rawValue) {
   } catch (e) { console.error('saveDealValue error:', e); alert('Could not save deal value: ' + e.message); }
 }
 
+async function updateContractViaApi(providerId, fields) {
+  const res = await fetch('/api/update-contract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ providerId, callerRole: sessionStorage.getItem('weinRole'), ...fields }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Update failed: ${res.status}`);
+  return data.provider;
+}
+
 async function saveContract() {
   if (!window.currentProviderId || !canManageDeals()) return;
   const contract_status = document.getElementById('modal-contract-status').value;
@@ -2484,9 +2495,7 @@ async function saveContract() {
   const contract_end = document.getElementById('modal-contract-end').value || null;
   const featured = document.getElementById('modal-featured').checked;
   try {
-    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, {
-      contract_status, commission_pct, contract_start, contract_end, featured,
-    });
+    await updateContractViaApi(window.currentProviderId, { contract_status, commission_pct, contract_start, contract_end, featured });
     const cached = cachedProviders.find(p => p.id === window.currentProviderId);
     if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
     updateContractPill({ contract_status, featured });
@@ -2548,9 +2557,7 @@ async function saveContractEditor() {
   const contract_end = document.getElementById('ce-end').value || null;
   const featured = document.getElementById('ce-featured').checked;
   try {
-    await sbPatch(`wein_providers?id=eq.${providerId}`, {
-      contract_status, commission_pct, contract_start, contract_end, featured,
-    });
+    await updateContractViaApi(providerId, { contract_status, commission_pct, contract_start, contract_end, featured });
     const cached = cachedProviders.find(p => p.id === providerId);
     if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
     closeContractEditor();
