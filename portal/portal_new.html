@@ -1287,6 +1287,28 @@ function renderSettingsView() {
         </table>
       </div>
     </div>
+    ${role === 'admin' ? `
+    <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Security status</div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;line-height:1.5;">
+        The role table above is enforced in this browser's UI only. Every role shares one Supabase key — these are the actions that bypass it if someone edits the page's JavaScript directly.
+      </div>
+      <div class="providers-table-wrap">
+        <table class="providers-table">
+          <thead><tr><th>Action</th><th>Protected server-side?</th></tr></thead>
+          <tbody>
+            <tr><td>Contract status / commission / dates</td><td style="color:var(--green);">Yes &mdash; /api/update-contract</td></tr>
+            <tr><td>Delete provider</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete file</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete / promote / drop lead</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Feature / unfeature (Hot Deals)</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Edit deal value</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete comment</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Full writeup: see SECURITY_NOTE_role_enforcement.md in the workflow repo.</div>
+    </div>` : ''}
     <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Pipeline alerts</div>
       <div class="rp-alerts" id="rpAlerts"><div class="rp-alert"><div class="rp-alert-title">Loading...</div></div></div>
