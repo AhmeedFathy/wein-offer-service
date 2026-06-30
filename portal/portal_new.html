@@ -159,8 +159,8 @@ a { color: var(--blue); text-decoration: none; }
 
 /* ── KPI row ── */
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
-.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 12px 16px; }
-.kpi-card:hover { border-color: var(--border-blue-strong); }
+.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.16); transition: box-shadow 150ms ease, border-color 150ms ease; }
+.kpi-card:hover { border-color: var(--border-blue-strong); box-shadow: 0 6px 18px rgba(0,129,253,.10); }
 .kpi-label { font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
@@ -169,13 +169,13 @@ a { color: var(--blue); text-decoration: none; }
 
 /* ── Kanban ── */
 .kanban-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; align-items: start; }
-.kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; overflow: hidden; }
+.kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; overflow: hidden; }
 .kanban-col-header { padding: 10px 12px; border-bottom: .5px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; }
 .kanban-col-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
-.provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; }
-.provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); }
+.provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 9px; padding: 10px 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.14); transition: box-shadow 150ms ease, border-color 150ms ease, transform 120ms ease; }
+.provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); box-shadow: 0 10px 26px rgba(0,129,253,.14); transform: translateY(-1px); }
 .pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
 .pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
@@ -197,7 +197,7 @@ a { color: var(--blue); text-decoration: none; }
 .contract-field:focus { border-color:var(--border-blue-strong); }
 .view-input { min-width:220px;flex:1; }
 .view-select { min-width:140px; }
-.providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;overflow:auto; }
+.providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(0,0,0,.14); }
 .providers-table { width:100%;border-collapse:collapse;min-width:820px; }
 .providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
 .providers-table td { padding:10px 12px;border-bottom:.5px solid var(--border-subtle);font-size:12px;color:var(--text-secondary);vertical-align:middle; }
@@ -205,13 +205,23 @@ a { color: var(--blue); text-decoration: none; }
 .providers-table tr:hover { background:var(--bg-elevated); }
 .stage-pill,.count-pill { display:inline-flex;align-items:center;height:22px;border-radius:999px;border:.5px solid var(--border);background:var(--bg-elevated);padding:0 8px;font-size:10px;color:var(--text-secondary);white-space:nowrap; }
 .stage-pill.active { border-color:var(--border-blue);background:var(--blue-tint);color:var(--blue); }
+
+/* ── Category badges (visual refresh, 2026-06-30) ── */
+.cat-badge { display:inline-flex; align-items:center; font-size:10px; font-weight:600; padding:2px 8px; border-radius:5px; white-space:nowrap; }
+.cat-badge.dining { color:#fbbf24; background:rgba(217,119,6,.20); }
+.cat-badge.health { color:#c4b5fd; background:rgba(139,92,246,.20); }
+.cat-badge.fun    { color:#6ee7b7; background:rgba(5,150,105,.20); }
+.cat-badge.hotels { color:var(--blue); background:var(--blue-tint); }
+[data-theme="light"] .cat-badge.dining { color:#b45309; background:rgba(217,119,6,.13); }
+[data-theme="light"] .cat-badge.health { color:#6d28d9; background:rgba(139,92,246,.13); }
+[data-theme="light"] .cat-badge.fun    { color:#047857; background:rgba(5,150,105,.13); }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
 .mini-btn.active { border-color:var(--border-blue-strong);color:var(--blue);background:var(--blue-tint); }
 .files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
-.file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0; }
-.file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated); }
+.file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.14);transition:box-shadow 150ms ease,border-color 150ms ease,transform 120ms ease; }
+.file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated);box-shadow:0 10px 26px rgba(0,129,253,.14);transform:translateY(-1px); }
 .file-card-head { display:flex;gap:8px;align-items:flex-start;min-width:0; }
 .file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -637,6 +647,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     border-radius:10px; width:860px; max-width:95vw;
     max-height:85vh; overflow:hidden;
     display:flex; flex-direction:column; position:relative;
+    box-shadow:0 18px 44px rgba(0,0,0,.45);
   ">
     <div style="
       padding:16px 20px; border-bottom:0.5px solid var(--border);
@@ -1476,6 +1487,15 @@ function categoryLabel(provider) {
   return provider.category || provider.vertical || '—';
 }
 
+function catBadgeClass(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('dining')) return 'dining';
+  if (c.includes('health')) return 'health';
+  if (c.includes('fun')) return 'fun';
+  if (c.includes('hotel')) return 'hotels';
+  return '';
+}
+
 function sortProviders(rows, sortBy) {
   return [...rows].sort((a, b) => {
     if (sortBy === 'name') return (a.provider.provider_name || '').localeCompare(b.provider.provider_name || '');
@@ -1572,7 +1592,7 @@ function renderProvidersTable() {
     return `
       <tr data-provider-id="${provider.id}" data-negotiation-id="${row.negotiationId}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
         <td style="color:var(--text-primary);font-weight:600;">${provider.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-right:4px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(provider.provider_name || 'Unnamed')}</td>
-        <td>${escapeHtml(categoryLabel(provider))}</td>
+        <td><span class="cat-badge ${catBadgeClass(categoryLabel(provider))}">${escapeHtml(categoryLabel(provider))}</span></td>
         <td><span class="stage-pill ${row.stage === 'accepted' || row.stage === 'negotiating' ? 'active' : ''}">${escapeHtml(stageLabel(row.stage))}</span></td>
         <td><span class="count-pill mono">${row.offerCount}</span></td>
         <td>${escapeHtml(row.dealBreaker)}</td>
@@ -1773,7 +1793,7 @@ function renderOffersGrid() {
         ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">${escapeHtml(o.category || '—')}</span>
+        <span class="cat-badge ${catBadgeClass(o.category)}" style="${catBadgeClass(o.category) ? '' : 'background:var(--bg-elevated);border:0.5px solid var(--border);color:var(--text-secondary);'}border-radius:999px;">${escapeHtml(o.category || '—')}</span>
         <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -2037,7 +2057,7 @@ function renderLeadsView() {
       </div>
       <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
     </div>
-    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;">
+    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);"
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <input type="text" id="leadBusinessName" placeholder="Business name" class="view-input" style="min-width:0;">
         <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="view-input" style="min-width:0;">
@@ -2092,7 +2112,7 @@ function leadCardHtml(lead) {
   return `
     <div class="provider-card">
       <div class="pc-name">${escapeHtml(lead.business_name || 'Unnamed')}</div>
-      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? 'pc-meta-cat' : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}</div>` : ''}
+      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}</div>` : ''}
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
         ${!isLast ? `<button class="mini-btn" type="button" onclick="advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
@@ -2232,7 +2252,7 @@ function launchCardHtml(provider) {
     <div class="provider-card" onclick="openProviderModal('${provider.id}', '')">
       <div class="pc-name">${escapeHtml(provider.provider_name)}</div>
       <div class="pc-meta">
-        <span class="pc-meta-cat">${escapeHtml(provider.vertical || provider.category || '—')}</span>
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(provider.vertical || provider.category)}">${escapeHtml(provider.vertical || provider.category || '—')}</span>
       </div>
       <div class="table-actions" style="margin-top:8px;">
         ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLaunch('${provider.id}')"><span>→ ${LAUNCH_STAGES[stageIdx + 1].label}</span></button>` : ''}
@@ -2284,7 +2304,7 @@ function providerCardHtml(item) {
     <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
       <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}${p.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-left:4px;" title="Featured / Hot Deal"></i>` : ''}</div>
       <div class="pc-meta">
-        <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(p.vertical || p.category)}">${p.vertical || p.category || '—'}</span>
         ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
         <span class="pc-meta-date mono">${date}</span>
       </div>
