@@ -2330,13 +2330,13 @@ function renderDealsBulkBar() {
 function exportSelectedDealsCsv() {
   const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = cachedProviders.filter(p => selectedDeals.has(p.id));
-  const header = ['Provider', 'Category', 'Status', 'Commission', 'Deal value EGP'];
+  const header = ['Provider', 'Category', 'Status', 'Commission', 'Deal value EGP', 'Our commission EGP', 'Provider payout EGP'];
   const lines = [header.join(',')];
   rows.forEach(p => {
     const neg = negotiationFor(p);
     lines.push([
       csvEscape(p.provider_name), csvEscape(categoryLabel(p)), csvEscape(CONTRACT_STATUS_LABELS[p.contract_status || 'none']),
-      p.commission_pct ?? '', neg?.estimated_value_egp ?? '',
+      p.commission_pct ?? '', neg?.estimated_value_egp ?? '', 'Not tracked yet', 'Not tracked yet',
     ].join(','));
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -2364,6 +2364,8 @@ function renderContractsTable() {
           <th class="th-sort" data-sort="commission">Commission</th>
           <th>Contract period</th>
           <th class="th-sort" data-sort="value">Deal value</th>
+          <th>Our commission <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
+          <th>Provider payout <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
           <th>Featured</th>
           <th>Actions</th>
         </tr></thead>
@@ -2394,6 +2396,8 @@ function renderContractsTable() {
                         : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
                     : '<span style="color:var(--text-tertiary);">—</span>'}
                 </td>
+                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
+                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
                   ${canManageDeals() ? `
@@ -2402,7 +2406,7 @@ function renderContractsTable() {
                     </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
                 </td>
               </tr>`;
-          }).join('') : `<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+          }).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
         </tbody>
       </table>
     </div>`;
