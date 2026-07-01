@@ -407,6 +407,7 @@ def chat():
 
 
 VALID_ROLES = {"admin", "manager", "deal_breaker", "team"}
+DEALS_ROLES = {"admin", "manager"}
 
 
 @app.route("/api/invite-user", methods=["POST"])
@@ -414,7 +415,7 @@ def invite_user():
     """Invites a teammate by email and sets their role in `profiles`.
 
     Requires SUPABASE_SERVICE_ROLE_KEY -- never exposed to the browser.
-    Role-gating (admin-only) is still asserted by the client today, same
+    Role-gating (admin+manager) is still asserted by the client today, same
     trust model as every other role check in the portal (see
     SECURITY_NOTE_role_enforcement.md) -- the part this endpoint actually
     fixes is that the service-role key itself, which can read/write any
@@ -431,8 +432,8 @@ def invite_user():
     role = payload.get("role")
     full_name = (payload.get("fullName") or "").strip() or None
 
-    if caller_role != "admin":
-        return jsonify({"error": "Only admins can invite teammates."}), 403
+    if caller_role not in DEALS_ROLES:
+        return jsonify({"error": "Only admins and managers can invite teammates."}), 403
     if not email or "@" not in email:
         return jsonify({"error": "A valid email is required."}), 400
     if role not in VALID_ROLES:
@@ -478,7 +479,6 @@ def invite_user():
 
 
 CONTRACT_STATUSES = {"none", "draft", "active", "expired", "terminated"}
-DEALS_ROLES = {"admin", "manager"}
 
 
 @app.route("/api/update-contract", methods=["POST"])

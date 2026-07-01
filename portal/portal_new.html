@@ -1385,10 +1385,10 @@ function renderSettingsView() {
         <div>
           <div class="kpi-label" style="margin-bottom:0;">Team members</div>
         </div>
-        ${role === 'admin' ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
+        ${canManageDeals() ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
       </div>
-      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${role === 'admin' ? ' Use Invite above to send one in the meantime.' : ''}</div>
-      ${role === 'admin' ? `
+      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${canManageDeals() ? ' Use Invite above to send one in the meantime.' : ''}</div>
+      ${canManageDeals() ? `
       <div id="inviteFormWrap" style="display:none;border-top:.5px solid var(--border-subtle);margin-top:6px;padding-top:14px;">
         <div style="display:flex;flex-direction:column;gap:8px;">
           <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
@@ -1439,7 +1439,7 @@ function renderSettingsView() {
         </table>
       </div>
     </div>
-    ${role === 'admin' ? `
+    ${canManageDeals() ? `
     <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Security status</div>
       <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;line-height:1.5;">
@@ -1697,6 +1697,38 @@ function providerRows() {
   });
 }
 
+let addProviderFormVisible = false;
+function toggleAddProviderForm() {
+  addProviderFormVisible = !addProviderFormVisible;
+  const form = document.getElementById('addProviderForm');
+  if (form) form.style.display = addProviderFormVisible ? 'block' : 'none';
+}
+
+async function submitProvider() {
+  const provider_name = document.getElementById('newProviderName').value.trim();
+  if (!provider_name) return;
+  const vertical = document.getElementById('newProviderVertical').value;
+  const location = document.getElementById('newProviderLocation').value.trim();
+  const contact_name = document.getElementById('newProviderContactName').value.trim();
+  const contact_phone = document.getElementById('newProviderContactPhone').value.trim();
+  try {
+    const slug = provider_name.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
+    const [provider] = await sbPost('wein_providers', {
+      provider_name, provider_slug: slug,
+      vertical: vertical || null, category: vertical || null,
+      location: location || null,
+      contact_name: contact_name || null, contact_phone: contact_phone || null,
+    });
+    await sbPost('wein_negotiations', {
+      provider_id: provider.id, provider_name: provider.provider_name,
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected',
+    });
+    addProviderFormVisible = false;
+    await loadDashboard();
+  } catch (e) { console.error('submitProvider error:', e); alert('Could not add provider: ' + e.message); }
+}
+
 function renderProvidersView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
@@ -1704,7 +1736,28 @@ function renderProvidersView() {
         <div class="view-title">Providers</div>
         <div class="view-count">${cachedProviders.length} total</div>
       </div>
-      <button class="view-action" type="button"><i class="ti ti-plus"></i><span>Add Provider</span></button>
+      <button class="view-action" type="button" onclick="toggleAddProviderForm()"><i class="ti ti-plus"></i><span>Add Provider</span></button>
+    </div>
+    <div id="addProviderForm" style="display:${addProviderFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="newProviderName" placeholder="Provider name" class="view-input" style="min-width:0;">
+        <select id="newProviderVertical" class="view-select" style="min-width:0;">
+          <option value="">Select category…</option>
+          <option value="Dining">Dining</option>
+          <option value="Health & Beauty">Health & Beauty</option>
+          <option value="Fun & Activities">Fun & Activities</option>
+          <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="newProviderLocation" placeholder="Location" class="view-input" style="min-width:0;">
+        <input type="text" id="newProviderContactName" placeholder="Contact name" class="view-input" style="min-width:0;">
+        <input type="text" id="newProviderContactPhone" placeholder="Contact phone" class="view-input" style="min-width:0;">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddProviderForm()">Cancel</button>
+        <button class="view-action" type="button" onclick="submitProvider()"><span>Save provider</span></button>
+      </div>
     </div>
     <div class="view-filterbar">
       <input id="providerSearch" class="view-input" type="search" placeholder="Search providers">
