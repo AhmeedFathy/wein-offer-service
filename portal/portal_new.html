@@ -258,6 +258,11 @@ tr.row-selected { background: var(--blue-tint); }
 .funnel-pct { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--blue); }
 .funnel-track { height:6px; background:var(--bg-elevated); border-radius:3px; overflow:hidden; }
 .funnel-fill { height:100%; border-radius:3px; }
+.field-label-sm { font-size:11px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; }
+.chip { font-size:12px; font-weight:600; padding:5px 12px; border-radius:7px; cursor:pointer;
+  border:.5px solid var(--border); background:var(--bg-surface); color:var(--text-secondary); }
+.chip:hover { background:var(--bg-elevated); }
+.chip.active { border-color:var(--border-blue); background:var(--blue-tint); color:var(--blue); }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
@@ -1370,6 +1375,55 @@ function renderSettingsView() {
       </div>
     </div>
     <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Workspace</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet saved</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><div class="field-label-sm">Workspace name</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. WeIN — Sharm El Sheikh" disabled></div>
+        <div><div class="field-label-sm">Region</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. South Sinai, Egypt" disabled></div>
+        <div><div class="field-label-sm">Default currency</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. EGP — Egyptian Pound" disabled></div>
+        <div><div class="field-label-sm">Lead stale threshold</div><input class="view-input" style="width:100%;box-sizing:border-box;" value="${LEAD_STALE_DAYS} days" disabled></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:10px;">These fields aren't connected to a real settings table yet — this is a layout preview. The stale threshold shown is the actual value enforced elsewhere in the app.</div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div class="kpi-label" style="margin-bottom:0;">Team members</div>
+        </div>
+        ${role === 'admin' ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
+      </div>
+      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${role === 'admin' ? ' Use Invite above to send one in the meantime.' : ''}</div>
+      ${role === 'admin' ? `
+      <div id="inviteFormWrap" style="display:none;border-top:.5px solid var(--border-subtle);margin-top:6px;padding-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
+          <input type="text" id="inviteFullName" placeholder="Full name (optional)" class="view-input" style="width:100%;box-sizing:border-box;">
+          <select id="inviteRole" class="view-input" style="width:100%;box-sizing:border-box;">
+            <option value="admin" style="color:#0a1018;background:#fff;">Admin</option>
+            <option value="manager" style="color:#0a1018;background:#fff;">Manager</option>
+            <option value="deal_breaker" style="color:#0a1018;background:#fff;">Deal Breaker</option>
+            <option value="team" style="color:#0a1018;background:#fff;">Team</option>
+          </select>
+          <button class="view-action" type="button" onclick="sendInvite()" id="inviteBtn"><i class="ti ti-mail"></i><span>Send invite</span></button>
+          <div id="inviteStatus" style="font-size:12px;"></div>
+        </div>
+      </div>` : ''}
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Integrations</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet wired</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">WhatsApp Business</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Message leads &amp; log replies</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Email (SMTP)</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Send offer decks &amp; contracts</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Payment Gateway</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Collect deposits from venues</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Google Sheets</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Export pipeline snapshots</div></div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Signed in as</div>
       <div style="display:flex;flex-direction:column;gap:8px;font-family:'Instrument Sans';font-size:13px;">
         <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Name</span><span style="color:var(--text-primary);font-weight:600;">${escapeHtml(fullName)}</span></div>
@@ -1378,22 +1432,6 @@ function renderSettingsView() {
       </div>
       <button class="mini-btn" type="button" onclick="logout()" style="margin-top:14px;color:var(--red);"><i class="ti ti-logout"></i><span>Log out</span></button>
     </div>
-    ${role === 'admin' ? `
-    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
-      <div class="kpi-label" style="margin-bottom:10px;">Invite a teammate</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
-        <input type="text" id="inviteFullName" placeholder="Full name (optional)" class="view-input" style="width:100%;box-sizing:border-box;">
-        <select id="inviteRole" class="view-input" style="width:100%;box-sizing:border-box;">
-          <option value="admin" style="color:#0a1018;background:#fff;">Admin</option>
-          <option value="manager" style="color:#0a1018;background:#fff;">Manager</option>
-          <option value="deal_breaker" style="color:#0a1018;background:#fff;">Deal Breaker</option>
-          <option value="team" style="color:#0a1018;background:#fff;">Team</option>
-        </select>
-        <button class="view-action" type="button" onclick="sendInvite()" id="inviteBtn"><i class="ti ti-mail"></i><span>Send invite</span></button>
-        <div id="inviteStatus" style="font-size:12px;"></div>
-      </div>
-    </div>` : ''}
     <div class="kpi-card" style="padding:16px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Role permissions</div>
       <div class="providers-table-wrap">
@@ -1437,6 +1475,13 @@ function renderSettingsView() {
   loadPipelineHealth();
 }
 
+function toggleInviteForm() {
+  const wrap = document.getElementById('inviteFormWrap');
+  if (!wrap) return;
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  if (wrap.style.display === 'block') document.getElementById('inviteEmail')?.focus();
+}
+
 async function sendInvite() {
   const email = document.getElementById('inviteEmail').value.trim();
   const fullName = document.getElementById('inviteFullName').value.trim();
@@ -1465,6 +1510,22 @@ async function sendInvite() {
   } finally {
     btn.disabled = false;
   }
+}
+
+const CATEGORY_CHIP_OPTIONS = ['all', 'Dining', 'Health & Beauty', 'Fun & Activities', 'Hotels & Aqua Park'];
+function categoryChipsHtml(activeValue, onClickFn) {
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">${CATEGORY_CHIP_OPTIONS.map(c =>
+    `<button class="chip ${activeValue === c ? 'active' : ''}" type="button" onclick="${onClickFn}('${c.replace(/'/g, "\\'")}')">${c === 'all' ? 'All' : escapeHtml(c)}</button>`
+  ).join('')}</div>`;
+}
+function matchesCategoryFilter(itemCategory, filterValue) {
+  return filterValue === 'all' || (itemCategory || '') === filterValue;
+}
+
+let pipelineCatFilter = 'all';
+function setPipelineCatFilter(value) {
+  pipelineCatFilter = value;
+  renderPipelineView();
 }
 
 function renderPipelineView() {
@@ -1496,6 +1557,7 @@ function renderPipelineView() {
         <div class="kpi-delta" style="color:var(--text-tertiary);">idle ${STALE_DAYS}+ days</div>
       </div>
     </div>
+    ${categoryChipsHtml(pipelineCatFilter, 'setPipelineCatFilter')}
     <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
       <span style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
       <button class="db-filter active" data-role="all">All</button>
@@ -1545,7 +1607,7 @@ function renderKpis() {
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
   const grouped = { contacted: [], negotiating: [], offer_sent: [], accepted: [] };
-  cachedProviders.forEach(p => {
+  cachedProviders.filter(p => matchesCategoryFilter(categoryLabel(p), pipelineCatFilter)).forEach(p => {
     const neg = negotiationFor(p);
     const stage = neg ? neg.stage : 'new';
     const col = STAGE_COLUMNS[stage];
@@ -2477,6 +2539,7 @@ function renderLeadsView() {
         <button class="view-action" type="button" onclick="submitLead()"><span>Save lead</span></button>
       </div>
     </div>
+    ${categoryChipsHtml(leadsCatFilter, 'setLeadsCatFilter')}
     <div class="kanban-board" style="grid-template-columns:repeat(${LEAD_STAGES.length},1fr);" id="leadsKanbanBoard"></div>
     <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);">Dropped leads (${cachedLeads.filter(l => l.status === 'dropped').length}) are hidden from the board above. <button class="mini-btn" type="button" onclick="toggleShowDroppedLeads()" id="droppedToggleBtn">${showDroppedLeads ? 'Hide dropped' : 'Show dropped'}</button></div>
     <div id="droppedLeadsWrap" style="display:${showDroppedLeads ? 'block' : 'none'};margin-top:10px;"></div>`;
@@ -2487,6 +2550,12 @@ function renderLeadsView() {
 let showDroppedLeads = false;
 function toggleShowDroppedLeads() {
   showDroppedLeads = !showDroppedLeads;
+  renderLeadsView();
+}
+
+let leadsCatFilter = 'all';
+function setLeadsCatFilter(value) {
+  leadsCatFilter = value;
   renderLeadsView();
 }
 
@@ -2512,6 +2581,7 @@ function renderDroppedLeadsTable() {
 function leadCardHtml(lead) {
   const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
   const isLast = stageIdx === LEAD_STAGES.length - 1;
+  const isFirst = stageIdx === 0;
   const nextLabel = isLast ? null : LEAD_STAGES[stageIdx + 1].label;
   const metaBits = [lead.vertical, lead.location].filter(Boolean);
   const stale = isLeadStale(lead);
@@ -2521,6 +2591,7 @@ function leadCardHtml(lead) {
       ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}</div>` : ''}
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
+        ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
         ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
         ${canDelete() ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();deleteLead('${lead.id}')" style="color:var(--red);" title="Delete"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
       </div>
@@ -2609,7 +2680,7 @@ function renderLeadsKanban() {
   const board = document.getElementById('leadsKanbanBoard');
   if (!board) return;
   board.innerHTML = LEAD_STAGES.map(stage => {
-    const items = cachedLeads.filter(l => l.status === stage.id);
+    const items = cachedLeads.filter(l => l.status === stage.id && matchesCategoryFilter(l.vertical, leadsCatFilter));
     const cardsHtml = items.length ? items.map(leadCardHtml).join('') : `<div class="empty-col">No leads</div>`;
     return `
       <div class="kanban-col">
