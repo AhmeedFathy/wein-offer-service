@@ -146,7 +146,14 @@ a { color: var(--blue); text-decoration: none; }
 .avatar-menu-item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
 .avatar-menu-item i { font-size: 14px; }
 .avatar-menu-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
-.nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px 0 30px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); flex-shrink: 0; font-size: 13px; font-weight: 500; box-sizing: border-box; }
+.nav-item { position: relative; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px 0 30px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); flex-shrink: 0; font-size: 13px; font-weight: 500; box-sizing: border-box; }
+.nav-count {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); background: var(--bg-elevated);
+  border: .5px solid var(--border); border-radius: 9px;
+  padding: 0 6px; min-width: 18px; text-align: center; font-family:'JetBrains Mono',monospace;
+}
+.nav-item.active .nav-count { color: var(--blue); background: var(--blue-tint); border-color: var(--border-blue); }
 .nav-item i { font-size: 15px; flex-shrink: 0; }
 .nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
 .nav-item.active { background: var(--blue-tint); color: var(--blue); }
@@ -159,8 +166,8 @@ a { color: var(--blue); text-decoration: none; }
 
 /* ── KPI row ── */
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
-.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; padding: 12px 16px; }
-.kpi-card:hover { border-color: var(--border-blue-strong); }
+.kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.16); transition: box-shadow 150ms ease, border-color 150ms ease; }
+.kpi-card:hover { border-color: var(--border-blue-strong); box-shadow: 0 6px 18px rgba(0,129,253,.10); }
 .kpi-label { font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
@@ -169,13 +176,13 @@ a { color: var(--blue); text-decoration: none; }
 
 /* ── Kanban ── */
 .kanban-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; align-items: start; }
-.kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 8px; overflow: hidden; }
+.kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; overflow: hidden; }
 .kanban-col-header { padding: 10px 12px; border-bottom: .5px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; }
 .kanban-col-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
-.provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 6px; padding: 10px 12px; cursor: pointer; }
-.provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); }
+.provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 9px; padding: 10px 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.14); transition: box-shadow 150ms ease, border-color 150ms ease, transform 120ms ease; }
+.provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); box-shadow: 0 10px 26px rgba(0,129,253,.14); transform: translateY(-1px); }
 .pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
 .pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
@@ -197,7 +204,7 @@ a { color: var(--blue); text-decoration: none; }
 .contract-field:focus { border-color:var(--border-blue-strong); }
 .view-input { min-width:220px;flex:1; }
 .view-select { min-width:140px; }
-.providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;overflow:auto; }
+.providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(0,0,0,.14); }
 .providers-table { width:100%;border-collapse:collapse;min-width:820px; }
 .providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
 .providers-table td { padding:10px 12px;border-bottom:.5px solid var(--border-subtle);font-size:12px;color:var(--text-secondary);vertical-align:middle; }
@@ -205,13 +212,64 @@ a { color: var(--blue); text-decoration: none; }
 .providers-table tr:hover { background:var(--bg-elevated); }
 .stage-pill,.count-pill { display:inline-flex;align-items:center;height:22px;border-radius:999px;border:.5px solid var(--border);background:var(--bg-elevated);padding:0 8px;font-size:10px;color:var(--text-secondary);white-space:nowrap; }
 .stage-pill.active { border-color:var(--border-blue);background:var(--blue-tint);color:var(--blue); }
+
+/* ── Category badges (visual refresh, 2026-06-30) ── */
+.cat-badge { display:inline-flex; align-items:center; font-size:10px; font-weight:600; padding:2px 8px; border-radius:5px; white-space:nowrap; }
+.cat-badge.dining { color:#fbbf24; background:rgba(217,119,6,.20); }
+.cat-badge.health { color:#c4b5fd; background:rgba(139,92,246,.20); }
+.cat-badge.fun    { color:#6ee7b7; background:rgba(5,150,105,.20); }
+.cat-badge.hotels { color:var(--blue); background:var(--blue-tint); }
+[data-theme="light"] .cat-badge.dining { color:#b45309; background:rgba(217,119,6,.13); }
+[data-theme="light"] .cat-badge.health { color:#6d28d9; background:rgba(139,92,246,.13); }
+[data-theme="light"] .cat-badge.fun    { color:#047857; background:rgba(5,150,105,.13); }
+.stale-tag { font-size:9px;font-weight:600;color:var(--amber);background:var(--amber-soft);
+  border:.5px solid var(--border-amber);border-radius:4px;padding:1px 5px;margin-left:6px; }
+.stale-chip { display:inline-flex; align-items:center; gap:6px; margin-left:10px; background:var(--amber-tint);
+  border:.5px solid var(--border-amber); border-radius:20px; padding:3px 11px; cursor:default; }
+.stale-chip .dot { width:6px; height:6px; border-radius:50%; background:var(--amber); animation:pulse-amber 2s infinite; }
+.stale-chip span.label { font-size:12px; color:var(--amber); font-weight:600; }
+.th-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+.th-sort.active { color: var(--blue); }
+.th-sort i { font-size:11px; margin-left:3px; }
+.cb-col { width:20px; }
+.row-cb { width:16px;height:16px;border-radius:4px;border:1.5px solid var(--text-tertiary);
+  background:transparent;color:#fff;display:inline-flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;cursor:pointer; }
+.row-cb.checked { border-color:var(--blue); background:var(--blue); }
+tr.row-selected { background: var(--blue-tint); }
+.bulk-bar { display:flex;align-items:center;gap:8px;background:var(--blue-tint);border:.5px solid var(--border-blue);border-radius:8px;padding:10px 12px;margin-bottom:12px; }
+.bulk-text { font-size:12px;font-weight:600;color:var(--blue);margin-right:4px; }
+.stage-dot { height:8px; border-radius:4px; background:var(--bg-elevated); border:.5px solid var(--border); transition:all .2s; flex-shrink:0; }
+.lead-act-row { display:flex; gap:11px; margin-bottom:15px; }
+.lead-act-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+.lead-act-text { font-size:13px; font-weight:500; margin-bottom:2px; color:var(--text-primary); }
+.lead-act-time { font-size:11px; color:var(--text-tertiary); }
+.lead-drawer-advance { flex:2; padding:11px; background:var(--blue); border:none; border-radius:9px; color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+.lead-drawer-back { flex:1; padding:11px; background:var(--bg-elevated); border:.5px solid var(--border); border-radius:9px; color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
+.act-btn { border:none; border-radius:6px; font-size:11px; padding:4px 10px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+.act-view { background:var(--blue-tint); color:var(--blue); }
+.act-run  { background:rgba(16,185,129,.16); color:#16a34a; }
+[data-theme="light"] .act-run { background:#f0fdf4; }
+.act-del  { background:var(--bg-elevated); color:var(--text-tertiary); border:.5px solid var(--border); }
+.funnel-row { margin-bottom:12px; }
+.funnel-row:last-child { margin-bottom:0; }
+.funnel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.funnel-label { font-size:12px; color:var(--text-secondary); }
+.funnel-pct { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--blue); }
+.funnel-track { height:6px; background:var(--bg-elevated); border-radius:3px; overflow:hidden; }
+.funnel-fill { height:100%; border-radius:3px; }
+.field-label-sm { font-size:11px; font-weight:500; color:var(--text-secondary); margin-bottom:5px; }
+.chip { font-size:12px; font-weight:600; padding:5px 12px; border-radius:7px; cursor:pointer;
+  border:.5px solid var(--border); background:var(--bg-surface); color:var(--text-secondary); }
+.chip:hover { background:var(--bg-elevated); }
+.chip.active { border-color:var(--border-blue); background:var(--blue-tint); color:var(--blue); }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
 .mini-btn.active { border-color:var(--border-blue-strong);color:var(--blue);background:var(--blue-tint); }
 .files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
-.file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0; }
-.file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated); }
+.file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.14);transition:box-shadow 150ms ease,border-color 150ms ease,transform 120ms ease; }
+.file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated);box-shadow:0 10px 26px rgba(0,129,253,.14);transform:translateY(-1px); }
 .file-card-head { display:flex;gap:8px;align-items:flex-start;min-width:0; }
 .file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -464,9 +522,9 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       <i class="ti ti-chevron-down chevron"></i>
     </div>
     <div class="nav-subitems" data-group-items="sales">
-      <div class="nav-item" data-view="leads"><i class="ti ti-target-arrow"></i><span>Leads</span></div>
-      <div class="nav-item active" data-view="pipeline"><i class="ti ti-git-branch"></i><span>Pipeline</span></div>
-      <div class="nav-item" data-view="deals"><i class="ti ti-file-text"></i><span>Deals</span></div>
+      <div class="nav-item" data-view="leads"><i class="ti ti-target-arrow"></i><span>Leads</span><span class="nav-count" data-count="leads"></span></div>
+      <div class="nav-item active" data-view="pipeline"><i class="ti ti-git-branch"></i><span>Pipeline</span><span class="nav-count" data-count="pipeline"></span></div>
+      <div class="nav-item" data-view="deals"><i class="ti ti-file-text"></i><span>Deals</span><span class="nav-count" data-count="deals"></span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
@@ -477,8 +535,8 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       <i class="ti ti-chevron-down chevron"></i>
     </div>
     <div class="nav-subitems" data-group-items="partners">
-      <div class="nav-item" data-view="launch"><i class="ti ti-rocket"></i><span>Launch</span></div>
-      <div class="nav-item" data-view="providers"><i class="ti ti-building-store"></i><span>Providers</span></div>
+      <div class="nav-item" data-view="launch"><i class="ti ti-rocket"></i><span>Launch</span><span class="nav-count" data-count="launch"></span></div>
+      <div class="nav-item" data-view="providers"><i class="ti ti-building-store"></i><span>Providers</span><span class="nav-count" data-count="providers"></span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
@@ -490,7 +548,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     </div>
     <div class="nav-subitems" data-group-items="insights">
       <div class="nav-item" data-view="analytics"><i class="ti ti-chart-bar"></i><span>Analytics</span></div>
-      <div class="nav-item" data-view="offers"><i class="ti ti-tag"></i><span>Offers</span></div>
+      <div class="nav-item" data-view="offers"><i class="ti ti-tag"></i><span>Offers</span><span class="nav-count" data-count="offers"></span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
@@ -627,6 +685,45 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
   </div>
 </div>
 
+<div id="lead-drawer-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:480;">
+  <div id="lead-drawer" style="position:fixed; right:0; top:0; bottom:0; width:390px; max-width:92vw; background:var(--bg-surface); border-left:.5px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 30px rgba(0,0,0,.35);">
+    <div style="padding:18px 22px 15px; border-bottom:.5px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;">
+      <div>
+        <div id="lead-drawer-cat" class="cat-badge" style="display:inline-block;"></div>
+        <div id="lead-drawer-name" style="font-size:19px; font-weight:700; margin-top:8px; color:var(--text-primary);"></div>
+      </div>
+      <button onclick="closeLeadDrawer()" style="background:transparent;border:none;color:var(--text-tertiary);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
+    </div>
+    <div style="padding:15px 22px; border-bottom:.5px solid var(--border-subtle); flex-shrink:0;">
+      <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;">Stage</div>
+      <div id="lead-drawer-stage-label" style="font-size:14px;font-weight:700;margin:5px 0 9px;"></div>
+      <div id="lead-drawer-dots" style="display:flex; gap:3px; align-items:center;"></div>
+      <div id="lead-drawer-stage-count" style="font-size:11px;color:var(--text-tertiary);margin-top:6px;"></div>
+    </div>
+    <div style="padding:14px 22px; border-bottom:.5px solid var(--border-subtle); display:flex; gap:24px; flex-shrink:0;">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;">Owner</div>
+        <div id="lead-drawer-owner" style="font-size:13px;font-weight:500;margin-top:4px;color:var(--text-primary);"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;">Days in stage</div>
+        <div id="lead-drawer-days" style="font-size:14px;font-weight:700;margin-top:4px;"></div>
+      </div>
+    </div>
+    <div style="flex:1; overflow-y:auto; padding:16px 22px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;">Activity</div>
+      <div id="lead-drawer-activity"></div>
+      <div id="lead-drawer-why" style="margin-top:14px;"></div>
+      <div style="margin-top:14px;border-top:.5px solid var(--border-subtle);padding-top:15px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Add note</div>
+        <textarea id="lead-drawer-note" placeholder="Call notes, follow-ups, next steps…" style="width:100%;padding:10px 12px;border:.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-primary);outline:none;resize:none;height:74px;line-height:1.5;background:var(--bg-elevated);box-sizing:border-box;font-family:inherit;"></textarea>
+        <button id="lead-drawer-note-save" type="button" style="margin-top:7px;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:7px;color:var(--text-secondary);font-size:12px;font-weight:600;padding:7px 13px;cursor:pointer;">Save note</button>
+      </div>
+    </div>
+    <div id="lead-drawer-foot" style="padding:14px 22px; border-top:.5px solid var(--border); display:flex; gap:9px; flex-shrink:0;"></div>
+  </div>
+</div>
+
 <div id="provider-modal-backdrop" style="
   display:none; position:fixed; inset:0;
   background:rgba(0,0,0,0.7); z-index:500;
@@ -637,6 +734,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     border-radius:10px; width:860px; max-width:95vw;
     max-height:85vh; overflow:hidden;
     display:flex; flex-direction:column; position:relative;
+    box-shadow:0 18px 44px rgba(0,0,0,.45);
   ">
     <div style="
       padding:16px 20px; border-bottom:0.5px solid var(--border);
@@ -1175,6 +1273,7 @@ function showView(name) {
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
   if (!isNavGroupOpen(VIEW_GROUP[name])) setNavGroupOpen(VIEW_GROUP[name], true);
   toggleMobileSidebar(false);
+  refreshNavCounts();
   renderCurrentView();
 }
 document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1206,6 +1305,20 @@ const STAGE_PROGRESS = {
   'negotiating':    55,
   'accepted':       100
 };
+const STALE_DAYS = 14;
+function daysSince(ts) { if (!ts) return 0; return Math.floor((Date.now() - new Date(ts)) / 86400000); }
+function isStale(provider) {
+  const neg = negotiationFor(provider);
+  const last = neg?.updated_at || provider.created_at;
+  const stage = neg?.stage;
+  return stage && stage !== 'accepted' && daysSince(last) >= STALE_DAYS;
+}
+const LEAD_STALE_DAYS = 7;
+function isLeadStale(lead) {
+  if (!lead || lead.status === 'dropped' || lead.status === 'promoted') return false;
+  return daysSince(lead.updated_at || lead.created_at) >= LEAD_STALE_DAYS;
+}
+let providerStaleOnly = false;
 
 async function loadDashboard() {
   try {
@@ -1218,10 +1331,23 @@ async function loadDashboard() {
       sbGet('offer_outcomes?select=*&order=created_at.desc').catch(() => []),
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
+    refreshNavCounts();
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
   }
+}
+
+function refreshNavCounts() {
+  const set = (key, value) => {
+    document.querySelectorAll(`.nav-count[data-count="${key}"]`).forEach(el => { el.textContent = value; });
+  };
+  set('leads', cachedLeads.filter(l => l.status !== 'dropped').length);
+  set('pipeline', cachedProviders.length);
+  set('providers', cachedProviders.length);
+  set('deals', cachedProviders.length);
+  set('launch', cachedProviders.filter(p => launchStageOf(p)).length);
+  set('offers', cachedOffers.length);
 }
 
 function renderCurrentView() {
@@ -1249,6 +1375,55 @@ function renderSettingsView() {
       </div>
     </div>
     <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Workspace</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet saved</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><div class="field-label-sm">Workspace name</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. WeIN — Sharm El Sheikh" disabled></div>
+        <div><div class="field-label-sm">Region</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. South Sinai, Egypt" disabled></div>
+        <div><div class="field-label-sm">Default currency</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. EGP — Egyptian Pound" disabled></div>
+        <div><div class="field-label-sm">Lead stale threshold</div><input class="view-input" style="width:100%;box-sizing:border-box;" value="${LEAD_STALE_DAYS} days" disabled></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:10px;">These fields aren't connected to a real settings table yet — this is a layout preview. The stale threshold shown is the actual value enforced elsewhere in the app.</div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div class="kpi-label" style="margin-bottom:0;">Team members</div>
+        </div>
+        ${role === 'admin' ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
+      </div>
+      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${role === 'admin' ? ' Use Invite above to send one in the meantime.' : ''}</div>
+      ${role === 'admin' ? `
+      <div id="inviteFormWrap" style="display:none;border-top:.5px solid var(--border-subtle);margin-top:6px;padding-top:14px;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
+          <input type="text" id="inviteFullName" placeholder="Full name (optional)" class="view-input" style="width:100%;box-sizing:border-box;">
+          <select id="inviteRole" class="view-input" style="width:100%;box-sizing:border-box;">
+            <option value="admin" style="color:#0a1018;background:#fff;">Admin</option>
+            <option value="manager" style="color:#0a1018;background:#fff;">Manager</option>
+            <option value="deal_breaker" style="color:#0a1018;background:#fff;">Deal Breaker</option>
+            <option value="team" style="color:#0a1018;background:#fff;">Team</option>
+          </select>
+          <button class="view-action" type="button" onclick="sendInvite()" id="inviteBtn"><i class="ti ti-mail"></i><span>Send invite</span></button>
+          <div id="inviteStatus" style="font-size:12px;"></div>
+        </div>
+      </div>` : ''}
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Integrations</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet wired</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">WhatsApp Business</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Message leads &amp; log replies</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Email (SMTP)</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Send offer decks &amp; contracts</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Payment Gateway</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Collect deposits from venues</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Google Sheets</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Export pipeline snapshots</div></div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Signed in as</div>
       <div style="display:flex;flex-direction:column;gap:8px;font-family:'Instrument Sans';font-size:13px;">
         <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Name</span><span style="color:var(--text-primary);font-weight:600;">${escapeHtml(fullName)}</span></div>
@@ -1257,22 +1432,6 @@ function renderSettingsView() {
       </div>
       <button class="mini-btn" type="button" onclick="logout()" style="margin-top:14px;color:var(--red);"><i class="ti ti-logout"></i><span>Log out</span></button>
     </div>
-    ${role === 'admin' ? `
-    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
-      <div class="kpi-label" style="margin-bottom:10px;">Invite a teammate</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
-        <input type="text" id="inviteFullName" placeholder="Full name (optional)" class="view-input" style="width:100%;box-sizing:border-box;">
-        <select id="inviteRole" class="view-input" style="width:100%;box-sizing:border-box;">
-          <option value="admin" style="color:#0a1018;background:#fff;">Admin</option>
-          <option value="manager" style="color:#0a1018;background:#fff;">Manager</option>
-          <option value="deal_breaker" style="color:#0a1018;background:#fff;">Deal Breaker</option>
-          <option value="team" style="color:#0a1018;background:#fff;">Team</option>
-        </select>
-        <button class="view-action" type="button" onclick="sendInvite()" id="inviteBtn"><i class="ti ti-mail"></i><span>Send invite</span></button>
-        <div id="inviteStatus" style="font-size:12px;"></div>
-      </div>
-    </div>` : ''}
     <div class="kpi-card" style="padding:16px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Role permissions</div>
       <div class="providers-table-wrap">
@@ -1316,6 +1475,13 @@ function renderSettingsView() {
   loadPipelineHealth();
 }
 
+function toggleInviteForm() {
+  const wrap = document.getElementById('inviteFormWrap');
+  if (!wrap) return;
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  if (wrap.style.display === 'block') document.getElementById('inviteEmail')?.focus();
+}
+
 async function sendInvite() {
   const email = document.getElementById('inviteEmail').value.trim();
   const fullName = document.getElementById('inviteFullName').value.trim();
@@ -1346,9 +1512,25 @@ async function sendInvite() {
   }
 }
 
+const CATEGORY_CHIP_OPTIONS = ['all', 'Dining', 'Health & Beauty', 'Fun & Activities', 'Hotels & Aqua Park'];
+function categoryChipsHtml(activeValue, onClickFn) {
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">${CATEGORY_CHIP_OPTIONS.map(c =>
+    `<button class="chip ${activeValue === c ? 'active' : ''}" type="button" onclick="${onClickFn}('${c.replace(/'/g, "\\'")}')">${c === 'all' ? 'All' : escapeHtml(c)}</button>`
+  ).join('')}</div>`;
+}
+function matchesCategoryFilter(itemCategory, filterValue) {
+  return filterValue === 'all' || (itemCategory || '') === filterValue;
+}
+
+let pipelineCatFilter = 'all';
+function setPipelineCatFilter(value) {
+  pipelineCatFilter = value;
+  renderPipelineView();
+}
+
 function renderPipelineView() {
   document.getElementById('mainArea').innerHTML = `
-    <div class="kpi-row">
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
       <div class="kpi-card">
         <div class="kpi-label">Providers</div>
         <div class="kpi-value mono" id="kpiProviders">—</div>
@@ -1369,7 +1551,13 @@ function renderPipelineView() {
         <div class="kpi-value mono" id="kpiPending">—</div>
         <div class="kpi-delta" id="kpiPendingDelta"></div>
       </div>
+      <div class="kpi-card" id="kpiStaleCard" style="cursor:pointer;" onclick="providerStaleOnly=true;showView('providers');" title="View stale providers">
+        <div class="kpi-label">Stale</div>
+        <div class="kpi-value mono" id="kpiStale" style="color:var(--amber);">—</div>
+        <div class="kpi-delta" style="color:var(--text-tertiary);">idle ${STALE_DAYS}+ days</div>
+      </div>
     </div>
+    ${categoryChipsHtml(pipelineCatFilter, 'setPipelineCatFilter')}
     <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
       <span style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
       <button class="db-filter active" data-role="all">All</button>
@@ -1412,12 +1600,14 @@ function renderKpis() {
   document.getElementById('kpiNegotiating').textContent = negotiatingCount;
   document.getElementById('kpiOffers').textContent = offersBuilt;
   document.getElementById('kpiPending').textContent = pendingCount;
+  const staleEl = document.getElementById('kpiStale');
+  if (staleEl) staleEl.textContent = cachedProviders.filter(isStale).length;
 }
 
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
   const grouped = { contacted: [], negotiating: [], offer_sent: [], accepted: [] };
-  cachedProviders.forEach(p => {
+  cachedProviders.filter(p => matchesCategoryFilter(categoryLabel(p), pipelineCatFilter)).forEach(p => {
     const neg = negotiationFor(p);
     const stage = neg ? neg.stage : 'new';
     const col = STAGE_COLUMNS[stage];
@@ -1476,12 +1666,26 @@ function categoryLabel(provider) {
   return provider.category || provider.vertical || '—';
 }
 
-function sortProviders(rows, sortBy) {
-  return [...rows].sort((a, b) => {
-    if (sortBy === 'name') return (a.provider.provider_name || '').localeCompare(b.provider.provider_name || '');
-    if (sortBy === 'stage') return stageLabel(a.stage).localeCompare(stageLabel(b.stage));
-    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-  });
+function catBadgeClass(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('dining')) return 'dining';
+  if (c.includes('health')) return 'health';
+  if (c.includes('fun')) return 'fun';
+  if (c.includes('hotel')) return 'hotels';
+  return '';
+}
+
+let providerSortKey = 'date', providerSortDir = 1;
+const SORT_COMPARATORS = {
+  name:     (a, b) => (a.provider.provider_name || '').localeCompare(b.provider.provider_name || ''),
+  category: (a, b) => categoryLabel(a.provider).localeCompare(categoryLabel(b.provider)),
+  stage:    (a, b) => stageLabel(a.stage).localeCompare(stageLabel(b.stage)),
+  offers:   (a, b) => (a.offerCount || 0) - (b.offerCount || 0),
+  date:     (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0),
+};
+function sortProviders(rows, sortBy, dir = 1) {
+  const cmp = SORT_COMPARATORS[sortBy] || SORT_COMPARATORS.date;
+  return [...rows].sort((a, b) => cmp(a, b) * dir);
 }
 
 function providerRows() {
@@ -1527,17 +1731,20 @@ function renderProvidersView() {
         <option value="stage">Sort by stage</option>
         <option value="name">Sort by name</option>
       </select>
+      ${providerStaleOnly ? `<button class="db-filter active" type="button" onclick="providerStaleOnly=false;renderProvidersTable();"><i class="ti ti-clock-x" style="font-size:11px;margin-right:3px;"></i>Stale only <i class="ti ti-x" style="font-size:11px;margin-left:3px;"></i></button>` : ''}
     </div>
+    <div id="providersBulkBar"></div>
     <div class="providers-table-wrap">
       <table class="providers-table">
         <thead>
           <tr>
-            <th>Provider Name</th>
-            <th>Category</th>
-            <th>Stage</th>
-            <th>Offers</th>
+            <th class="cb-col"><div class="row-cb" id="providerSelectAllCb" onclick="toggleSelectAllProviders()"></div></th>
+            <th class="th-sort" data-sort="name">Provider Name</th>
+            <th class="th-sort" data-sort="category">Category</th>
+            <th class="th-sort" data-sort="stage">Stage</th>
+            <th class="th-sort" data-sort="offers">Offers</th>
             <th>Deal Breaker</th>
-            <th>Visit Date</th>
+            <th class="th-sort" data-sort="date">Visit Date</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -1546,8 +1753,35 @@ function renderProvidersView() {
     </div>`;
   document.getElementById('providerSearch').addEventListener('input', renderProvidersTable);
   document.getElementById('providerCategoryFilter').addEventListener('change', renderProvidersTable);
-  document.getElementById('providerSort').addEventListener('change', renderProvidersTable);
+  document.getElementById('providerSort').addEventListener('change', () => {
+    providerSortKey = document.getElementById('providerSort').value;
+    providerSortDir = 1;
+    updateProviderSortHeaders();
+    renderProvidersTable();
+  });
+  document.querySelectorAll('.th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (providerSortKey === key) providerSortDir = -providerSortDir;
+      else { providerSortKey = key; providerSortDir = 1; }
+      const dd = document.getElementById('providerSort');
+      if (dd && ['date', 'stage', 'name'].includes(key)) dd.value = key;
+      updateProviderSortHeaders();
+      renderProvidersTable();
+    });
+  });
+  updateProviderSortHeaders();
   renderProvidersTable();
+}
+
+function updateProviderSortHeaders() {
+  document.querySelectorAll('.th-sort').forEach(th => {
+    const active = th.dataset.sort === providerSortKey;
+    th.classList.toggle('active', active);
+    const existingIcon = th.querySelector('i');
+    if (existingIcon) existingIcon.remove();
+    if (active) th.insertAdjacentHTML('beforeend', providerSortDir === 1 ? ' <i class="ti ti-arrow-up"></i>' : ' <i class="ti ti-arrow-down"></i>');
+  });
 }
 
 function renderProvidersTable() {
@@ -1555,37 +1789,117 @@ function renderProvidersTable() {
   if (!body) return;
   const query = document.getElementById('providerSearch').value.trim().toLowerCase();
   const category = document.getElementById('providerCategoryFilter').value;
-  const sortBy = document.getElementById('providerSort').value;
   const rows = sortProviders(providerRows().filter(row => {
     const name = (row.provider.provider_name || '').toLowerCase();
     const cat = categoryLabel(row.provider);
     const matchesQuery = !query || name.includes(query);
     const matchesCategory = category === 'all' || cat === category || (cat || '').includes(category);
-    return matchesQuery && matchesCategory;
-  }), sortBy);
+    const matchesStale = !providerStaleOnly || isStale(row.provider);
+    return matchesQuery && matchesCategory && matchesStale;
+  }), providerSortKey, providerSortDir);
+
+  lastVisibleProviderIds = rows.map(row => row.provider.id);
 
   body.innerHTML = rows.length ? rows.map(row => {
     const provider = row.provider;
     const safeName = (provider.provider_name || '').replace(/'/g, "\\'");
     const safeVertical = (provider.vertical || provider.category || '').replace(/'/g, "\\'");
     const date = row.visitDate ? new Date(row.visitDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+    const stale = isStale(provider);
+    const selected = selectedProviders.has(provider.id);
     return `
-      <tr data-provider-id="${provider.id}" data-negotiation-id="${row.negotiationId}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
-        <td style="color:var(--text-primary);font-weight:600;">${provider.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-right:4px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(provider.provider_name || 'Unnamed')}</td>
-        <td>${escapeHtml(categoryLabel(provider))}</td>
+      <tr data-provider-id="${provider.id}" data-negotiation-id="${row.negotiationId}" class="${selected ? 'row-selected' : ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
+        <td class="cb-col" onclick="event.stopPropagation();toggleProviderSelection('${provider.id}')"><div class="row-cb ${selected ? 'checked' : ''}">${selected ? '✓' : ''}</div></td>
+        <td style="color:var(--text-primary);font-weight:600;${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">${provider.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-right:4px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(provider.provider_name || 'Unnamed')}</td>
+        <td><span class="cat-badge ${catBadgeClass(categoryLabel(provider))}">${escapeHtml(categoryLabel(provider))}</span></td>
         <td><span class="stage-pill ${row.stage === 'accepted' || row.stage === 'negotiating' ? 'active' : ''}">${escapeHtml(stageLabel(row.stage))}</span></td>
         <td><span class="count-pill mono">${row.offerCount}</span></td>
         <td>${escapeHtml(row.dealBreaker)}</td>
-        <td class="mono">${date}</td>
+        <td class="mono">${date}${stale ? `<span class="stale-tag">${daysSince(row.updatedAt)}d</span>` : ''}</td>
         <td>
           <div class="table-actions">
-            <button class="mini-btn" type="button" onclick="event.stopPropagation();openProviderModal('${provider.id}', '${row.negotiationId}')"><i class="ti ti-eye"></i><span>View</span></button>
-            <button class="mini-btn" type="button" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${safeVertical}')"><i class="ti ti-player-play"></i><span>Run</span></button>
-            ${canDelete() ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();deleteProvider('${provider.id}', '${safeName}')" style="color:var(--red);"><i class="ti ti-trash"></i><span>Delete</span></button>` : ''}
+            <button class="act-btn act-view" type="button" onclick="event.stopPropagation();openProviderModal('${provider.id}', '${row.negotiationId}')"><i class="ti ti-eye"></i><span>View</span></button>
+            <button class="act-btn act-run" type="button" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${safeVertical}')"><i class="ti ti-player-play"></i><span>Run</span></button>
+            ${canDelete() ? `<button class="act-btn act-del" type="button" onclick="event.stopPropagation();deleteProvider('${provider.id}', '${safeName}')"><i class="ti ti-trash"></i><span>Delete</span></button>` : ''}
           </div>
         </td>
       </tr>`;
-  }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers found</td></tr>`;
+  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers found</td></tr>`;
+
+  const selectAllCb = document.getElementById('providerSelectAllCb');
+  if (selectAllCb) {
+    const allSelected = rows.length > 0 && rows.every(row => selectedProviders.has(row.provider.id));
+    selectAllCb.classList.toggle('checked', allSelected);
+    selectAllCb.textContent = allSelected ? '✓' : '';
+  }
+  renderProvidersBulkBar();
+}
+
+let selectedProviders = new Set();
+let lastVisibleProviderIds = [];
+
+function toggleProviderSelection(providerId) {
+  if (selectedProviders.has(providerId)) selectedProviders.delete(providerId);
+  else selectedProviders.add(providerId);
+  renderProvidersTable();
+}
+
+function toggleSelectAllProviders() {
+  const allSelected = lastVisibleProviderIds.length > 0 && lastVisibleProviderIds.every(id => selectedProviders.has(id));
+  if (allSelected) lastVisibleProviderIds.forEach(id => selectedProviders.delete(id));
+  else lastVisibleProviderIds.forEach(id => selectedProviders.add(id));
+  renderProvidersTable();
+}
+
+function clearProviderSelection() {
+  selectedProviders.clear();
+  renderProvidersTable();
+}
+
+function renderProvidersBulkBar() {
+  const el = document.getElementById('providersBulkBar');
+  if (!el) return;
+  const n = selectedProviders.size;
+  if (!n) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="bulk-bar">
+      <span class="bulk-text">${n} selected</span>
+      <button class="mini-btn" type="button" onclick="alert('Assign owner — coming soon')">Assign owner</button>
+      <button class="mini-btn" type="button" onclick="exportSelectedProvidersCsv()">Export CSV</button>
+      <button class="mini-btn" type="button" style="color:var(--red);" onclick="archiveSelectedProviders()">Archive</button>
+      <button class="mini-btn" type="button" style="margin-left:auto;" onclick="clearProviderSelection()">Clear</button>
+    </div>`;
+}
+
+function exportSelectedProvidersCsv() {
+  const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = providerRows().filter(r => selectedProviders.has(r.provider.id));
+  const header = ['Provider', 'Category', 'Stage', 'Offers', 'Visit Date'];
+  const lines = [header.join(',')];
+  rows.forEach(r => {
+    const date = r.visitDate ? new Date(r.visitDate).toLocaleDateString('en-GB') : '';
+    lines.push([
+      csvEscape(r.provider.provider_name),
+      csvEscape(categoryLabel(r.provider)),
+      csvEscape(stageLabel(r.stage)),
+      r.offerCount,
+      csvEscape(date),
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `wein-providers-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function archiveSelectedProviders() {
+  if (!confirm(`Archive ${selectedProviders.size} provider(s)? This action is not yet wired to a real change — no data will be modified.`)) return;
+  alert('Archive is not yet implemented — no changes were made.');
 }
 
 async function deleteProvider(providerId, providerName) {
@@ -1698,6 +2012,18 @@ function discountPctLabel(pct) {
   const normalized = pct > 0 && pct <= 1 ? pct * 100 : pct;
   return Math.round(normalized);
 }
+function discountSeverityColor(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red)' : 'var(--amber)';
+}
+function discountSeverityTint(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red-tint)' : 'var(--amber-tint)';
+}
+function discountSeverityBorder(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red)' : 'var(--border-amber)';
+}
 
 function offerProviderName(offer) {
   const provider = cachedProviders.find(p => p.id === offer.provider_id);
@@ -1770,10 +2096,10 @@ function renderOffersGrid() {
           <div class="file-name" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled offer')}</div>
           <div class="file-provider">${cachedProviders.find(p => p.id === o.provider_id)?.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-right:3px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(offerProviderName(o))}</div>
         </div>
-        ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
+        ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:${discountSeverityColor(o.discount_pct)};background:${discountSeverityTint(o.discount_pct)};border:0.5px solid ${discountSeverityBorder(o.discount_pct)};border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">${escapeHtml(o.category || '—')}</span>
+        <span class="cat-badge ${catBadgeClass(o.category)}" style="${catBadgeClass(o.category) ? '' : 'background:var(--bg-elevated);border:0.5px solid var(--border);color:var(--text-secondary);'}border-radius:999px;">${escapeHtml(o.category || '—')}</span>
         <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -1790,21 +2116,58 @@ function renderOffersGrid() {
 function barChartHtml(bars, opts = {}) {
   const max = Math.max(1, ...bars.map(b => b.value));
   const barColor = opts.color || 'var(--blue)';
+  const unit = opts.unit || '';
   return `
     <div style="display:flex;align-items:flex-end;gap:10px;height:160px;padding:0 4px;">
       ${bars.map(b => `
         <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0;height:100%;justify-content:flex-end;">
-          <div style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">${b.value}</div>
+          <div style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">${b.value}${unit}</div>
           <div style="width:100%;max-width:40px;border-radius:4px 4px 0 0;background:${b.color || barColor};height:${Math.max(3, (b.value / max) * 110)}px;"></div>
           <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${escapeHtml(b.label)}</div>
         </div>`).join('')}
     </div>`;
 }
 
+// Avg days idle per current lead stage. No per-stage transition log exists for
+// leads (see LEAD DETAIL DRAWER comment above), so this averages daysSince()
+// across leads currently sitting in each stage -- an honest "how long has
+// this stage's backlog been waiting" metric, not a true historical average.
+function avgDaysPerLeadStageBars() {
+  const groups = {};
+  cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').forEach(l => {
+    if (!groups[l.status]) groups[l.status] = [];
+    groups[l.status].push(daysSince(l.updated_at || l.created_at));
+  });
+  return LEAD_STAGES.filter(s => s.id !== 'promoted').map(s => {
+    const arr = groups[s.id] || [];
+    const avg = arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+    return { label: s.label, value: avg, color: avg >= 9 ? 'var(--red)' : avg >= 5 ? 'var(--amber)' : 'var(--green)' };
+  });
+}
+
+// Funnel shape from current lead distribution (counts leads currently at-or-
+// past each stage, including promoted leads at the final stage). This is a
+// snapshot-based proxy for conversion, not a true cohort-over-time rate --
+// there is no per-lead stage-transition history to compute the latter.
+function leadFunnelRows() {
+  const relevant = cachedLeads.filter(l => l.status !== 'dropped');
+  const stageIdxOf = l => l.status === 'promoted' ? LEAD_STAGES.length - 1 : LEAD_STAGES.findIndex(s => s.id === l.status);
+  const counts = LEAD_STAGES.map((s, i) => relevant.filter(l => stageIdxOf(l) >= i).length);
+  const rows = [];
+  for (let i = 0; i < LEAD_STAGES.length - 1; i++) {
+    const from = counts[i], to = counts[i + 1];
+    const pct = from > 0 ? Math.round((to / from) * 100) : 0;
+    rows.push({ label: `${LEAD_STAGES[i].label} → ${LEAD_STAGES[i + 1].label}`, pct, color: pct >= 60 ? 'var(--green)' : pct >= 30 ? 'var(--blue)' : 'var(--amber)' });
+  }
+  return rows;
+}
+
 function renderAnalyticsView() {
   const stageCounts = {};
   providerRows().forEach(row => { stageCounts[row.stage] = (stageCounts[row.stage] || 0) + 1; });
   const stageBars = Object.keys(stageCounts).map(stage => ({ label: stageLabel(stage), value: stageCounts[stage] }));
+  const leadStageDaysBars = avgDaysPerLeadStageBars();
+  const funnelRows = leadFunnelRows();
 
   const days = [];
   for (let i = 13; i >= 0; i--) {
@@ -1835,6 +2198,20 @@ function renderAnalyticsView() {
       <div class="kpi-card" style="padding:16px;">
         <div class="kpi-label" style="margin-bottom:10px;">Offers built (last 14 days)</div>
         ${barChartHtml(offersByDay, { color: 'var(--amber)' })}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Avg days idle by lead stage</div>
+        ${leadStageDaysBars.some(b => b.value > 0) ? barChartHtml(leadStageDaysBars, { unit: 'd' }) : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No active leads yet</div>'}
+      </div>
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Lead Funnel Conversion</div>
+        ${funnelRows.length && cachedLeads.length ? funnelRows.map(f => `
+          <div class="funnel-row">
+            <div class="funnel-head"><span class="funnel-label">${escapeHtml(f.label)}</span><span class="funnel-pct" style="color:${f.color};">${f.pct}%</span></div>
+            <div class="funnel-track"><div class="funnel-fill" style="width:${f.pct}%;background:${f.color};"></div></div>
+          </div>`).join('') : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No leads tracked yet</div>'}
       </div>
     </div>
     <div class="kpi-card" style="padding:16px;">
@@ -1895,16 +2272,103 @@ function renderDealsSubView() {
   renderContractsTable();
 }
 
-function renderContractsTable() {
-  const body = document.getElementById('dealsSubViewBody');
-  const rows = cachedProviders.slice().sort((a, b) => {
+let selectedDeals = new Set();
+let lastVisibleDealIds = [];
+let dealSortKey = 'status', dealSortDir = 1;
+const DEAL_SORT_COMPARATORS = {
+  name:       (a, b) => (a.provider_name || '').localeCompare(b.provider_name || ''),
+  category:   (a, b) => categoryLabel(a).localeCompare(categoryLabel(b)),
+  commission: (a, b) => (a.commission_pct ?? -1) - (b.commission_pct ?? -1),
+  value:      (a, b) => (negotiationFor(a)?.estimated_value_egp ?? -1) - (negotiationFor(b)?.estimated_value_egp ?? -1),
+  status:     (a, b) => {
     const order = { active: 0, draft: 1, none: 2, expired: 3, terminated: 4 };
     return (order[a.contract_status || 'none'] ?? 5) - (order[b.contract_status || 'none'] ?? 5);
+  },
+};
+
+function updateDealSortHeaders() {
+  document.querySelectorAll('#dealsSubViewBody .th-sort').forEach(th => {
+    const active = th.dataset.sort === dealSortKey;
+    th.classList.toggle('active', active);
+    const existingIcon = th.querySelector('i');
+    if (existingIcon) existingIcon.remove();
+    if (active) th.insertAdjacentHTML('beforeend', dealSortDir === 1 ? ' <i class="ti ti-arrow-up"></i>' : ' <i class="ti ti-arrow-down"></i>');
   });
+}
+
+function toggleDealSelection(providerId) {
+  if (selectedDeals.has(providerId)) selectedDeals.delete(providerId);
+  else selectedDeals.add(providerId);
+  renderContractsTable();
+}
+
+function toggleSelectAllDeals() {
+  const allSelected = lastVisibleDealIds.length > 0 && lastVisibleDealIds.every(id => selectedDeals.has(id));
+  if (allSelected) lastVisibleDealIds.forEach(id => selectedDeals.delete(id));
+  else lastVisibleDealIds.forEach(id => selectedDeals.add(id));
+  renderContractsTable();
+}
+
+function clearDealSelection() {
+  selectedDeals.clear();
+  renderContractsTable();
+}
+
+function renderDealsBulkBar() {
+  const el = document.getElementById('dealsBulkBar');
+  if (!el) return;
+  const n = selectedDeals.size;
+  if (!n) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="bulk-bar">
+      <span class="bulk-text">${n} selected</span>
+      <button class="mini-btn" type="button" onclick="exportSelectedDealsCsv()">Export CSV</button>
+      <button class="mini-btn" type="button" style="margin-left:auto;" onclick="clearDealSelection()">Clear</button>
+    </div>`;
+}
+
+function exportSelectedDealsCsv() {
+  const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = cachedProviders.filter(p => selectedDeals.has(p.id));
+  const header = ['Provider', 'Category', 'Status', 'Commission', 'Deal value EGP', 'Our commission EGP', 'Provider payout EGP'];
+  const lines = [header.join(',')];
+  rows.forEach(p => {
+    const neg = negotiationFor(p);
+    lines.push([
+      csvEscape(p.provider_name), csvEscape(categoryLabel(p)), csvEscape(CONTRACT_STATUS_LABELS[p.contract_status || 'none']),
+      p.commission_pct ?? '', neg?.estimated_value_egp ?? '', 'Not tracked yet', 'Not tracked yet',
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `wein-deals-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderContractsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const cmp = DEAL_SORT_COMPARATORS[dealSortKey] || DEAL_SORT_COMPARATORS.status;
+  const rows = cachedProviders.slice().sort((a, b) => cmp(a, b) * dealSortDir);
+  lastVisibleDealIds = rows.map(p => p.id);
   body.innerHTML = `
+    <div id="dealsBulkBar"></div>
     <div class="providers-table-wrap">
       <table class="providers-table">
-        <thead><tr><th>Provider</th><th>Status</th><th>Commission</th><th>Contract period</th><th>Deal value</th><th>Featured</th><th>Actions</th></tr></thead>
+        <thead><tr>
+          <th class="cb-col"><div class="row-cb" id="dealSelectAllCb" onclick="toggleSelectAllDeals()"></div></th>
+          <th class="th-sort" data-sort="name">Provider</th>
+          <th class="th-sort" data-sort="category">Category</th>
+          <th class="th-sort" data-sort="status">Status</th>
+          <th class="th-sort" data-sort="commission">Commission</th>
+          <th>Contract period</th>
+          <th class="th-sort" data-sort="value">Deal value</th>
+          <th>Our commission <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
+          <th>Provider payout <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
+          <th>Featured</th>
+          <th>Actions</th>
+        </tr></thead>
         <tbody>
           ${rows.length ? rows.map(p => {
             const status = p.contract_status || 'none';
@@ -1913,9 +2377,12 @@ function renderContractsTable() {
               ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}`
               : '—';
             const neg = cachedNegotiations.find(n => n.provider_id === p.id);
+            const selected = selectedDeals.has(p.id);
             return `
-              <tr>
+              <tr class="${selected ? 'row-selected' : ''}">
+                <td class="cb-col" onclick="toggleDealSelection('${p.id}')"><div class="row-cb ${selected ? 'checked' : ''}">${selected ? '✓' : ''}</div></td>
                 <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                <td><span class="cat-badge ${catBadgeClass(categoryLabel(p))}">${escapeHtml(categoryLabel(p))}</span></td>
                 <td><span style="font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span></td>
                 <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
                 <td class="mono">${period}</td>
@@ -1929,6 +2396,8 @@ function renderContractsTable() {
                         : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
                     : '<span style="color:var(--text-tertiary);">—</span>'}
                 </td>
+                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
+                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
                   ${canManageDeals() ? `
@@ -1937,10 +2406,29 @@ function renderContractsTable() {
                     </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
                 </td>
               </tr>`;
-          }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+          }).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
         </tbody>
       </table>
     </div>`;
+
+  document.querySelectorAll('#dealsSubViewBody .th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (dealSortKey === key) dealSortDir = -dealSortDir;
+      else { dealSortKey = key; dealSortDir = 1; }
+      updateDealSortHeaders();
+      renderContractsTable();
+    });
+  });
+  updateDealSortHeaders();
+
+  const selectAllCb = document.getElementById('dealSelectAllCb');
+  if (selectAllCb) {
+    const allSelected = rows.length > 0 && rows.every(p => selectedDeals.has(p.id));
+    selectAllCb.classList.toggle('checked', allSelected);
+    selectAllCb.textContent = allSelected ? '✓' : '';
+  }
+  renderDealsBulkBar();
 }
 
 function renderHotDealsTable() {
@@ -2031,13 +2519,16 @@ function leadStatusLabel(status) {
 function renderLeadsView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
-      <div>
-        <div class="view-title">Leads</div>
-        <div class="view-count">${cachedLeads.length} total</div>
+      <div style="display:flex;align-items:center;">
+        <div>
+          <div class="view-title">Leads</div>
+          <div class="view-count">${cachedLeads.length} total</div>
+        </div>
+        ${(() => { const n = cachedLeads.filter(isLeadStale).length; return n > 0 ? `<div class="stale-chip"><div class="dot"></div><span class="label">${n} stale lead${n === 1 ? '' : 's'}</span></div>` : ''; })()}
       </div>
       <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
     </div>
-    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;">
+    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <input type="text" id="leadBusinessName" placeholder="Business name" class="view-input" style="min-width:0;">
         <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="view-input" style="min-width:0;">
@@ -2052,6 +2543,7 @@ function renderLeadsView() {
         <button class="view-action" type="button" onclick="submitLead()"><span>Save lead</span></button>
       </div>
     </div>
+    ${categoryChipsHtml(leadsCatFilter, 'setLeadsCatFilter')}
     <div class="kanban-board" style="grid-template-columns:repeat(${LEAD_STAGES.length},1fr);" id="leadsKanbanBoard"></div>
     <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);">Dropped leads (${cachedLeads.filter(l => l.status === 'dropped').length}) are hidden from the board above. <button class="mini-btn" type="button" onclick="toggleShowDroppedLeads()" id="droppedToggleBtn">${showDroppedLeads ? 'Hide dropped' : 'Show dropped'}</button></div>
     <div id="droppedLeadsWrap" style="display:${showDroppedLeads ? 'block' : 'none'};margin-top:10px;"></div>`;
@@ -2062,6 +2554,12 @@ function renderLeadsView() {
 let showDroppedLeads = false;
 function toggleShowDroppedLeads() {
   showDroppedLeads = !showDroppedLeads;
+  renderLeadsView();
+}
+
+let leadsCatFilter = 'all';
+function setLeadsCatFilter(value) {
+  leadsCatFilter = value;
   renderLeadsView();
 }
 
@@ -2087,25 +2585,106 @@ function renderDroppedLeadsTable() {
 function leadCardHtml(lead) {
   const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
   const isLast = stageIdx === LEAD_STAGES.length - 1;
+  const isFirst = stageIdx === 0;
   const nextLabel = isLast ? null : LEAD_STAGES[stageIdx + 1].label;
   const metaBits = [lead.vertical, lead.location].filter(Boolean);
+  const stale = isLeadStale(lead);
   return `
-    <div class="provider-card">
+    <div class="provider-card" data-lead-id="${lead.id}" onclick="openLeadDrawer('${lead.id}')" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
       <div class="pc-name">${escapeHtml(lead.business_name || 'Unnamed')}</div>
-      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? 'pc-meta-cat' : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}</div>` : ''}
+      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}</div>` : ''}
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
-        ${!isLast ? `<button class="mini-btn" type="button" onclick="advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
-        ${canDelete() ? `<button class="mini-btn" type="button" onclick="deleteLead('${lead.id}')" style="color:var(--red);" title="Delete"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
+        ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
+        ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
+        ${canDelete() ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();deleteLead('${lead.id}')" style="color:var(--red);" title="Delete"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
       </div>
     </div>`;
 }
+
+// ════════════════════════════════════════════════════════════════════
+// LEAD DETAIL DRAWER
+// Built only from real wein_leads columns (business_name, vertical,
+// location, why_promising, source, status, created_by, created_at,
+// updated_at) -- there is no notes/activity-log table for leads yet,
+// so the activity feed below is derived from real timestamps only,
+// and there is intentionally no "add note" box (would silently do
+// nothing without a schema change).
+// ════════════════════════════════════════════════════════════════════
+function openLeadDrawer(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  window.currentLeadId = leadId;
+  const stageIdx = Math.max(0, LEAD_STAGES.findIndex(s => s.id === lead.status));
+  const stage = LEAD_STAGES[stageIdx] || LEAD_STAGES[0];
+  const days = daysSince(lead.updated_at || lead.created_at);
+  const stale = isLeadStale(lead);
+
+  document.getElementById('lead-drawer-cat').className = `cat-badge ${catBadgeClass(lead.vertical)}`;
+  document.getElementById('lead-drawer-cat').textContent = lead.vertical || '—';
+  document.getElementById('lead-drawer-name').textContent = lead.business_name || 'Unnamed';
+  document.getElementById('lead-drawer-stage-label').textContent = stage.label;
+  document.getElementById('lead-drawer-stage-label').style.color = stage.color;
+  document.getElementById('lead-drawer-stage-count').textContent = `Stage ${stageIdx + 1} of ${LEAD_STAGES.length}`;
+  document.getElementById('lead-drawer-dots').innerHTML = LEAD_STAGES.map((s, idx) =>
+    `<div class="stage-dot" style="width:${idx === stageIdx ? '20px' : '8px'};${idx <= stageIdx ? `background:${s.color};border-color:${s.color};` : ''}"></div>`
+  ).join('');
+  document.getElementById('lead-drawer-owner').textContent = lead.created_by || '—';
+  document.getElementById('lead-drawer-days').textContent = `${days}d${stale ? ' · stale' : ''}`;
+  document.getElementById('lead-drawer-days').style.color = stale ? 'var(--red)' : (days >= 4 ? 'var(--amber)' : 'var(--text-secondary)');
+
+  const acts = [];
+  if (lead.updated_at && lead.updated_at !== lead.created_at) {
+    acts.push({ text: `Status: ${leadStatusLabel(lead.status)}`, time: new Date(lead.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), hue: stage.color });
+  }
+  acts.push({ text: `Lead added${lead.source ? ' via ' + lead.source : ''}`, time: lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—', hue: 'var(--text-tertiary)' });
+  document.getElementById('lead-drawer-activity').innerHTML = acts.map(a =>
+    `<div class="lead-act-row"><div class="lead-act-dot" style="background:${a.hue}"></div><div><div class="lead-act-text">${escapeHtml(a.text)}</div><div class="lead-act-time">${a.time}</div></div></div>`
+  ).join('');
+  document.getElementById('lead-drawer-why').innerHTML = lead.why_promising
+    ? `<div style="border-top:.5px solid var(--border-subtle);padding-top:14px;"><div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Why promising</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">${escapeHtml(lead.why_promising)}</div></div>`
+    : '';
+
+  const noteEl = document.getElementById('lead-drawer-note');
+  noteEl.value = lead.notes || '';
+  document.getElementById('lead-drawer-note-save').onclick = async () => {
+    const btn = document.getElementById('lead-drawer-note-save');
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+    await saveLeadNote(lead.id, noteEl.value);
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save note'; btn.disabled = false; }, 1200);
+  };
+
+  const isLast = stageIdx === LEAD_STAGES.length - 1;
+  const isFirst = stageIdx === 0;
+  const isDropped = lead.status === 'dropped';
+  document.getElementById('lead-drawer-foot').innerHTML = isDropped ? '' : `
+    <div style="display:flex;flex-direction:column;width:100%;">
+      <div style="display:flex;gap:9px;width:100%;">
+        ${!isFirst ? `<button class="lead-drawer-back" onclick="retreatLead('${lead.id}');closeLeadDrawer();">← Move back</button>` : ''}
+        ${!isLast ? `<button class="lead-drawer-advance" onclick="advanceLead('${lead.id}');closeLeadDrawer();">${stageIdx === LEAD_STAGES.length - 2 ? 'Promote →' : 'Advance to ' + LEAD_STAGES[stageIdx + 1].label + ' →'}</button>` : ''}
+      </div>
+      <button type="button" onclick="if(confirm('Drop this lead?')){dropLead('${lead.id}');closeLeadDrawer();}" style="width:100%;margin-top:8px;background:transparent;border:none;color:var(--red);font-size:11px;font-weight:600;cursor:pointer;padding:2px;">Drop lead</button>
+    </div>`;
+
+  document.getElementById('lead-drawer-backdrop').style.display = 'block';
+}
+
+function closeLeadDrawer() {
+  document.getElementById('lead-drawer-backdrop').style.display = 'none';
+  window.currentLeadId = null;
+}
+
+document.getElementById('lead-drawer-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeLeadDrawer();
+});
 
 function renderLeadsKanban() {
   const board = document.getElementById('leadsKanbanBoard');
   if (!board) return;
   board.innerHTML = LEAD_STAGES.map(stage => {
-    const items = cachedLeads.filter(l => l.status === stage.id);
+    const items = cachedLeads.filter(l => l.status === stage.id && matchesCategoryFilter(l.vertical, leadsCatFilter));
     const cardsHtml = items.length ? items.map(leadCardHtml).join('') : `<div class="empty-col">No leads</div>`;
     return `
       <div class="kanban-col">
@@ -2160,6 +2739,29 @@ async function dropLead(leadId) {
     await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'dropped', updated_at: new Date().toISOString() });
     await loadDashboard();
   } catch (e) { console.error('dropLead error:', e); }
+}
+
+async function retreatLead(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
+  if (stageIdx <= 0) return;
+  const prevStage = LEAD_STAGES[stageIdx - 1].id;
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: prevStage, updated_at: new Date().toISOString() });
+    await loadDashboard();
+  } catch (e) { console.error('retreatLead error:', e); alert('Could not move lead back: ' + e.message); }
+}
+
+async function saveLeadNote(leadId, note) {
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { notes: note });
+    const lead = cachedLeads.find(l => l.id === leadId);
+    if (lead) lead.notes = note;
+  } catch (e) {
+    console.error('saveLeadNote error:', e);
+    alert('Could not save note. If this is the first time, someone needs to run the 030_lead_notes.sql migration in Supabase (adds the `notes` column to wein_leads).');
+  }
 }
 
 async function deleteLead(leadId) {
@@ -2232,7 +2834,7 @@ function launchCardHtml(provider) {
     <div class="provider-card" onclick="openProviderModal('${provider.id}', '')">
       <div class="pc-name">${escapeHtml(provider.provider_name)}</div>
       <div class="pc-meta">
-        <span class="pc-meta-cat">${escapeHtml(provider.vertical || provider.category || '—')}</span>
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(provider.vertical || provider.category)}">${escapeHtml(provider.vertical || provider.category || '—')}</span>
       </div>
       <div class="table-actions" style="margin-top:8px;">
         ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLaunch('${provider.id}')"><span>→ ${LAUNCH_STAGES[stageIdx + 1].label}</span></button>` : ''}
@@ -2280,13 +2882,15 @@ function providerCardHtml(item) {
   const date = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
   const safeName = p.provider_name.replace(/'/g, "\\'");
   const dealBreaker = item.dealBreaker;
+  const stale = isStale(p);
   return `
-    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
+    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
       <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}${p.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-left:4px;" title="Featured / Hot Deal"></i>` : ''}</div>
       <div class="pc-meta">
-        <span class="pc-meta-cat">${p.vertical || p.category || '—'}</span>
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(p.vertical || p.category)}">${p.vertical || p.category || '—'}</span>
         ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
         <span class="pc-meta-date mono">${date}</span>
+        ${stale ? `<span class="stale-tag">${daysSince(item.updatedAt)}d</span>` : ''}
       </div>
       <div class="pc-row">
         <span class="pc-badge mono">${item.offerCount} offers</span>
