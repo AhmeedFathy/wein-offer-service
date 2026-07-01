@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portal",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "7823", "--directory", "portal"],
+      "port": 7823
+    },
+    {
+      "name": "portal-alt",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "7824", "--directory", "portal"],
+      "port": 7824
+    }
+  ]
+}
