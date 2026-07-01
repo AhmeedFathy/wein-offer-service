@@ -841,14 +841,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
             padding:8px 10px;font-family:'Instrument Sans';font-size:12px;
             color:var(--text-primary);resize:none;height:64px;outline:none;box-sizing:border-box;
           "></textarea>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-            <select id="comment-author-role" style="
-              font-family:'Instrument Sans';font-size:11px;background:var(--bg-elevated);
-              border:0.5px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text-secondary);outline:none;
-            ">
-              <option value="admin">Ahmed (Admin)</option>
-              <option value="deal_breaker">Deal Breaker</option>
-            </select>
+          <div style="display:flex;justify-content:flex-end;align-items:center;margin-top:6px;">
             <button onclick="submitComment()" style="
               font-family:'Instrument Sans';font-size:11px;
               background:var(--blue-tint);border:0.5px solid var(--border-blue);
@@ -911,6 +904,7 @@ function canDelete() {
   return role === 'admin' || role === 'manager';
 }
 const canManageDeals = canDelete;
+const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
 
 // ── Auth: PIN fallback ──
 const PIN_ROLES = { '1986': 'admin', '2026': 'manager', '5555': 'deal_breaker', '1234': 'team' };
@@ -1366,7 +1360,6 @@ function renderSettingsView() {
   const role = sessionStorage.getItem('weinRole') || '—';
   const fullName = window.WEIN?.fullName || role;
   const authMode = sessionStorage.getItem('weinAuthMode') === 'email' ? 'Email account' : 'Access code';
-  const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
       <div>
@@ -1718,10 +1711,6 @@ function renderProvidersView() {
       <select id="providerCategoryFilter" class="view-select">
         <option value="all">All categories</option>
         <option value="Dining">Dining</option>
-        <option value="Fitness">Fitness</option>
-        <option value="Activity">Activity</option>
-        <option value="Spa">Spa</option>
-        <option value="Hotel">Hotel</option>
         <option value="Health & Beauty">Health & Beauty</option>
         <option value="Fun & Activities">Fun & Activities</option>
         <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
@@ -3039,21 +3028,25 @@ async function deleteComment(commentId) {
 
 function renderComments(comments) {
   const commentsEl = document.getElementById('modal-comments');
+  const myName = window.WEIN?.fullName || ROLE_LABELS[sessionStorage.getItem('weinRole')] || '';
   commentsEl.innerHTML = comments.length ? comments.map(c => {
-    const isAdmin = c.author_role === 'admin';
+    const isMine = !!myName && c.author_name === myName;
+    const authorLabel = ROLE_LABELS[c.author_role] && c.author_name !== ROLE_LABELS[c.author_role]
+      ? `${escapeHtml(c.author_name)} (${ROLE_LABELS[c.author_role]})`
+      : escapeHtml(c.author_name || ROLE_LABELS[c.author_role] || 'Unknown');
     const delBtn = canDelete() ? `<button type="button" onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;display:inline-flex;margin-left:6px;"><i class="ti ti-trash" style="font-size:11px;"></i></button>` : '';
-    return isAdmin ? `
+    return isMine ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
         <div style="background:var(--blue-tint);border:0.5px solid var(--border-blue);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
-          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${escapeHtml(c.body)}</div>
         </div>
-        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}${delBtn}</div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${authorLabel} · ${timeAgo(c.created_at)}${delBtn}</div>
       </div>` : `
       <div style="display:flex;flex-direction:column;align-items:flex-start;">
         <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px 6px 6px 0;padding:7px 10px;max-width:85%;">
-          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${c.body}</div>
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${escapeHtml(c.body)}</div>
         </div>
-        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${c.author_name} · ${timeAgo(c.created_at)}${delBtn}</div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${authorLabel} · ${timeAgo(c.created_at)}${delBtn}</div>
       </div>`;
   }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>';
   commentsEl.scrollTop = commentsEl.scrollHeight;
@@ -3061,9 +3054,9 @@ function renderComments(comments) {
 
 async function submitComment() {
   const body = document.getElementById('comment-input').value.trim();
-  const role = document.getElementById('comment-author-role').value;
-  const name = role === 'admin' ? 'Ahmed' : 'Deal Breaker';
   if (!body || !window.currentNegotiationId) return;
+  const role = sessionStorage.getItem('weinRole') || 'team';
+  const name = window.WEIN?.fullName || ROLE_LABELS[role] || role;
 
   await sbPost('wein_comments', {
     negotiation_id: window.currentNegotiationId,
