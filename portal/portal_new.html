@@ -200,6 +200,14 @@ a { color: var(--blue); text-decoration: none; }
 .view-input,.view-select { height:34px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;padding:0 10px;outline:none; }
 .contract-field { width:100%;height:32px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:0 9px;outline:none;box-sizing:border-box; }
 .contract-field:focus { border-color:var(--border-blue-strong); }
+.ap-textarea { height:auto;min-height:52px;padding:7px 9px;resize:vertical;font-family:'Instrument Sans'; }
+.ap-field { display:flex;flex-direction:column;gap:3px;margin-bottom:10px; }
+.ap-field label { font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px; }
+.ap-step-dot { width:22px;height:22px;border-radius:50%;background:var(--bg-elevated);border:0.5px solid var(--border);color:var(--text-tertiary);font-family:'Instrument Sans';font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center; }
+.ap-step-dot.active { background:var(--blue);border-color:var(--blue);color:#fff; }
+.ap-step-dot.done { background:var(--blue-tint);border-color:var(--border-blue);color:var(--blue); }
+.ap-btn-primary { height:34px;padding:0 16px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-family:'Instrument Sans';font-size:12px;font-weight:600;cursor:pointer;width:100%; }
+.ap-btn-primary:disabled { opacity:0.6;cursor:default; }
 .view-input { min-width:220px;flex:1; }
 .view-select { min-width:140px; }
 .providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(0,0,0,.14); }
@@ -663,6 +671,77 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button type="button" onclick="closeContractEditor()" class="mini-btn" style="height:32px;padding:0 14px;">Cancel</button>
       <button type="button" onclick="saveContractEditor()" style="height:32px;padding:0 16px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-family:'Instrument Sans';font-size:12px;font-weight:600;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADD PROVIDER (3-step intake wizard) ══════════════ -->
+<div id="add-provider-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:600; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-surface); border:0.5px solid var(--border); border-radius:10px; width:460px; max-width:92vw; max-height:88vh; overflow-y:auto; padding:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);">Add Provider</div>
+      <button type="button" onclick="closeAddProviderWizard()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;">
+      <div id="apDot1" class="ap-step-dot active">1</div>
+      <div id="apDot2" class="ap-step-dot">2</div>
+      <div id="apDot3" class="ap-step-dot">3</div>
+    </div>
+
+    <div id="apPane1">
+      <div style="font-family:'Instrument Sans';font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Provider Information</div>
+      <div class="ap-field"><label>Provider Name *</label><input type="text" id="apName" class="contract-field" placeholder="e.g. Almayass Grand Restaurant"></div>
+      <div class="ap-field"><label>Category *</label>
+        <select id="apVertical" class="contract-field">
+          <option value="">Select…</option>
+          <option value="Dining">Dining</option>
+          <option value="Health & Beauty">Health & Beauty</option>
+          <option value="Fun & Activities">Fun & Activities</option>
+          <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="ap-field"><label>Contact Name</label><input type="text" id="apContactName" class="contract-field"></div>
+        <div class="ap-field"><label>Contact Phone</label><input type="text" id="apContactPhone" class="contract-field" placeholder="+20 ..."></div>
+      </div>
+      <div class="ap-field"><label>Location / Area</label><input type="text" id="apLocation" class="contract-field" placeholder="e.g. Naama Bay, Soho Square, Nabq Bay"></div>
+      <div class="ap-field"><label>View / Atmosphere</label><input type="text" id="apAtmosphere" class="contract-field" placeholder="e.g. Sea view terrace, rooftop, beachfront"></div>
+      <div id="apAlert1" style="color:var(--red,#e5484d);font-family:'Instrument Sans';font-size:11px;margin-bottom:8px;"></div>
+      <button type="button" onclick="addProviderGoStep(2)" class="ap-btn-primary">Next: Constraints →</button>
+    </div>
+
+    <div id="apPane2" style="display:none;">
+      <div style="font-family:'Instrument Sans';font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Constraints <span style="font-weight:400;color:var(--text-tertiary);text-transform:none;">(these become hard rules the pipeline can't violate)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="ap-field"><label>Minimum Spend (EGP)</label><input type="text" id="apMinSpend" class="contract-field" placeholder="e.g. 250 — leave blank if none"></div>
+        <div class="ap-field"><label>Max Group Size</label><input type="text" id="apMaxGroup" class="contract-field"></div>
+      </div>
+      <div class="ap-field"><label>Peak Hours / Moments</label><input type="text" id="apPeakHours" class="contract-field" placeholder="e.g. Friday brunch, sunset hours"></div>
+      <div class="ap-field"><label>Blackout Dates</label><input type="text" id="apBlackout" class="contract-field"></div>
+      <div class="ap-field"><label>Items Excluded from Discounts</label><textarea id="apExcluded" class="contract-field ap-textarea" placeholder="e.g. Alcohol, Premium cuts, Set menus"></textarea></div>
+      <div class="ap-field"><label>Special Terms or Notes</label><textarea id="apTerms" class="contract-field ap-textarea"></textarea></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="addProviderGoStep(1)" class="mini-btn" style="height:32px;padding:0 14px;">← Back</button>
+        <button type="button" onclick="addProviderGoStep(3)" class="ap-btn-primary" style="flex:1;">Next: Menu →</button>
+      </div>
+    </div>
+
+    <div id="apPane3" style="display:none;">
+      <div style="font-family:'Instrument Sans';font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Menu</div>
+      <div class="ap-field"><label>Menu Link</label><input type="text" id="apMenuLink" class="contract-field" placeholder="https://..."></div>
+      <div class="ap-field"><label>— or — Menu Text</label><textarea id="apMenuText" class="contract-field ap-textarea" placeholder="Paste menu items…" style="min-height:80px;"></textarea></div>
+      <div style="background:var(--blue-tint,rgba(0,129,253,0.1));border:0.5px solid var(--border-blue,rgba(0,129,253,0.3));border-radius:6px;padding:8px 10px;margin-bottom:12px;font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);">
+        <i class="ti ti-info-circle" style="color:var(--blue);"></i> Ask the provider what sells best before you leave. This helps us build stronger offers that the provider will actually accept.
+      </div>
+      <div style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Sales Intelligence <span style="font-weight:400;text-transform:none;">(ask the provider during your visit)</span></div>
+      <div class="ap-field"><label>Top selling items</label><textarea id="apTopSelling" class="contract-field ap-textarea" placeholder="What sells most? e.g. Lamb Ribs, Mixed Grill, Family platters…"></textarea></div>
+      <div class="ap-field"><label>Mid selling items</label><textarea id="apMidSelling" class="contract-field ap-textarea" placeholder="Regularly ordered… e.g. Pasta, Salads, Chicken dishes…"></textarea></div>
+      <div class="ap-field"><label>Low / slow items</label><textarea id="apLowSelling" class="contract-field ap-textarea" placeholder="Rarely ordered or provider wants to move… e.g. Fish special, Daily soup…"></textarea></div>
+      <div id="apAlert3" style="color:var(--red,#e5484d);font-family:'Instrument Sans';font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="addProviderGoStep(2)" class="mini-btn" style="height:32px;padding:0 14px;">← Back</button>
+        <button type="button" id="apSubmitBtn" onclick="submitAddProvider()" class="ap-btn-primary" style="flex:1;">Submit Provider</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1677,36 +1756,122 @@ function providerRows() {
   });
 }
 
-let addProviderFormVisible = false;
-function toggleAddProviderForm() {
-  addProviderFormVisible = !addProviderFormVisible;
-  const form = document.getElementById('addProviderForm');
-  if (form) form.style.display = addProviderFormVisible ? 'block' : 'none';
+// ── Add Provider — 3-step intake wizard ──────────────────────────────────
+// Feeds two things the rest of the system now depends on: provider_profiles
+// (read by n8n's "Get Provider T&Cs" + injected as HARD RULES into every
+// offer-generation run) and menu_submitted_at (the queue flag the
+// "WeIN — Provider Intake Poller" workflow watches to auto-trigger
+// generation, since the portal can never reach local n8n directly).
+let addProviderStep = 1;
+function openAddProviderWizard() {
+  addProviderStep = 1;
+  document.getElementById('add-provider-backdrop').style.display = 'flex';
+  renderAddProviderStep();
 }
+function closeAddProviderWizard() {
+  document.getElementById('add-provider-backdrop').style.display = 'none';
+}
+function addProviderGoStep(n) {
+  if (n === 2 && !document.getElementById('apName').value.trim()) {
+    document.getElementById('apAlert1').textContent = 'Provider name is required.';
+    return;
+  }
+  if (n === 2 && !document.getElementById('apVertical').value) {
+    document.getElementById('apAlert1').textContent = 'Please select a category.';
+    return;
+  }
+  addProviderStep = n;
+  renderAddProviderStep();
+}
+function renderAddProviderStep() {
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`apDot${i}`);
+    if (dot) { dot.classList.toggle('active', i === addProviderStep); dot.classList.toggle('done', i < addProviderStep); }
+    const pane = document.getElementById(`apPane${i}`);
+    if (pane) pane.style.display = i === addProviderStep ? 'block' : 'none';
+  }
+}
+async function submitAddProvider() {
+  const provider_name = document.getElementById('apName').value.trim();
+  if (!provider_name) { addProviderGoStep(1); return; }
+  const vertical = document.getElementById('apVertical').value;
+  const location = document.getElementById('apLocation').value.trim();
+  const atmosphere = document.getElementById('apAtmosphere').value.trim();
+  const contact_name = document.getElementById('apContactName').value.trim();
+  const contact_phone = document.getElementById('apContactPhone').value.trim();
+  const minimum_spend = document.getElementById('apMinSpend').value.trim();
+  const max_group_size = document.getElementById('apMaxGroup').value.trim();
+  const peak_hours = document.getElementById('apPeakHours').value.trim();
+  const blackout_dates = document.getElementById('apBlackout').value.trim();
+  const excluded_items = document.getElementById('apExcluded').value.trim();
+  const special_terms = document.getElementById('apTerms').value.trim();
+  const menu_link = document.getElementById('apMenuLink').value.trim();
+  const menu_text = document.getElementById('apMenuText').value.trim();
+  const top_selling_items = document.getElementById('apTopSelling').value.trim();
+  const mid_selling_items = document.getElementById('apMidSelling').value.trim();
+  const low_selling_items = document.getElementById('apLowSelling').value.trim();
 
-async function submitProvider() {
-  const provider_name = document.getElementById('newProviderName').value.trim();
-  if (!provider_name) return;
-  const vertical = document.getElementById('newProviderVertical').value;
-  const location = document.getElementById('newProviderLocation').value.trim();
-  const contact_name = document.getElementById('newProviderContactName').value.trim();
-  const contact_phone = document.getElementById('newProviderContactPhone').value.trim();
+  const btn = document.getElementById('apSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const slug = provider_name.toLowerCase().trim()
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
+    const hasMenu = !!(menu_link || menu_text);
     const [provider] = await sbPost('wein_providers', {
       provider_name, provider_slug: slug,
       vertical: vertical || null, category: vertical || null,
-      location: location || null,
+      location: location || null, view_or_atmosphere: atmosphere || null,
+      peak_moments: peak_hours || null,
       contact_name: contact_name || null, contact_phone: contact_phone || null,
+      menu_link: menu_link || null, menu_text: menu_text || null,
+      top_selling_items: top_selling_items || null,
+      mid_selling_items: mid_selling_items || null,
+      low_selling_items: low_selling_items || null,
+      menu_submitted_at: hasMenu ? new Date().toISOString() : null,
     });
+
+    // provider_profiles: this is what makes the constraints actually enforced
+    // by the pipeline (HARD RULES injection + deterministic min-spend guard).
+    const profileBody = {};
+    if (vertical) profileBody.vertical = vertical;
+    if (location) profileBody.location = location;
+    if (atmosphere) profileBody.view_or_atmosphere = atmosphere;
+    if (peak_hours) profileBody.peak_hours = peak_hours;
+    if (minimum_spend) profileBody.minimum_spend = minimum_spend;
+    if (max_group_size) profileBody.max_group_size = max_group_size;
+    if (blackout_dates) profileBody.blackout_dates = blackout_dates;
+    if (excluded_items) profileBody.excluded_items = excluded_items;
+    if (special_terms) profileBody.special_terms = special_terms;
+    if (contact_name) profileBody.contact_name = contact_name;
+    if (contact_phone) profileBody.contact_phone = contact_phone;
+    if (Object.keys(profileBody).length) {
+      const existing = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(provider_name)}&select=id`);
+      if (existing.length) await sbPatch(`provider_profiles?id=eq.${existing[0].id}`, profileBody);
+      else await sbPost('provider_profiles', { provider_name, ...profileBody });
+    }
+
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
+      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+      stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
     });
-    addProviderFormVisible = false;
+
+    closeAddProviderWizard();
+    resetAddProviderForm();
     await loadDashboard();
-  } catch (e) { console.error('submitProvider error:', e); alert('Could not add provider: ' + e.message); }
+  } catch (e) {
+    console.error('submitAddProvider error:', e);
+    document.getElementById('apAlert3').textContent = 'Could not save: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit Provider';
+  }
+}
+function resetAddProviderForm() {
+  ['apName','apLocation','apAtmosphere','apContactName','apContactPhone','apMinSpend','apMaxGroup',
+   'apPeakHours','apBlackout','apExcluded','apTerms','apMenuLink','apMenuText','apTopSelling','apMidSelling','apLowSelling']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const v = document.getElementById('apVertical'); if (v) v.value = '';
+  ['apAlert1','apAlert3'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
 }
 
 function renderProvidersView() {
@@ -1716,28 +1881,7 @@ function renderProvidersView() {
         <div class="view-title">Providers</div>
         <div class="view-count">${cachedProviders.length} total</div>
       </div>
-      <button class="view-action" type="button" onclick="toggleAddProviderForm()"><i class="ti ti-plus"></i><span>Add Provider</span></button>
-    </div>
-    <div id="addProviderForm" style="display:${addProviderFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <input type="text" id="newProviderName" placeholder="Provider name" class="view-input" style="min-width:0;">
-        <select id="newProviderVertical" class="view-select" style="min-width:0;">
-          <option value="">Select category…</option>
-          <option value="Dining">Dining</option>
-          <option value="Health & Beauty">Health & Beauty</option>
-          <option value="Fun & Activities">Fun & Activities</option>
-          <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
-        </select>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-        <input type="text" id="newProviderLocation" placeholder="Location" class="view-input" style="min-width:0;">
-        <input type="text" id="newProviderContactName" placeholder="Contact name" class="view-input" style="min-width:0;">
-        <input type="text" id="newProviderContactPhone" placeholder="Contact phone" class="view-input" style="min-width:0;">
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button class="mini-btn" type="button" onclick="toggleAddProviderForm()">Cancel</button>
-        <button class="view-action" type="button" onclick="submitProvider()"><span>Save provider</span></button>
-      </div>
+      <button class="view-action" type="button" onclick="openAddProviderWizard()"><i class="ti ti-plus"></i><span>Add Provider</span></button>
     </div>
     <div class="view-filterbar">
       <input id="providerSearch" class="view-input" type="search" placeholder="Search providers">
@@ -3773,6 +3917,10 @@ async function saveContractEditor() {
 
 document.getElementById('contract-editor-backdrop').addEventListener('click', function (e) {
   if (e.target === this) closeContractEditor();
+});
+
+document.getElementById('add-provider-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeAddProviderWizard();
 });
 
 document.addEventListener('click', function (e) {
