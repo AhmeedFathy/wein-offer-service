@@ -3670,12 +3670,37 @@ async function renderModalOffers(providerId, token) {
   try {
     const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=status.asc`);
     if (token !== modalOpenToken) return;
-    // Archived (pre-migration legacy) rows are history, not something a deal breaker acts on here.
+    // Archived (pre-migration legacy) rows are history: shown collapsed under
+    // a toggle, clearly labeled, with no accept/reject actions.
     const visible = offers.filter(o => (o.status || 'archived') !== 'archived');
+    const archived = offers.filter(o => (o.status || 'archived') === 'archived');
     const order = { pending: 0, accepted: 1, rejected: 2 };
     visible.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
 
-    offersEl.innerHTML = visible.length ? visible.map(o => {
+    const archivedHtml = archived.length ? `
+      <button type="button" class="mini-btn" style="width:100%;justify-content:center;color:var(--text-tertiary);"
+        onclick="const w=document.getElementById('modal-archived-offers');const open=w.style.display==='none';w.style.display=open?'flex':'none';this.querySelector('span').textContent=open?'Hide ${archived.length} archived offers':'Show ${archived.length} archived offers (old runs)';">
+        <i class="ti ti-archive"></i><span>Show ${archived.length} archived offers (old runs)</span>
+      </button>
+      <div id="modal-archived-offers" style="display:none;flex-direction:column;gap:6px;">
+        ${archived.map(o => `
+        <div style="background:var(--bg-elevated);border:0.5px dashed var(--border);border-radius:6px;padding:9px 11px;opacity:.65;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div style="min-width:0;flex:1;">
+              <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:var(--text-primary);line-height:1.25;">${escapeHtml(o.title || 'Untitled offer')}</div>
+              <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);margin-top:3px;">${escapeHtml(o.category || '—')} · v${o.version ?? '—'}</div>
+            </div>
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;flex-shrink:0;">Archived</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);">${discountPctLabel(o.discount_pct) != null ? discountPctLabel(o.discount_pct) + '% off' : ''}</span>
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
+            <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
+          </div>
+        </div>`).join('')}
+      </div>` : '';
+
+    offersEl.innerHTML = (visible.length ? visible.map(o => {
       const st = o.status || 'pending';
       const dimmed = st === 'rejected' ? 'opacity:0.55;' : '';
       const badge = st === 'accepted'
@@ -3703,7 +3728,7 @@ async function renderModalOffers(providerId, token) {
         </div>
         ${actions ? `<div style="display:flex;gap:6px;">${actions}</div>` : ''}
       </div>`;
-    }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>';
+    }).join('') : (archived.length ? '' : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>')) + archivedHtml;
   } catch (e) {
     if (token === modalOpenToken) offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>';
   }
