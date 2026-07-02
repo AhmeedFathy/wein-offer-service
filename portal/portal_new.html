@@ -529,6 +529,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
     </div>
     <div class="nav-subitems" data-group-items="insights">
       <div class="nav-item" data-view="analytics"><i class="ti ti-chart-bar"></i><span>Analytics</span></div>
+      <div class="nav-item" data-view="map"><i class="ti ti-map-pin"></i><span>Map</span></div>
       <div class="nav-item" data-view="offers"><i class="ti ti-tag"></i><span>Offers</span><span class="nav-count" data-count="offers"></span></div>
     </div>
   </div>
@@ -755,6 +756,17 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
         <input type="text" id="modal-contact-name" placeholder="Contact name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
         <input type="text" id="modal-contact-phone" placeholder="Phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
         <input type="text" id="modal-contact-whatsapp" placeholder="WhatsApp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
+      </div>
+    </div>
+
+    <!-- Onboarding progress strip + next-action (derived from real stage/contract/launch data) -->
+    <div style="padding:9px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:16px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
+      <div id="modal-onboard-strip" style="display:flex;align-items:center;flex:1;min-width:280px;"></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <i class="ti ti-calendar-check" style="font-size:13px;color:var(--text-tertiary);" title="Next action"></i>
+        <input type="date" id="modal-na-date" style="background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'Instrument Sans';font-size:11px;padding:4px 7px;outline:none;">
+        <input type="text" id="modal-na-note" placeholder="Next action…" style="background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:'Instrument Sans';font-size:11px;padding:4px 7px;outline:none;width:150px;">
+        <button id="modal-na-save" type="button" class="mini-btn"><span>Set</span></button>
       </div>
     </div>
 
@@ -1194,8 +1206,8 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { today: 'Today', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
-const VIEW_GROUP = { today: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', offers: 'insights', files: 'system', settings: 'system' };
+const PAGE_TITLES = { today: 'Today', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const VIEW_GROUP = { today: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', files: 'system', settings: 'system' };
 let currentView = 'pipeline';
 
 function setNavGroupOpen(groupId, open) {
@@ -1312,6 +1324,7 @@ function refreshNavCounts() {
 
 function renderCurrentView() {
   if (currentView === 'today') { renderTodayView(); return; }
+  if (currentView === 'map') { renderMapView(); return; }
   if (currentView === 'providers') { renderProvidersView(); return; }
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
@@ -1574,7 +1587,7 @@ function renderKanban() {
     if (!col) return; // rejected/unmapped -- not shown, matches STAGE_COLUMNS.rejected = null intent
     const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
     const dealBreaker = (neg && neg.deal_breaker) ? neg.deal_breaker : 'deal_breaker';
-    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker, negotiationId: neg ? neg.id : null });
+    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker, negotiationId: neg ? neg.id : null, stageEnteredAt: neg ? neg.stage_entered_at : null });
   });
 
   board.innerHTML = COLUMNS.map(col => {
@@ -1689,7 +1702,7 @@ async function submitProvider() {
     });
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected',
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
     });
     addProviderFormVisible = false;
     await loadDashboard();
@@ -2415,12 +2428,25 @@ function exportSelectedDealsCsv() {
   URL.revokeObjectURL(url);
 }
 
+// Days until contract_end: negative = already expired, null = no end date
+// or contract not active/signed (draft/none contracts don't "expire").
+function contractExpiry(p) {
+  if (!p.contract_end || !['active', 'signed'].includes(p.contract_status)) return null;
+  const end = new Date(p.contract_end); end.setHours(23, 59, 59, 999);
+  return Math.ceil((end - Date.now()) / 86400000);
+}
+
 function renderContractsTable() {
   const body = document.getElementById('dealsSubViewBody');
   const cmp = DEAL_SORT_COMPARATORS[dealSortKey] || DEAL_SORT_COMPARATORS.status;
   const rows = cachedProviders.slice().sort((a, b) => cmp(a, b) * dealSortDir);
   lastVisibleDealIds = rows.map(p => p.id);
+  const expiring = cachedProviders.filter(p => { const e = contractExpiry(p); return e !== null && e <= 30; });
   body.innerHTML = `
+    ${expiring.length ? `<div style="display:flex;align-items:center;gap:8px;background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--amber);">
+      <i class="ti ti-alert-triangle"></i>
+      <span><b>${expiring.length}</b> contract${expiring.length === 1 ? '' : 's'} expiring within 30 days or already expired: ${expiring.map(p => escapeHtml(p.provider_name)).join(', ')}</span>
+    </div>` : ''}
     <div id="dealsBulkBar"></div>
     <div class="providers-table-wrap">
       <table class="providers-table">
@@ -2441,13 +2467,14 @@ function renderContractsTable() {
           ${rows.length ? rows.map(p => {
             const status = p.contract_status || 'none';
             const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+            const exp = contractExpiry(p);
             const period = (p.contract_start || p.contract_end)
-              ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}`
+              ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}${exp !== null && exp <= 30 ? ` <span style="font-size:9px;font-weight:700;color:${exp < 0 ? 'var(--red)' : 'var(--amber)'};">${exp < 0 ? `EXPIRED ${-exp}d ago` : `${exp}d left`}</span>` : ''}`
               : '—';
             const neg = cachedNegotiations.find(n => n.provider_id === p.id);
             const selected = selectedDeals.has(p.id);
             return `
-              <tr class="${selected ? 'row-selected' : ''}">
+              <tr class="${selected ? 'row-selected' : ''}" style="${exp !== null && exp < 0 ? 'box-shadow: inset 3px 0 0 var(--red);' : exp !== null && exp <= 30 ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
                 <td class="cb-col" onclick="toggleDealSelection('${p.id}')"><div class="row-cb ${selected ? 'checked' : ''}">${selected ? '✓' : ''}</div></td>
                 <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
                 <td><span class="cat-badge ${catBadgeClass(categoryLabel(p))}">${escapeHtml(categoryLabel(p))}</span></td>
@@ -2584,6 +2611,195 @@ function leadStatusLabel(status) {
   return (LEAD_STAGES.find(s => s.id === status) || LEAD_STAGES[0]).label;
 }
 
+// ── CSV lead import: parse → map columns → preview → batch insert ────
+function parseCsv(text) {
+  const delim = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some(f => f.trim() !== '')) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+  return rows;
+}
+const CSV_FIELDS = ['ignore', 'business_name', 'vertical', 'location', 'contact_phone', 'source', 'why_promising', 'notes'];
+function guessCsvField(header) {
+  const h = header.toLowerCase();
+  if (/(business|company|provider|venue|^name)/.test(h)) return 'business_name';
+  if (/(vertical|category|type)/.test(h)) return 'vertical';
+  if (/(location|area|address|place)/.test(h)) return 'location';
+  if (/(phone|mobile|whatsapp|contact)/.test(h)) return 'contact_phone';
+  if (/source/.test(h)) return 'source';
+  if (/(why|promis|potential)/.test(h)) return 'why_promising';
+  if (/note/.test(h)) return 'notes';
+  return 'ignore';
+}
+function startCsvImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCsv(String(reader.result || ''));
+    if (rows.length < 2) { alert('CSV needs a header row plus at least one data row.'); return; }
+    const headers = rows[0];
+    const overlay = document.createElement('div');
+    overlay.id = 'csv-import-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:18px;width:640px;max-width:94vw;max-height:85vh;overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.45);">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Import ${rows.length - 1} leads from ${escapeHtml(file.name)}</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Map each CSV column to a lead field. Business name is required — rows without one are skipped.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px;">
+          ${headers.map((h, i) => `
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);">
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(h)}">${escapeHtml(h || '(column ' + (i + 1) + ')')}</span>
+              <select class="view-select csv-map" data-col="${i}" style="width:150px;">
+                ${CSV_FIELDS.map(f => `<option value="${f}" ${guessCsvField(h) === f ? 'selected' : ''}>${f === 'ignore' ? '— ignore —' : f}</option>`).join('')}
+              </select>
+            </label>`).join('')}
+        </div>
+        <div id="csv-preview" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button class="mini-btn" type="button" id="csv-cancel">Cancel</button>
+          <button class="view-action" type="button" id="csv-go"><span>Import</span></button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#csv-cancel').onclick = close;
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    const currentMapping = () => Array.from(overlay.querySelectorAll('.csv-map')).map(s => s.value);
+    const renderPreview = () => {
+      const mapping = currentMapping();
+      const sample = rows.slice(1, 4).map(r => {
+        const obj = {};
+        mapping.forEach((f, i) => { if (f !== 'ignore' && r[i]?.trim()) obj[f] = r[i].trim(); });
+        return obj.business_name ? `✓ ${obj.business_name}${obj.vertical ? ' · ' + obj.vertical : ''}${obj.contact_phone ? ' · ' + obj.contact_phone : ''}` : '✗ (no business name — skipped)';
+      });
+      overlay.querySelector('#csv-preview').innerHTML = '<b>Preview:</b><br>' + sample.map(escapeHtml).join('<br>');
+    };
+    overlay.querySelectorAll('.csv-map').forEach(s => s.addEventListener('change', renderPreview));
+    renderPreview();
+    overlay.querySelector('#csv-go').onclick = async () => {
+      const mapping = currentMapping();
+      if (!mapping.includes('business_name')) { alert('Map one column to business_name first.'); return; }
+      const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
+      const leads = [];
+      let skipped = 0;
+      rows.slice(1).forEach(r => {
+        const obj = {};
+        mapping.forEach((f, i) => { if (f !== 'ignore' && r[i]?.trim()) obj[f] = r[i].trim(); });
+        if (!obj.business_name) { skipped++; return; }
+        if (obj.vertical) {
+          const match = CANON.find(c => c.toLowerCase() === obj.vertical.toLowerCase());
+          obj.vertical = match || null;
+        }
+        obj.status = 'new';
+        obj.source = obj.source || `CSV import ${new Date().toISOString().slice(0, 10)}`;
+        obj.created_by = sessionStorage.getItem('weinRole') || 'portal';
+        obj.stage_entered_at = new Date().toISOString();
+        leads.push(obj);
+      });
+      if (!leads.length) { alert('Nothing to import — no rows had a business name.'); return; }
+      try {
+        const before = (await sbGet('wein_leads?select=id')).length;
+        await sbPost('wein_leads', leads);
+        const after = (await sbGet('wein_leads?select=id')).length;
+        close();
+        alert(`Imported ${after - before} of ${leads.length} leads (${skipped} skipped for missing business name). Verified by count read-back.`);
+        await loadDashboard();
+      } catch (e) { alert('Import failed: ' + (e.message || e)); }
+    };
+  };
+  reader.readAsText(file);
+}
+
+// ── Map view: area-level pins (approximate — no exact coordinates yet) ──
+// Known Sharm El Sheikh areas with approximate centre coordinates. Entities
+// are matched by their location field or name text; anything unmatched is
+// listed honestly as "no location", never guessed onto the map.
+const SHARM_AREAS = {
+  'Soho Square':  { coords: [27.9647, 34.4283], match: ['soho'] },
+  'Naama Bay':    { coords: [27.9158, 34.3300], match: ['naama'] },
+  'Old Market':   { coords: [27.8592, 34.2989], match: ['old market', 'sharm el maya'] },
+  'Nabq Bay':     { coords: [28.0587, 34.4292], match: ['nabq'] },
+  'Sharks Bay':   { coords: [27.9769, 34.4004], match: ['sharks bay', 'shark bay', 'tal avenue'] },
+  'Hadaba':       { coords: [27.8683, 34.3350], match: ['hadaba', 'ras um', 'ras om'] },
+};
+function matchSharmArea(entity) {
+  const text = `${entity.location || ''} ${entity.provider_name || entity.business_name || ''}`.toLowerCase();
+  for (const [area, def] of Object.entries(SHARM_AREAS)) {
+    if (def.match.some(m => text.includes(m))) return area;
+  }
+  return null;
+}
+let leafletLoading = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletLoading) return leafletLoading;
+  leafletLoading = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onload = resolve; js.onerror = () => reject(new Error('Leaflet failed to load (offline?)'));
+    document.head.appendChild(js);
+  });
+  return leafletLoading;
+}
+async function renderMapView() {
+  const main = document.getElementById('mainArea');
+  main.innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Map</div>
+        <div class="view-count">Area-level positions (approximate) — exact pins come once locations are captured</div>
+      </div>
+    </div>
+    <div id="sharmMap" style="height:56vh;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);"></div>
+    <div id="mapUnmapped" style="margin-top:12px;font-size:12px;color:var(--text-tertiary);"></div>`;
+  try { await loadLeaflet(); } catch (e) {
+    document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
+    return;
+  }
+  if (currentView !== 'map' || !document.getElementById('sharmMap')) return;
+  const map = L.map('sharmMap').setView([27.94, 34.37], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  const areaCounts = {};
+  const jitter = (area) => {
+    const n = (areaCounts[area] = (areaCounts[area] || 0) + 1);
+    const angle = n * 2.39996, r = 0.0022 * Math.sqrt(n); // spiral so same-area pins don't stack
+    return [SHARM_AREAS[area].coords[0] + r * Math.cos(angle), SHARM_AREAS[area].coords[1] + r * Math.sin(angle)];
+  };
+  const dot = (color) => L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
+  const unmapped = [];
+  cachedProviders.forEach(p => {
+    const area = matchSharmArea(p);
+    if (!area) { unmapped.push(`${p.provider_name} (provider)`); return; }
+    L.marker(jitter(area), { icon: dot('#3fb950') }).addTo(map)
+      .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
+  });
+  cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').forEach(l => {
+    const area = matchSharmArea(l);
+    if (!area) { unmapped.push(`${l.business_name} (lead)`); return; }
+    L.marker(jitter(area), { icon: dot('#0081FD') }).addTo(map)
+      .bindPopup(`<b>${escapeHtml(l.business_name)}</b><br>Lead · ${leadStatusLabel(l.status)} · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="showView('leads');openLeadDrawer('${l.id}');return false;">Open</a>`);
+  });
+  document.getElementById('mapUnmapped').innerHTML = unmapped.length
+    ? `<b>${unmapped.length} without a recognisable area</b> (add a location to place them): ${unmapped.map(escapeHtml).join(', ')}`
+    : 'Everything has an area match.';
+}
+
 // ── Today view: next-action tracking (needs migration 033) ──────────
 function waLink(phone, name) {
   let digits = String(phone || '').replace(/\D/g, '');
@@ -2683,7 +2899,10 @@ function renderLeadsView() {
         </div>
         ${(() => { const n = cachedLeads.filter(isLeadStale).length; return n > 0 ? `<div class="stale-chip"><div class="dot"></div><span class="label">${n} stale lead${n === 1 ? '' : 's'}</span></div>` : ''; })()}
       </div>
-      <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
+      <div style="display:flex;gap:8px;">
+        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="document.getElementById('leadCsvInput').click()"><i class="ti ti-upload"></i><span>Import CSV</span></button><input type="file" id="leadCsvInput" accept=".csv,text/csv" style="display:none;" onchange="startCsvImport(this.files[0]);this.value='';">` : ''}
+        <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
+      </div>
     </div>
     <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
@@ -3031,7 +3250,7 @@ async function promoteLead(leadId) {
     });
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected',
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
     });
     await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'promoted', promoted_provider_id: provider.id, updated_at: new Date().toISOString() });
     await loadDashboard();
@@ -3117,6 +3336,36 @@ async function advanceLaunch(providerId) {
   } catch (e) { console.error('advanceLaunch error:', e); alert('Could not advance: ' + e.message); }
 }
 
+// ── Onboarding progress (derived from stage + contract + launch, no writes) ──
+const ONBOARD_STAGE_RANK = { paused: 1, menu_collected: 1, waiting_founder: 2, offers_generated: 2, sent_back: 3, negotiating: 4, accepted: 5, closed: 5 };
+function onboardSteps(p, neg) {
+  const rank = ONBOARD_STAGE_RANK[neg?.stage] || 0;
+  const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
+  const signed = ['active', 'signed'].includes(p.contract_status) || rank >= 5;
+  const launched = !!p.launch_stage && p.launch_stage === LAUNCH_STAGES[LAUNCH_STAGES.length - 1].id;
+  return [
+    { label: 'Menu', done: rank >= 1 },
+    { label: 'Offers', done: rank >= 2 || offerCount > 0 },
+    { label: 'Sheet sent', done: rank >= 3 },
+    { label: 'Negotiating', done: rank >= 4 },
+    { label: 'Signed', done: signed },
+    { label: 'Launched', done: launched },
+  ];
+}
+function renderOnboardStrip(p, neg) {
+  const el = document.getElementById('modal-onboard-strip');
+  if (!el) return;
+  const steps = onboardSteps(p, neg);
+  el.innerHTML = steps.map((s, i) => `
+    <div style="display:flex;align-items:center;${i ? 'flex:1;' : ''}">
+      ${i ? `<div style="flex:1;height:1.5px;background:${steps[i - 1].done && s.done ? 'var(--green)' : 'var(--border)'};margin:0 5px 12px;"></div>` : ''}
+      <div title="${s.label}" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${s.done ? 'var(--green)' : 'var(--bg-elevated)'};border:1.5px solid ${s.done ? 'var(--green)' : 'var(--border)'};"></div>
+        <span style="font-family:'Instrument Sans';font-size:8px;color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
+      </div>
+    </div>`).join('');
+}
+
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -3133,7 +3382,9 @@ function providerCardHtml(item) {
         <span class="pc-meta-cat cat-badge ${catBadgeClass(p.vertical || p.category)}">${p.vertical || p.category || '—'}</span>
         ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
         <span class="pc-meta-date mono">${date}</span>
+        ${item.stageEnteredAt ? (() => { const d = daysSince(item.stageEnteredAt); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-tertiary)'};">${d}d in stage</span>`; })() : ''}
         ${stale ? `<span class="stale-tag">${daysSince(item.updatedAt)}d</span>` : ''}
+        ${waLink(p.contact_whatsapp || p.contact_phone, p.provider_name) ? `<a href="${waLink(p.contact_whatsapp || p.contact_phone, p.provider_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}
       </div>
       <div class="pc-row">
         <span class="pc-badge mono">${item.offerCount} offers</span>
@@ -3218,6 +3469,29 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   document.getElementById('modal-featured').checked = !!p.featured;
   document.getElementById('modal-contract-panel').style.display = openContract ? 'block' : 'none';
   updateContractPill(p);
+
+  const negRow = cachedNegotiations.find(n => n.id === negotiationId) || negotiationFor(p);
+  renderOnboardStrip(p, negRow);
+  const mnaDate = document.getElementById('modal-na-date');
+  const mnaNote = document.getElementById('modal-na-note');
+  const mnaSave = document.getElementById('modal-na-save');
+  mnaDate.value = negRow?.next_action_date || '';
+  mnaNote.value = negRow?.next_action_note || '';
+  mnaDate.disabled = mnaNote.disabled = mnaSave.disabled = !negRow;
+  mnaSave.onclick = async () => {
+    if (!negRow) return;
+    try {
+      const body = { next_action_date: mnaDate.value || null, next_action_note: mnaNote.value || null };
+      await sbPatch(`wein_negotiations?id=eq.${negRow.id}`, body);
+      const check = await sbGet(`wein_negotiations?id=eq.${negRow.id}&select=next_action_date`);
+      if (!check.length || (check[0].next_action_date || null) !== body.next_action_date) {
+        alert('Did not save — has migration 033_bd_sales_tools.sql been run in Supabase?');
+        return;
+      }
+      Object.assign(negRow, body);
+      refreshNavCounts();
+    } catch (e) { alert('Could not save next action: ' + (e.message || e)); }
+  };
 
   const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
   offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
