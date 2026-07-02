@@ -408,6 +408,26 @@ html.is-mobile .view-header { flex-direction: column; align-items: stretch; gap:
 html.is-mobile .kanban-board { grid-template-columns: 1fr !important; }
 html.is-mobile .files-grid { grid-template-columns: 1fr; }
 html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width: 0; }
+
+/* ── Mobile: newer surfaces (provider modal, wizard, CSV overlay, forms) ──
+   Collapse every inline two-column field grid to one column, and stack the
+   provider modal's Offers/Files/Notes columns vertically with their own
+   scroll areas. Applied via BOTH the media query and is-mobile, same dual-
+   keying as the rules above. */
+@media (max-width: 768px) {
+  [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+  #modal-body-cols { grid-template-columns: 1fr !important; overflow-y: auto !important; }
+  #modal-body-cols > div { border-right: none !important; border-bottom: 0.5px solid var(--border); max-height: 45vh; }
+  #provider-modal { max-height: 92vh !important; }
+  #modal-onboard-strip { min-width: 0 !important; width: 100%; }
+  #lead-drawer { width: 100vw !important; max-width: 100vw !important; }
+}
+html.is-mobile [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+html.is-mobile #modal-body-cols { grid-template-columns: 1fr !important; overflow-y: auto !important; }
+html.is-mobile #modal-body-cols > div { border-right: none !important; border-bottom: 0.5px solid var(--border); max-height: 45vh; }
+html.is-mobile #provider-modal { max-height: 92vh !important; }
+html.is-mobile #modal-onboard-strip { min-width: 0 !important; width: 100%; }
+html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !important; }
 </style>
 </head>
 <body>
@@ -901,7 +921,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       </label>
     </div>
 
-    <div style="display:grid;grid-template-columns:1.6fr 0.8fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
+    <div id="modal-body-cols" style="display:grid;grid-template-columns:1.6fr 0.8fr 1fr;gap:0;overflow:hidden;flex:1;min-height:0;">
 
       <!-- Column 1: Offers -->
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;min-width:0;">
@@ -1087,6 +1107,7 @@ async function logout() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginEmail').value = ''; document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = '';
+  document.documentElement.setAttribute('data-theme', 'dark'); // login is always dark
 }
 
 let autoRefreshInterval = null;
@@ -1114,6 +1135,11 @@ document.addEventListener('click', (e) => {
 });
 
 function showApp(role) {
+  // Restore the user's saved theme once inside (login screen is always dark)
+  const savedTheme = localStorage.getItem('wein-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  const themeIcon = document.getElementById('theme-icon');
+  if (themeIcon) themeIcon.className = savedTheme === 'light' ? 'ti ti-moon' : 'ti ti-sun';
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('topbar').style.display = 'flex';
   document.getElementById('appShell').style.display = 'block';
@@ -1276,7 +1302,10 @@ function toggleTheme() {
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('wein-theme') || 'dark';
+  // Login screen is always dark (looks better + consistent first impression);
+  // the user's saved preference is applied by showApp() once they're inside.
+  const loggedOut = document.getElementById('appShell')?.style.display !== 'block';
+  const saved = loggedOut ? 'dark' : (localStorage.getItem('wein-theme') || 'dark');
   document.documentElement.setAttribute('data-theme', saved);
   const icon = document.getElementById('theme-icon');
   if (icon) {
