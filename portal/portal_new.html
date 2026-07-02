@@ -2466,13 +2466,13 @@ function renderOffersGrid() {
         <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')"><i class="ti ti-eye"></i><span>View provider</span></button>
         ${offerStatus(o) === 'pending' ? `
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
-          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','rejected')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','rejected')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>
         ` : ''}
-        ${offerStatus(o) === 'rejected' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>` : ''}
-        ${offerStatus(o) === 'accepted' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : ''}
+        ${offerStatus(o) === 'rejected' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>` : ''}
+        ${offerStatus(o) === 'accepted' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : ''}
         ${offerStatus(o) === 'archived' ? `
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
-          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
         ` : ''}
       </div>
     </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No ${offerStatusFilter} offers</div>`;
@@ -3749,7 +3749,7 @@ async function renderModalOffers(providerId, token) {
       </button>
       <div id="modal-archived-offers" style="display:none;flex-direction:column;gap:6px;">
         ${archived.map(o => `
-        <div style="background:var(--bg-elevated);border:0.5px dashed var(--border);border-radius:6px;padding:9px 11px;opacity:.65;">
+        <div style="background:var(--bg-elevated);border:0.5px dashed var(--border);border-radius:6px;padding:9px 11px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
             <div style="min-width:0;flex:1;">
               <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:var(--text-primary);line-height:1.25;">${escapeHtml(o.title || 'Untitled offer')}</div>
@@ -3764,25 +3764,25 @@ async function renderModalOffers(providerId, token) {
           </div>
           <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
             <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
-            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>
-            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
           </div>
         </div>`).join('')}
       </div>` : '';
 
     offersEl.innerHTML = (visible.length ? visible.map(o => {
       const st = o.status || 'pending';
-      const dimmed = st === 'rejected' ? 'opacity:0.55;' : '';
+      const dimmed = st === 'rejected' ? 'opacity:0.75;' : '';
       const badge = st === 'accepted'
         ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--green,#2e7d32);background:rgba(46,125,50,0.12);border:0.5px solid rgba(46,125,50,0.4);border-radius:999px;padding:3px 7px;flex-shrink:0;"><i class="ti ti-check" style="font-size:10px;"></i> Accepted</span>`
         : `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct) != null ? `${discountPctLabel(o.discount_pct)}% off` : 'Offer'}</span>`;
       const actions = st === 'pending' ? `
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
-        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>`
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>`
         : st === 'rejected' ? `
-        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>`
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>`
         : st === 'accepted' ? `
-        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : '';
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : '';
       return `
       <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px;padding:10px 11px;display:flex;flex-direction:column;gap:7px;${dimmed}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
