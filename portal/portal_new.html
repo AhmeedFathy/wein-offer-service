@@ -728,7 +728,11 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
 
     <div id="apPane3" style="display:none;">
       <div style="font-family:'Instrument Sans';font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Menu</div>
-      <div class="ap-field"><label>Menu Link</label><input type="text" id="apMenuLink" class="contract-field" placeholder="https://..."></div>
+      <div class="ap-field"><label>Menu Photos / PDF (up to 5 files — e.g. 3 photos of a paper menu)</label>
+        <input type="file" id="apMenuFiles" accept="image/jpeg,image/png,image/webp,image/heic,.pdf,application/pdf" multiple style="display:block;width:100%;font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);padding:6px 0;" onchange="renderApMenuFilesList()">
+        <div id="apMenuFilesList" style="font-family:'Instrument Sans';font-size:11px;color:var(--text-tertiary);"></div>
+      </div>
+      <div class="ap-field"><label>— or — Menu Link</label><input type="text" id="apMenuLink" class="contract-field" placeholder="https://..."></div>
       <div class="ap-field"><label>— or — Menu Text</label><textarea id="apMenuText" class="contract-field ap-textarea" placeholder="Paste menu items…" style="min-height:80px;"></textarea></div>
       <div style="background:var(--blue-tint,rgba(0,129,253,0.1));border:0.5px solid var(--border-blue,rgba(0,129,253,0.3));border-radius:6px;padding:8px 10px;margin-bottom:12px;font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);">
         <i class="ti ti-info-circle" style="color:var(--blue);"></i> Ask the provider what sells best before you leave. This helps us build stronger offers that the provider will actually accept.
@@ -1811,12 +1815,36 @@ async function submitAddProvider() {
   const mid_selling_items = document.getElementById('apMidSelling').value.trim();
   const low_selling_items = document.getElementById('apLowSelling').value.trim();
 
+  const menuFiles = Array.from(document.getElementById('apMenuFiles')?.files || []).slice(0, 5);
+
   const btn = document.getElementById('apSubmitBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const slug = provider_name.toLowerCase().trim()
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
-    const hasMenu = !!(menu_link || menu_text);
+
+    // Upload menu files to Supabase Storage FIRST — if any upload fails we
+    // abort before creating the provider, so no half-submitted records.
+    const menu_file_paths = [];
+    for (let i = 0; i < menuFiles.length; i++) {
+      const f = menuFiles[i];
+      btn.textContent = `Uploading menu ${i + 1}/${menuFiles.length}…`;
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const objectPath = `${slug}/${i + 1}-${safeName}`;
+      const resp = await fetch(`${SB_URL}/storage/v1/object/menus/${objectPath}`, {
+        method: 'POST',
+        headers: { apikey: SB_ANON, Authorization: 'Bearer ' + (SB_TOKEN || SB_ANON), 'Content-Type': f.type || 'application/octet-stream' },
+        body: f,
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Menu file upload failed (${f.name}): ${errText.slice(0, 120)}${resp.status === 403 || resp.status === 400 ? ' — has migration 036_menu_storage.sql been run?' : ''}`);
+      }
+      menu_file_paths.push(objectPath);
+    }
+    btn.textContent = 'Saving…';
+
+    const hasMenu = !!(menu_link || menu_text || menu_file_paths.length);
     const [provider] = await sbPost('wein_providers', {
       provider_name, provider_slug: slug,
       vertical: vertical || null, category: vertical || null,
@@ -1824,6 +1852,7 @@ async function submitAddProvider() {
       peak_moments: peak_hours || null,
       contact_name: contact_name || null, contact_phone: contact_phone || null,
       menu_link: menu_link || null, menu_text: menu_text || null,
+      menu_file_paths: menu_file_paths.length ? menu_file_paths : null,
       top_selling_items: top_selling_items || null,
       mid_selling_items: mid_selling_items || null,
       low_selling_items: low_selling_items || null,
@@ -1871,7 +1900,24 @@ function resetAddProviderForm() {
    'apPeakHours','apBlackout','apExcluded','apTerms','apMenuLink','apMenuText','apTopSelling','apMidSelling','apLowSelling']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const v = document.getElementById('apVertical'); if (v) v.value = '';
+  const mf = document.getElementById('apMenuFiles'); if (mf) mf.value = '';
+  renderApMenuFilesList();
   ['apAlert1','apAlert3'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+}
+
+function renderApMenuFilesList() {
+  const input = document.getElementById('apMenuFiles');
+  const list = document.getElementById('apMenuFilesList');
+  if (!input || !list) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) { list.textContent = ''; return; }
+  const tooMany = files.length > 5;
+  const tooBig = files.filter(f => f.size > 25 * 1024 * 1024);
+  list.innerHTML = files.slice(0, 5).map(f =>
+    `<div>📄 ${escapeHtml(f.name)} <span style="color:var(--text-tertiary);">(${(f.size / 1048576).toFixed(1)} MB)</span>${f.size > 25 * 1024 * 1024 ? ' <span style="color:var(--red);">— too big (max 25MB)</span>' : ''}</div>`
+  ).join('') +
+  (tooMany ? `<div style="color:var(--amber);">Only the first 5 files will be uploaded.</div>` : '');
+  if (tooBig.length) { input.value = ''; list.innerHTML += '<div style="color:var(--red);">Selection cleared — remove the oversized file and re-pick.</div>'; }
 }
 
 function renderProvidersView() {
