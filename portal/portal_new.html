@@ -2345,7 +2345,7 @@ async function setOfferStatus(offerId, status) {
   if (status === 'accepted') {
     body.accepted_at = new Date().toISOString();
     body.accepted_by = window.WEIN?.fullName || window.WEIN?.role || 'portal';
-  } else { body.accepted_at = null; body.accepted_by = null; }
+  } else { body.accepted_at = null; body.accepted_by = null; body.synced_to_accepted = false; }
   try {
     await sbPatch(`wein_offers?id=eq.${offerId}`, body);
     // read-back: never trust the 204 alone
@@ -2355,12 +2355,26 @@ async function setOfferStatus(offerId, status) {
       return;
     }
     Object.assign(offer, body);
+    // Moving away from accepted: remove the copy the sync workflow may have
+    // already written into the RAG training table.
+    if (prevStatus === 'accepted' && status !== 'accepted') await cleanupAcceptedSync(offerId);
     renderCurrentView();
     if (window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
     if (status === 'accepted') showUndoToast(offerId, prevStatus, offer.title || 'Offer');
   } catch (e) {
     alert('Failed to update offer: ' + (e.message || e));
   }
+}
+
+// Best-effort removal of an un-accepted offer's copy from the RAG training
+// table (wein_accepted_offers). RLS only lets admin/manager delete — if a
+// copy survives, say so honestly instead of pretending it's gone.
+async function cleanupAcceptedSync(offerId) {
+  try {
+    await sbDelete(`wein_accepted_offers?source_offer_id=eq.${offerId}`);
+    const left = await sbGet(`wein_accepted_offers?source_offer_id=eq.${offerId}&select=id`);
+    if (left.length) alert('Offer reverted, but its copy in the accepted-offers training data could not be removed with your role — ask an admin to clean it, or it will keep influencing future generation.');
+  } catch (e) { /* row may simply not exist yet (sync runs every 5 min) */ }
 }
 
 let undoToastTimer = null;
@@ -2386,11 +2400,12 @@ async function undoOfferAccept(offerId, prevStatus) {
   clearTimeout(undoToastTimer);
   const offer = cachedOffers.find(o => o.id === offerId);
   try {
-    const body = { status: prevStatus, accepted_at: null, accepted_by: null };
+    const body = { status: prevStatus, accepted_at: null, accepted_by: null, synced_to_accepted: false };
     await sbPatch(`wein_offers?id=eq.${offerId}`, body);
     const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
     if (!check.length || check[0].status !== prevStatus) { alert('Undo did not apply.'); return; }
     if (offer) Object.assign(offer, body);
+    await cleanupAcceptedSync(offerId);
     renderCurrentView();
     if (offer && window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
   } catch (e) { alert('Undo failed: ' + (e.message || e)); }
@@ -2454,6 +2469,7 @@ function renderOffersGrid() {
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','rejected')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>
         ` : ''}
         ${offerStatus(o) === 'rejected' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>` : ''}
+        ${offerStatus(o) === 'accepted' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : ''}
         ${offerStatus(o) === 'archived' ? `
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
@@ -3764,7 +3780,9 @@ async function renderModalOffers(providerId, token) {
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>`
         : st === 'rejected' ? `
-        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>` : '';
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>`
+        : st === 'accepted' ? `
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : '';
       return `
       <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px;padding:10px 11px;display:flex;flex-direction:column;gap:7px;${dimmed}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
