@@ -2326,16 +2326,26 @@ function renderOffersView() {
   renderOffersGrid();
 }
 
+// One write path for offer status changes from anywhere (Offers tab,
+// pipeline cards). Accept has no confirm popup — the undo toast covers
+// mistakes instead. Re-renders whatever view is currently on screen.
 async function setOfferStatus(offerId, status) {
-  const verb = status === 'accepted' ? 'Accept' : 'Reject';
-  const offer = cachedOffers.find(o => o.id === offerId);
-  if (!offer) return;
-  if (!confirm(`${verb} "${offer.title || 'this offer'}"?${status === 'accepted' ? '\n\nAccepted offers become part of the provider’s live portfolio and feed future offer generation.' : ''}`)) return;
+  let offer = cachedOffers.find(o => o.id === offerId);
+  if (!offer) {
+    // Modal fetches offers fresh — a row can exist that predates the last
+    // dashboard load. Pull it rather than silently doing nothing.
+    const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=*`);
+    if (!rows.length) return;
+    offer = rows[0];
+    cachedOffers.push(offer);
+  }
+  const prevStatus = offerStatus(offer);
+  if (status === 'rejected' && !confirm(`Reject "${offer.title || 'this offer'}"?`)) return;
   const body = { status };
   if (status === 'accepted') {
     body.accepted_at = new Date().toISOString();
     body.accepted_by = window.WEIN?.fullName || window.WEIN?.role || 'portal';
-  }
+  } else { body.accepted_at = null; body.accepted_by = null; }
   try {
     await sbPatch(`wein_offers?id=eq.${offerId}`, body);
     // read-back: never trust the 204 alone
@@ -2345,10 +2355,45 @@ async function setOfferStatus(offerId, status) {
       return;
     }
     Object.assign(offer, body);
-    renderOffersView();
+    renderCurrentView();
+    if (window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
+    if (status === 'accepted') showUndoToast(offerId, prevStatus, offer.title || 'Offer');
   } catch (e) {
     alert('Failed to update offer: ' + (e.message || e));
   }
+}
+
+let undoToastTimer = null;
+function showUndoToast(offerId, prevStatus, title) {
+  let toast = document.getElementById('undo-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'undo-toast';
+    toast.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:700;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:10px 14px;display:flex;align-items:center;gap:12px;font-family:\'Instrument Sans\';font-size:12px;color:var(--text-primary);max-width:92vw;';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `
+    <i class="ti ti-circle-check" style="color:var(--green,#3fb950);font-size:16px;flex-shrink:0;"></i>
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Accepted “${escapeHtml(title)}” — feeds future generation</span>
+    <button class="mini-btn" type="button" style="flex-shrink:0;" onclick="undoOfferAccept('${offerId}','${prevStatus}')"><i class="ti ti-arrow-back-up"></i><span>Undo</span></button>`;
+  toast.style.display = 'flex';
+  clearTimeout(undoToastTimer);
+  undoToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 8000);
+}
+async function undoOfferAccept(offerId, prevStatus) {
+  const toast = document.getElementById('undo-toast');
+  if (toast) toast.style.display = 'none';
+  clearTimeout(undoToastTimer);
+  const offer = cachedOffers.find(o => o.id === offerId);
+  try {
+    const body = { status: prevStatus, accepted_at: null, accepted_by: null };
+    await sbPatch(`wein_offers?id=eq.${offerId}`, body);
+    const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
+    if (!check.length || check[0].status !== prevStatus) { alert('Undo did not apply.'); return; }
+    if (offer) Object.assign(offer, body);
+    renderCurrentView();
+    if (offer && window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
+  } catch (e) { alert('Undo failed: ' + (e.message || e)); }
 }
 
 function renderOffersGrid() {
@@ -3600,6 +3645,29 @@ function renderOnboardStrip(p, neg) {
     </div>`).join('');
 }
 
+// Compact offers list on pipeline cards: up to 3 (pending first, then
+// archived, then accepted), one-click Accept with the undo toast.
+function cardOffersMini(providerId) {
+  const rows = cachedOffers.filter(o => o.provider_id === providerId);
+  if (!rows.length) return '';
+  const rank = { pending: 0, archived: 1, rejected: 2, accepted: 3 };
+  rows.sort((a, b) => (rank[offerStatus(a)] ?? 4) - (rank[offerStatus(b)] ?? 4));
+  const top = rows.slice(0, 3);
+  return `<div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:0.5px dashed var(--border-subtle);padding-top:6px;">
+    ${top.map(o => {
+      const st = offerStatus(o);
+      return `<div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:${st === 'archived' ? 'var(--text-tertiary)' : 'var(--text-secondary)'};" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled')}</span>
+        <span class="mono" style="font-size:10px;color:var(--amber);flex-shrink:0;">${o.promo_egp != null ? 'EGP ' + o.promo_egp : ''}</span>
+        ${st === 'accepted'
+          ? '<i class="ti ti-circle-check" style="color:var(--green,#3fb950);font-size:13px;flex-shrink:0;" title="Accepted"></i>'
+          : `<button type="button" onclick="event.stopPropagation();setOfferStatus('${o.id}','accepted')" title="Accept this offer" style="background:none;border:0.5px solid var(--green,#3fb950);color:var(--green,#3fb950);border-radius:4px;cursor:pointer;padding:1px 5px;display:flex;flex-shrink:0;"><i class="ti ti-check" style="font-size:11px;"></i></button>`}
+      </div>`;
+    }).join('')}
+    ${rows.length > 3 ? `<div style="font-size:9px;color:var(--text-tertiary);">+${rows.length - 3} more — open the card</div>` : ''}
+  </div>`;
+}
+
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -3624,6 +3692,7 @@ function providerCardHtml(item) {
         <span class="pc-badge mono">${item.offerCount} offers</span>
         <button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>
       </div>
+      ${cardOffersMini(p.id)}
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
         <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
@@ -3742,29 +3811,12 @@ async function renderModalOffers(providerId, token) {
   }
 }
 
+// Delegates to the shared write path (undo toast included); keeps the
+// modal list and nav counts fresh.
 async function setOfferStatusInModal(offerId, status, providerId) {
-  const verb = status === 'accepted' ? 'Accept' : status === 'rejected' ? 'Reject' : 'Restore';
-  if (!confirm(`${verb} this offer?${status === 'accepted' ? '\n\nAccepted offers become part of the provider’s live portfolio and feed future offer generation.' : ''}`)) return;
-  const body = { status };
-  if (status === 'accepted') {
-    body.accepted_at = new Date().toISOString();
-    body.accepted_by = window.WEIN?.fullName || window.WEIN?.role || 'portal';
-  }
-  try {
-    await sbPatch(`wein_offers?id=eq.${offerId}`, body);
-    // read-back: never trust the 204 alone
-    const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
-    if (!check.length || check[0].status !== status) {
-      alert('Update did not apply (permissions or migration 032 missing). Nothing changed.');
-      return;
-    }
-    const cached = cachedOffers.find(o => o.id === offerId);
-    if (cached) Object.assign(cached, body);
-    await renderModalOffers(providerId, modalOpenToken);
-    refreshNavCounts();
-  } catch (e) {
-    alert('Failed to update offer: ' + (e.message || e));
-  }
+  await setOfferStatus(offerId, status);
+  await renderModalOffers(providerId, modalOpenToken);
+  refreshNavCounts();
 }
 
 async function openProviderModal(providerUuid, negotiationId, openContract) {
