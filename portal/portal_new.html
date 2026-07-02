@@ -2024,18 +2024,36 @@ function offerProviderName(offer) {
   return provider?.provider_name || offer.provider_name || 'Unknown provider';
 }
 
+// Offer lifecycle: rows without a status column (pre-migration-032) are
+// treated as archived history so the Pending view stays clean.
+function offerStatus(o) { return o.status || 'archived'; }
+let offerStatusFilter = 'pending';
+
 function renderOffersView() {
   const providerOptions = cachedProviders
     .map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`)
     .join('');
+  const counts = { pending: 0, accepted: 0, rejected: 0, archived: 0 };
+  cachedOffers.forEach(o => { const st = offerStatus(o); if (counts[st] != null) counts[st]++; });
+  const chip = (key, label) => `
+    <button type="button" class="mini-btn offer-status-chip" data-status="${key}"
+      style="${offerStatusFilter === key ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">
+      ${label} (${counts[key] != null ? counts[key] : cachedOffers.length})
+    </button>`;
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
       <div>
         <div class="view-title">Offers</div>
-        <div class="view-count">${cachedOffers.length} total</div>
+        <div class="view-count">${counts.pending} pending &middot; ${counts.accepted} accepted</div>
       </div>
     </div>
-    <div class="view-filterbar">
+    <div class="view-filterbar" style="flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${chip('pending', 'Pending')}
+        ${chip('accepted', 'Accepted')}
+        ${chip('rejected', 'Rejected')}
+        ${chip('archived', 'Archived')}
+      </div>
       <input id="offerSearch" class="view-input" type="search" placeholder="Search offers">
       <select id="offerProviderFilter" class="view-select">
         <option value="all">All providers</option>
@@ -2049,10 +2067,38 @@ function renderOffersView() {
       </select>
     </div>
     <div class="files-grid" id="offersGrid"></div>`;
+  document.querySelectorAll('.offer-status-chip').forEach(btn => {
+    btn.addEventListener('click', () => { offerStatusFilter = btn.dataset.status; renderOffersView(); });
+  });
   document.getElementById('offerSearch').addEventListener('input', renderOffersGrid);
   document.getElementById('offerProviderFilter').addEventListener('change', renderOffersGrid);
   document.getElementById('offerSort').addEventListener('change', renderOffersGrid);
   renderOffersGrid();
+}
+
+async function setOfferStatus(offerId, status) {
+  const verb = status === 'accepted' ? 'Accept' : 'Reject';
+  const offer = cachedOffers.find(o => o.id === offerId);
+  if (!offer) return;
+  if (!confirm(`${verb} "${offer.title || 'this offer'}"?${status === 'accepted' ? '\n\nAccepted offers become part of the provider’s live portfolio and feed future offer generation.' : ''}`)) return;
+  const body = { status };
+  if (status === 'accepted') {
+    body.accepted_at = new Date().toISOString();
+    body.accepted_by = window.WEIN?.fullName || window.WEIN?.role || 'portal';
+  }
+  try {
+    await sbPatch(`wein_offers?id=eq.${offerId}`, body);
+    // read-back: never trust the 204 alone
+    const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Update did not apply (permissions or migration 032 missing). Nothing changed.');
+      return;
+    }
+    Object.assign(offer, body);
+    renderOffersView();
+  } catch (e) {
+    alert('Failed to update offer: ' + (e.message || e));
+  }
 }
 
 function renderOffersGrid() {
@@ -2067,7 +2113,8 @@ function renderOffersGrid() {
     const providerName = offerProviderName(o).toLowerCase();
     const matchesQuery = !query || title.includes(query) || providerName.includes(query);
     const matchesProvider = providerId === 'all' || o.provider_id === providerId;
-    return matchesQuery && matchesProvider;
+    const matchesStatus = offerStatus(o) === offerStatusFilter;
+    return matchesQuery && matchesProvider && matchesStatus;
   });
 
   offers = offers.slice().sort((a, b) => {
@@ -2100,8 +2147,20 @@ function renderOffersGrid() {
         <span class="file-meta" style="text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
         <span style="font-family:'JetBrains Mono';font-size:13px;color:var(--amber);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
       </div>
-      <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')" style="align-self:flex-start;"><i class="ti ti-eye"></i><span>View provider</span></button>
-    </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No offers found</div>`;
+      ${offerStatus(o) === 'accepted' ? `
+      <div class="file-meta" style="display:flex;align-items:center;gap:5px;color:var(--green,#3fb950);">
+        <i class="ti ti-circle-check"></i>
+        <span>Accepted${o.accepted_by ? ' by ' + escapeHtml(o.accepted_by) : ''}${o.accepted_at ? ' · ' + new Date(o.accepted_at).toLocaleDateString() : ''}</span>
+      </div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')"><i class="ti ti-eye"></i><span>View provider</span></button>
+        ${offerStatus(o) === 'pending' ? `
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','rejected')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>
+        ` : ''}
+        ${offerStatus(o) === 'rejected' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>` : ''}
+      </div>
+    </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No ${offerStatusFilter} offers</div>`;
 }
 
 // ════════════════════════════════════════════════════════════════════
