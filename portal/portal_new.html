@@ -3645,29 +3645,6 @@ function renderOnboardStrip(p, neg) {
     </div>`).join('');
 }
 
-// Compact offers list on pipeline cards: up to 3 (pending first, then
-// archived, then accepted), one-click Accept with the undo toast.
-function cardOffersMini(providerId) {
-  const rows = cachedOffers.filter(o => o.provider_id === providerId);
-  if (!rows.length) return '';
-  const rank = { pending: 0, archived: 1, rejected: 2, accepted: 3 };
-  rows.sort((a, b) => (rank[offerStatus(a)] ?? 4) - (rank[offerStatus(b)] ?? 4));
-  const top = rows.slice(0, 3);
-  return `<div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:0.5px dashed var(--border-subtle);padding-top:6px;">
-    ${top.map(o => {
-      const st = offerStatus(o);
-      return `<div style="display:flex;align-items:center;gap:6px;min-width:0;">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:${st === 'archived' ? 'var(--text-tertiary)' : 'var(--text-secondary)'};" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled')}</span>
-        <span class="mono" style="font-size:10px;color:var(--amber);flex-shrink:0;">${o.promo_egp != null ? 'EGP ' + o.promo_egp : ''}</span>
-        ${st === 'accepted'
-          ? '<i class="ti ti-circle-check" style="color:var(--green,#3fb950);font-size:13px;flex-shrink:0;" title="Accepted"></i>'
-          : `<button type="button" onclick="event.stopPropagation();setOfferStatus('${o.id}','accepted')" title="Accept this offer" style="background:none;border:0.5px solid var(--green,#3fb950);color:var(--green,#3fb950);border-radius:4px;cursor:pointer;padding:1px 5px;display:flex;flex-shrink:0;"><i class="ti ti-check" style="font-size:11px;"></i></button>`}
-      </div>`;
-    }).join('')}
-    ${rows.length > 3 ? `<div style="font-size:9px;color:var(--text-tertiary);">+${rows.length - 3} more — open the card</div>` : ''}
-  </div>`;
-}
-
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -3692,7 +3669,6 @@ function providerCardHtml(item) {
         <span class="pc-badge mono">${item.offerCount} offers</span>
         <button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>
       </div>
-      ${cardOffersMini(p.id)}
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
         <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
@@ -3770,8 +3746,9 @@ async function renderModalOffers(providerId, token) {
             <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
             <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
           </div>
-          <div style="display:flex;gap:6px;margin-top:7px;">
+          <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
             <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-x"></i><span>Reject</span></button>
             <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-tertiary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
           </div>
         </div>`).join('')}
