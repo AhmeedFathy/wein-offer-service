@@ -359,11 +359,12 @@ tr.row-selected { background: var(--blue-tint); }
 .notif-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .notif-dot.unread { background: var(--blue); }
 .notif-dot.read { background: var(--border); }
-.notif-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
-.notif-item:not(.unread) .notif-title { font-weight: 400; color: var(--text-secondary); }
-.notif-body { font-size: 11px; color: var(--text-secondary); }
-.notif-item:not(.unread) .notif-body { color: var(--text-tertiary); }
+.notif-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; line-height: 1.35; overflow-wrap: anywhere; }
+.notif-item:not(.unread) .notif-title { font-weight: 500; }
+.notif-body { font-size: 12px; color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
 .notif-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); flex-shrink: 0; }
+html.is-mobile #notif-panel { right: 8px; left: 8px; width: auto; }
+@media (max-width: 768px) { #notif-panel { right: 8px; left: 8px; width: auto; } }
 
 /* ── Animations ── */
 @keyframes pulse-amber { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
@@ -4099,9 +4100,9 @@ function renderNotifications() {
   list.innerHTML = lastNotifications.length ? lastNotifications.map(n => `
     <div class="notif-item ${n.is_read ? '' : 'unread'}">
       <div class="notif-dot ${n.is_read ? 'read' : 'unread'}"></div>
-      <div style="flex:1">
-        <div class="notif-title">${n.title}</div>
-        ${n.body ? `<div class="notif-body">${n.body}</div>` : ''}
+      <div style="flex:1;min-width:0;">
+        <div class="notif-title">${escapeHtml(n.title || '')}</div>
+        ${n.body ? `<div class="notif-body">${escapeHtml(n.body)}</div>` : ''}
       </div>
       <div class="notif-time">${timeAgo(n.created_at)}</div>
     </div>`).join('') : `<div style="padding:20px;font-size:12px;color:var(--text-tertiary);text-align:center">No notifications yet.</div>`;
