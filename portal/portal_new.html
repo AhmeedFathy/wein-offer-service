@@ -359,6 +359,8 @@ tr.row-selected { background: var(--blue-tint); }
 .notif-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .notif-dot.unread { background: var(--blue); }
 .notif-dot.read { background: var(--border); }
+.notif-item.clickable { cursor: pointer; }
+.notif-item.clickable:hover { background: var(--bg-elevated); }
 .notif-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; line-height: 1.35; overflow-wrap: anywhere; }
 .notif-item:not(.unread) .notif-title { font-weight: 500; }
 .notif-body { font-size: 12px; color: var(--text-primary); opacity: .78; line-height: 1.45; overflow-wrap: anywhere; }
@@ -4095,17 +4097,57 @@ async function loadNotifications() {
   const unread = lastNotifications.filter(n => !n.is_read).length;
   document.getElementById('notif-badge').style.display = unread > 0 ? 'block' : 'none';
 }
+// Resolve where a notification leads. Returns null when the target entity
+// no longer exists or the current role can't view that area — those items
+// render as plain text (no pointer, no hover), never as dead buttons.
+function notifTarget(n) {
+  if (!n.entity_id) return null;
+  const hidden = NAV_HIDDEN_FOR_ROLE[sessionStorage.getItem('weinRole')] || [];
+  if (n.entity_type === 'provider') {
+    const p = cachedProviders.find(x => x.id === n.entity_id);
+    return p ? { providerId: p.id, negId: (negotiationFor(p) || {}).id || '' } : null;
+  }
+  if (n.entity_type === 'negotiation') {
+    const neg = cachedNegotiations.find(x => x.id === n.entity_id);
+    return neg ? { providerId: neg.provider_id, negId: neg.id } : null;
+  }
+  if (n.entity_type === 'lead') {
+    if (hidden.includes('leads')) return null;
+    return cachedLeads.find(x => x.id === n.entity_id) ? { leadId: n.entity_id } : null;
+  }
+  if (n.entity_type === 'offer') {
+    if (hidden.includes('offers')) return null;
+    return cachedOffers.find(x => x.id === n.entity_id) ? { view: 'offers' } : null;
+  }
+  return null;
+}
+function openNotifTarget(idx) {
+  const n = lastNotifications[idx];
+  if (!n) return;
+  const t = notifTarget(n);
+  if (!t) return;
+  document.getElementById('notif-panel').style.display = 'none';
+  if (t.leadId) { showView('leads'); openLeadDrawer(t.leadId); }
+  else if (t.providerId) { openProviderModal(t.providerId, t.negId); }
+  else if (t.view) { showView(t.view); }
+}
 function renderNotifications() {
   const list = document.getElementById('notif-list');
-  list.innerHTML = lastNotifications.length ? lastNotifications.map(n => `
-    <div class="notif-item ${n.is_read ? '' : 'unread'}">
+  list.innerHTML = lastNotifications.length ? lastNotifications.map((n, i) => {
+    const clickable = notifTarget(n) !== null;
+    return `
+    <div class="notif-item ${n.is_read ? '' : 'unread'} ${clickable ? 'clickable' : ''}" ${clickable ? `onclick="openNotifTarget(${i})"` : ''}>
       <div class="notif-dot ${n.is_read ? 'read' : 'unread'}"></div>
       <div style="flex:1;min-width:0;">
         <div class="notif-title">${escapeHtml(n.title || '')}</div>
         ${n.body ? `<div class="notif-body">${escapeHtml(n.body)}</div>` : ''}
       </div>
-      <div class="notif-time">${timeAgo(n.created_at)}</div>
-    </div>`).join('') : `<div style="padding:20px;font-size:12px;color:var(--text-tertiary);text-align:center">No notifications yet.</div>`;
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+        <div class="notif-time">${timeAgo(n.created_at)}</div>
+        ${clickable ? '<i class="ti ti-chevron-right" style="font-size:12px;color:var(--text-secondary);"></i>' : ''}
+      </div>
+    </div>`;
+  }).join('') : `<div style="padding:20px;font-size:12px;color:var(--text-tertiary);text-align:center">No notifications yet.</div>`;
 }
 function toggleNotifPanel() {
   const panel = document.getElementById('notif-panel');
