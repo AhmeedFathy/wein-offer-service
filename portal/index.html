@@ -118,8 +118,6 @@ a { color: var(--blue); text-decoration: none; }
 .login-input:focus { outline: none; border-color: var(--border-blue); }
 .btn-primary { width: 100%; height: 40px; border-radius: 6px; background: var(--blue); color: #ffffff; border: none; font-size: 13px; font-weight: 600; }
 .btn-ghost { width: 100%; padding: 10px; background: transparent; border: .5px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text-secondary); }
-.pin-box { width: 46px; height: 56px; text-align: center; font-size: 24px; border-radius: 8px; border: .5px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); }
-.pin-box:focus { outline: 2px solid var(--blue); }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 .shake { animation: shake .3s; }
 
@@ -427,24 +425,6 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       <div id="loginError" style="color:var(--red);font-size:12px;min-height:16px;margin-top:8px;text-align:center"></div>
       <div style="text-align:center;margin-top:6px">
         <a href="javascript:void(0)" onclick="attemptForgotPassword()" style="font-size:11px;color:var(--text-secondary);text-decoration:underline">Forgot password?</a>
-      </div>
-    </div>
-
-    <div style="margin-top:18px;text-align:center;width:100%">
-      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">or</div>
-      <button class="btn-ghost" onclick="showPinLogin()">Use access code instead</button>
-    </div>
-
-    <div id="pinLoginForm" style="display:none;width:100%;margin-top:8px">
-      <div style="display:flex;gap:10px;margin-bottom:14px;justify-content:center" id="pinBoxes">
-        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="0">
-        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="1">
-        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="2">
-        <input type="password" inputmode="numeric" maxlength="1" class="pin-box" data-i="3">
-      </div>
-      <button class="btn-primary" onclick="attemptLogin()">Sign in with code</button>
-      <div style="text-align:center;margin-top:10px">
-        <a href="javascript:void(0)" onclick="showEmailLoginForm()" style="font-size:11px;color:var(--text-secondary);text-decoration:underline">Use email + password instead</a>
       </div>
     </div>
 
@@ -874,28 +854,36 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
 
 const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
 const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
-const SB_HEADERS = { apikey: SB_ANON, Authorization: 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' };
 const N8N = 'https://weinflow.app.n8n.cloud/webhook';
 
 const sbAuth = supabase.createClient(SB_URL, SB_ANON);
 window.WEIN = window.WEIN || { user: null, role: null, fullName: null };
 
+// All REST calls carry the signed-in user's JWT — RLS (031) denies the bare
+// anon key everything, so an expired/missing session means empty reads and
+// 403 writes, never silent anon fallback. supabase-js auto-refreshes the
+// token; SB_TOKEN tracks it via onAuthStateChange below.
+let SB_TOKEN = null;
+function sbHeaders() {
+  return { apikey: SB_ANON, Authorization: 'Bearer ' + (SB_TOKEN || SB_ANON), 'Content-Type': 'application/json' };
+}
+
 async function sbGet(path) {
-  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: SB_HEADERS });
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: sbHeaders() });
   if (!r.ok) throw new Error(`Supabase GET failed: ${r.status}`);
   return r.json();
 }
 async function sbPost(table, body) {
-  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...SB_HEADERS, Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...sbHeaders(), Prefer: 'return=representation' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Supabase POST failed: ${r.status} ${await r.text()}`);
   return r.json();
 }
 async function sbPatch(path, body) {
-  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'PATCH', headers: SB_HEADERS, body: JSON.stringify(body) });
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(body) });
   return r.ok;
 }
 async function sbDelete(path) {
-  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'DELETE', headers: SB_HEADERS });
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'DELETE', headers: sbHeaders() });
   if (!r.ok) throw new Error(`Supabase DELETE failed: ${r.status} ${await r.text()}`);
   return true;
 }
@@ -906,45 +894,10 @@ function canDelete() {
 const canManageDeals = canDelete;
 const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
 
-// ── Auth: PIN fallback ──
-const PIN_ROLES = { '1986': 'admin', '2026': 'manager', '5555': 'deal_breaker', '1234': 'team' };
-
-function showPinLogin() {
-  document.getElementById('emailLoginForm').style.display = 'none';
-  document.getElementById('pinLoginForm').style.display = 'block';
-  document.getElementById('loginError').textContent = '';
-  document.querySelector('.pin-box')?.focus();
-}
-function showEmailLoginForm() {
-  document.getElementById('pinLoginForm').style.display = 'none';
-  document.getElementById('emailLoginForm').style.display = 'block';
-  document.getElementById('loginError').textContent = '';
-}
-function attemptLogin() {
-  const boxes = document.querySelectorAll('.pin-box');
-  const pin = Array.from(boxes).map(b => b.value).join('');
-  const role = PIN_ROLES[pin];
-  if (!role) {
-    document.getElementById('loginError').textContent = 'Invalid access code';
-    const wrap = document.getElementById('pinBoxes');
-    wrap.classList.remove('shake'); void wrap.offsetWidth; wrap.classList.add('shake');
-    boxes.forEach(b => b.value = '');
-    boxes[0].focus();
-    return;
-  }
-  sessionStorage.setItem('weinRole', role);
-  window.WEIN.role = role; window.WEIN.fullName = role;
-  showApp(role);
-}
-document.querySelectorAll('.pin-box').forEach((box, i) => {
-  box.addEventListener('input', () => {
-    box.value = box.value.replace(/\D/g, '').slice(0, 1);
-    if (box.value && i < 3) document.querySelectorAll('.pin-box')[i + 1].focus();
-    if (box.value && i === 3) attemptLogin();
-  });
-});
-
 // ── Auth: email + password (Supabase Auth) ──
+// PIN login removed 2026-07-02 (RLS migration 031): shared codes shipped to
+// the browser, gave no per-person identity, and could not carry a JWT — so
+// nothing they "authorized" would pass RLS anyway.
 async function attemptEmailLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
@@ -975,7 +928,6 @@ async function attemptForgotPassword() {
 }
 function showSetNewPasswordForm() {
   document.getElementById('emailLoginForm').style.display = 'none';
-  document.getElementById('pinLoginForm').style.display = 'none';
   document.getElementById('setPasswordForm').style.display = 'block';
 }
 async function attemptSetNewPassword() {
@@ -994,6 +946,7 @@ async function attemptSetNewPassword() {
   } catch (e) { errEl.textContent = 'Could not set password (' + (e.message || e) + ')'; }
 }
 async function loadPortalForSession(session) {
+  SB_TOKEN = session.access_token;
   window.WEIN.user = session.user;
   let role = 'deal_breaker', fullName = session.user.email;
   try {
@@ -1003,11 +956,10 @@ async function loadPortalForSession(session) {
   window.WEIN.role = role;
   window.WEIN.fullName = fullName;
   sessionStorage.setItem('weinRole', role);
-  sessionStorage.setItem('weinAuthMode', 'email');
   showApp(role);
 }
-sbAuth.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_OUT') sessionStorage.removeItem('weinAuthMode');
+sbAuth.auth.onAuthStateChange((event, session) => {
+  SB_TOKEN = session ? session.access_token : null;
   if (event === 'PASSWORD_RECOVERY') {
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('topbar').style.display = 'none';
@@ -1018,8 +970,9 @@ sbAuth.auth.onAuthStateChange((event) => {
   }
 });
 async function logout() {
-  if (sessionStorage.getItem('weinAuthMode') === 'email') { try { await sbAuth.auth.signOut(); } catch (e) {} }
-  sessionStorage.removeItem('weinRole'); sessionStorage.removeItem('weinAuthMode');
+  try { await sbAuth.auth.signOut(); } catch (e) {}
+  SB_TOKEN = null;
+  sessionStorage.removeItem('weinRole');
   window.WEIN = { user: null, role: null, fullName: null };
   if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
@@ -1028,7 +981,6 @@ async function logout() {
   document.getElementById('chatFab').classList.remove('visible');
   document.getElementById('chatDrawer').classList.remove('open');
   document.getElementById('loginScreen').style.display = 'flex';
-  document.querySelectorAll('.pin-box').forEach(b => b.value = '');
   document.getElementById('loginEmail').value = ''; document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = '';
 }
@@ -1359,7 +1311,7 @@ function renderCurrentView() {
 function renderSettingsView() {
   const role = sessionStorage.getItem('weinRole') || '—';
   const fullName = window.WEIN?.fullName || role;
-  const authMode = sessionStorage.getItem('weinAuthMode') === 'email' ? 'Email account' : 'Access code';
+  const authMode = 'Email account';
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
       <div>
@@ -1385,10 +1337,10 @@ function renderSettingsView() {
         <div>
           <div class="kpi-label" style="margin-bottom:0;">Team members</div>
         </div>
-        ${role === 'admin' ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
+        ${canManageDeals() ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
       </div>
-      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${role === 'admin' ? ' Use Invite above to send one in the meantime.' : ''}</div>
-      ${role === 'admin' ? `
+      <div style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:20px 8px;">No member directory yet — this section needs a real team/members table to list who's actually been invited.${canManageDeals() ? ' Use Invite above to send one in the meantime.' : ''}</div>
+      ${canManageDeals() ? `
       <div id="inviteFormWrap" style="display:none;border-top:.5px solid var(--border-subtle);margin-top:6px;padding-top:14px;">
         <div style="display:flex;flex-direction:column;gap:8px;">
           <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
@@ -1439,7 +1391,7 @@ function renderSettingsView() {
         </table>
       </div>
     </div>
-    ${role === 'admin' ? `
+    ${canManageDeals() ? `
     <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
       <div class="kpi-label" style="margin-bottom:10px;">Security status</div>
       <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;line-height:1.5;">
@@ -1697,6 +1649,38 @@ function providerRows() {
   });
 }
 
+let addProviderFormVisible = false;
+function toggleAddProviderForm() {
+  addProviderFormVisible = !addProviderFormVisible;
+  const form = document.getElementById('addProviderForm');
+  if (form) form.style.display = addProviderFormVisible ? 'block' : 'none';
+}
+
+async function submitProvider() {
+  const provider_name = document.getElementById('newProviderName').value.trim();
+  if (!provider_name) return;
+  const vertical = document.getElementById('newProviderVertical').value;
+  const location = document.getElementById('newProviderLocation').value.trim();
+  const contact_name = document.getElementById('newProviderContactName').value.trim();
+  const contact_phone = document.getElementById('newProviderContactPhone').value.trim();
+  try {
+    const slug = provider_name.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
+    const [provider] = await sbPost('wein_providers', {
+      provider_name, provider_slug: slug,
+      vertical: vertical || null, category: vertical || null,
+      location: location || null,
+      contact_name: contact_name || null, contact_phone: contact_phone || null,
+    });
+    await sbPost('wein_negotiations', {
+      provider_id: provider.id, provider_name: provider.provider_name,
+      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected',
+    });
+    addProviderFormVisible = false;
+    await loadDashboard();
+  } catch (e) { console.error('submitProvider error:', e); alert('Could not add provider: ' + e.message); }
+}
+
 function renderProvidersView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
@@ -1704,7 +1688,28 @@ function renderProvidersView() {
         <div class="view-title">Providers</div>
         <div class="view-count">${cachedProviders.length} total</div>
       </div>
-      <button class="view-action" type="button"><i class="ti ti-plus"></i><span>Add Provider</span></button>
+      <button class="view-action" type="button" onclick="toggleAddProviderForm()"><i class="ti ti-plus"></i><span>Add Provider</span></button>
+    </div>
+    <div id="addProviderForm" style="display:${addProviderFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="newProviderName" placeholder="Provider name" class="view-input" style="min-width:0;">
+        <select id="newProviderVertical" class="view-select" style="min-width:0;">
+          <option value="">Select category…</option>
+          <option value="Dining">Dining</option>
+          <option value="Health & Beauty">Health & Beauty</option>
+          <option value="Fun & Activities">Fun & Activities</option>
+          <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="newProviderLocation" placeholder="Location" class="view-input" style="min-width:0;">
+        <input type="text" id="newProviderContactName" placeholder="Contact name" class="view-input" style="min-width:0;">
+        <input type="text" id="newProviderContactPhone" placeholder="Contact phone" class="view-input" style="min-width:0;">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddProviderForm()">Cancel</button>
+        <button class="view-action" type="button" onclick="submitProvider()"><span>Save provider</span></button>
+      </div>
     </div>
     <div class="view-filterbar">
       <input id="providerSearch" class="view-input" type="search" placeholder="Search providers">
@@ -3320,9 +3325,7 @@ if (window.location.hash.includes('type=recovery')) {
   (async () => {
     const { data: { session } } = await sbAuth.auth.getSession();
     if (session) { await loadPortalForSession(session); return; }
-    const savedRole = sessionStorage.getItem('weinRole');
-    if (Object.values(PIN_ROLES).includes(savedRole)) { showApp(savedRole); }
-    else { document.getElementById('loginScreen').style.display = 'flex'; }
+    document.getElementById('loginScreen').style.display = 'flex';
   })();
 }
 </script>
