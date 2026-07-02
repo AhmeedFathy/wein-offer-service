@@ -4127,9 +4127,37 @@ function openNotifTarget(idx) {
   const t = notifTarget(n);
   if (!t) return;
   document.getElementById('notif-panel').style.display = 'none';
-  if (t.leadId) { showView('leads'); openLeadDrawer(t.leadId); }
-  else if (t.providerId) { openProviderModal(t.providerId, t.negId); }
-  else if (t.view) { showView(t.view); }
+  if (t.leadId) {
+    showView('leads');
+    openLeadDrawer(t.leadId);
+    highlightCard(`[data-lead-id="${t.leadId}"]`);
+  } else if (t.providerId) {
+    // Land on the Pipeline board underneath, so closing the popup leaves
+    // you at the provider's card — then open the detail popup on top.
+    showView('pipeline');
+    openProviderModal(t.providerId, t.negId);
+    highlightCard(`[data-provider-id="${t.providerId}"]`);
+  } else if (t.view === 'offers') {
+    const o = cachedOffers.find(x => x.id === n.entity_id);
+    if (o) offerStatusFilter = offerStatus(o);
+    showView(t.view);
+    if (o) {
+      const sel = document.getElementById('offerProviderFilter');
+      if (sel) { sel.value = o.provider_id; renderOffersGrid(); }
+    }
+  } else if (t.view) { showView(t.view); }
+}
+// Scroll a board card into view and pulse a blue ring on it briefly.
+function highlightCard(selector) {
+  setTimeout(() => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const prev = el.style.boxShadow;
+    el.style.transition = 'box-shadow .3s';
+    el.style.boxShadow = '0 0 0 2px var(--blue)';
+    setTimeout(() => { el.style.boxShadow = prev; }, 2000);
+  }, 200);
 }
 function renderNotifications() {
   const list = document.getElementById('notif-list');
