@@ -502,6 +502,7 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       <i class="ti ti-chevron-down chevron"></i>
     </div>
     <div class="nav-subitems" data-group-items="sales">
+      <div class="nav-item" data-view="today"><i class="ti ti-calendar-check"></i><span>Today</span><span class="nav-count" data-count="today"></span></div>
       <div class="nav-item" data-view="leads"><i class="ti ti-target-arrow"></i><span>Leads</span><span class="nav-count" data-count="leads"></span></div>
       <div class="nav-item active" data-view="pipeline"><i class="ti ti-git-branch"></i><span>Pipeline</span><span class="nav-count" data-count="pipeline"></span></div>
       <div class="nav-item" data-view="deals"><i class="ti ti-file-text"></i><span>Deals</span><span class="nav-count" data-count="deals"></span></div>
@@ -694,6 +695,14 @@ html.is-mobile .view-input, html.is-mobile .view-select { width: 100%; min-width
       <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;">Activity</div>
       <div id="lead-drawer-activity"></div>
       <div id="lead-drawer-why" style="margin-top:14px;"></div>
+      <div style="margin-top:14px;border-top:.5px solid var(--border-subtle);padding-top:15px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Next action</div>
+        <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="lead-drawer-na-date" style="background:var(--bg-elevated);border:.5px solid var(--border);border-radius:7px;color:var(--text-primary);font-size:12px;padding:7px 9px;outline:none;">
+          <input type="text" id="lead-drawer-na-note" placeholder="e.g. call back about pricing" style="flex:1;min-width:140px;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:7px;color:var(--text-primary);font-size:12px;padding:7px 9px;outline:none;">
+          <button id="lead-drawer-na-save" type="button" class="mini-btn"><span>Set</span></button>
+        </div>
+      </div>
       <div style="margin-top:14px;border-top:.5px solid var(--border-subtle);padding-top:15px;">
         <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Add note</div>
         <textarea id="lead-drawer-note" placeholder="Call notes, follow-ups, next steps…" style="width:100%;padding:10px 12px;border:.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-primary);outline:none;resize:none;height:74px;line-height:1.5;background:var(--bg-elevated);box-sizing:border-box;font-family:inherit;"></textarea>
@@ -1185,8 +1194,8 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
-const VIEW_GROUP = { leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', offers: 'insights', files: 'system', settings: 'system' };
+const PAGE_TITLES = { today: 'Today', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', offers: 'Offers', files: 'Files', settings: 'Settings' };
+const VIEW_GROUP = { today: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', offers: 'insights', files: 'system', settings: 'system' };
 let currentView = 'pipeline';
 
 function setNavGroupOpen(groupId, open) {
@@ -1294,9 +1303,15 @@ function refreshNavCounts() {
   set('deals', cachedProviders.length);
   set('launch', cachedProviders.filter(p => launchStageOf(p)).length);
   set('offers', cachedOffers.length);
+  const due = todayActionItems();
+  set('today', due.length);
+  document.querySelectorAll('.nav-count[data-count="today"]').forEach(el => {
+    el.style.color = due.some(x => x.overdue > 0) ? 'var(--red)' : '';
+  });
 }
 
 function renderCurrentView() {
+  if (currentView === 'today') { renderTodayView(); return; }
   if (currentView === 'providers') { renderProvidersView(); return; }
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
@@ -2569,6 +2584,95 @@ function leadStatusLabel(status) {
   return (LEAD_STAGES.find(s => s.id === status) || LEAD_STAGES[0]).label;
 }
 
+// ── Today view: next-action tracking (needs migration 033) ──────────
+function waLink(phone, name) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('0')) digits = '20' + digits.slice(1); // Egypt default
+  const msg = `Hi! Following up on the WeIN offer sheet for ${name} — do you have 5 minutes today?`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+}
+function waButtonHtml(phone, name) {
+  const url = waLink(phone, name);
+  if (!url) return '';
+  return `<a class="mini-btn" href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#25D366;border-color:#25D366;text-decoration:none;"><i class="ti ti-brand-whatsapp"></i><span>WhatsApp</span></a>`;
+}
+function todayActionItems() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const items = [];
+  cachedLeads.forEach(l => {
+    if (!l.next_action_date || l.status === 'dropped') return;
+    const d = new Date(l.next_action_date); d.setHours(0, 0, 0, 0);
+    if (d <= today) items.push({ kind: 'lead', id: l.id, name: l.business_name || 'Unnamed', vertical: l.vertical, stage: leadStatusLabel(l.status), note: l.next_action_note, phone: l.contact_phone, overdue: Math.round((today - d) / 86400000) });
+  });
+  cachedNegotiations.forEach(n => {
+    if (!n.next_action_date) return;
+    const d = new Date(n.next_action_date); d.setHours(0, 0, 0, 0);
+    if (d > today) return;
+    const p = cachedProviders.find(x => x.id === n.provider_id);
+    items.push({ kind: 'provider', id: n.id, providerId: n.provider_id, name: p?.provider_name || 'Unknown provider', vertical: p?.category, stage: n.stage, note: n.next_action_note, phone: p?.contact_phone, overdue: Math.round((today - d) / 86400000) });
+  });
+  return items.sort((a, b) => b.overdue - a.overdue);
+}
+async function todaySetDate(kind, id, dateOrNull, alsoClearNote) {
+  const table = kind === 'lead' ? 'wein_leads' : 'wein_negotiations';
+  const body = { next_action_date: dateOrNull };
+  if (alsoClearNote) body.next_action_note = null;
+  try {
+    await sbPatch(`${table}?id=eq.${id}`, body);
+    const check = await sbGet(`${table}?id=eq.${id}&select=next_action_date`);
+    if (!check.length || (check[0].next_action_date || null) !== dateOrNull) {
+      alert('Update did not apply — has migration 033_bd_sales_tools.sql been run in Supabase?');
+      return;
+    }
+    const cache = kind === 'lead' ? cachedLeads : cachedNegotiations;
+    const row = cache.find(x => x.id === id);
+    if (row) Object.assign(row, body);
+    refreshNavCounts();
+    if (currentView === 'today') renderTodayView();
+  } catch (e) { alert('Could not update next action (migration 033 may be missing): ' + (e.message || e)); }
+}
+function todaySnooze(kind, id, days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  todaySetDate(kind, id, d.toISOString().slice(0, 10), false);
+}
+function todayOpen(item) {
+  const it = JSON.parse(decodeURIComponent(item));
+  if (it.kind === 'lead') { showView('leads'); openLeadDrawer(it.id); }
+  else { showView('pipeline'); openProviderModal(it.providerId, it.id); }
+}
+function renderTodayView() {
+  const items = todayActionItems();
+  const overdue = items.filter(x => x.overdue > 0);
+  const dueToday = items.filter(x => x.overdue === 0);
+  const row = (x) => `
+    <article class="file-card" style="cursor:pointer;" onclick="todayOpen('${encodeURIComponent(JSON.stringify({ kind: x.kind, id: x.id, providerId: x.providerId || '' }))}')">
+      <div class="file-card-head">
+        <div style="min-width:0;flex:1;">
+          <div class="file-name">${escapeHtml(x.name)}</div>
+          <div class="file-provider">${x.vertical ? `<span class="cat-badge ${catBadgeClass(x.vertical)}">${escapeHtml(x.vertical)}</span> · ` : ''}${escapeHtml(x.stage || '')} · ${x.kind === 'lead' ? 'Lead' : 'Provider'}${x.overdue > 0 ? ` · <span style="color:var(--red);font-weight:600;">${x.overdue}d overdue</span>` : ''}</div>
+        </div>
+      </div>
+      ${x.note ? `<div class="file-meta" style="color:var(--text-secondary);">${escapeHtml(x.note)}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+        ${waButtonHtml(x.phone, x.name)}
+        <button class="mini-btn" type="button" onclick="todaySetDate('${x.kind}','${x.id}',null,true)" style="color:var(--green);"><i class="ti ti-check"></i><span>Done</span></button>
+        <button class="mini-btn" type="button" onclick="todaySnooze('${x.kind}','${x.id}',1)"><span>+1d</span></button>
+        <button class="mini-btn" type="button" onclick="todaySnooze('${x.kind}','${x.id}',3)"><span>+3d</span></button>
+      </div>
+    </article>`;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Today</div>
+        <div class="view-count">${overdue.length} overdue · ${dueToday.length} due today</div>
+      </div>
+    </div>
+    ${overdue.length ? `<div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Overdue</div><div class="files-grid" style="margin-bottom:18px;">${overdue.map(row).join('')}</div>` : ''}
+    ${dueToday.length ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Today</div><div class="files-grid">${dueToday.map(row).join('')}</div>` : ''}
+    ${!items.length ? `<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:40px 0;">Nothing scheduled — open a lead or provider and set a next action date.<br>Pick 3 leads to chase and give each a date.</div>` : ''}`;
+}
+
 function renderLeadsView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
@@ -2589,6 +2693,9 @@ function renderLeadsView() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <input type="text" id="leadLocation" placeholder="Location" class="view-input" style="min-width:0;">
         <input type="text" id="leadSource" placeholder="Source (e.g. Instagram, referral)" class="view-input" style="min-width:0;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="tel" id="leadContactPhone" placeholder="Contact phone (for WhatsApp)" class="view-input" style="min-width:0;">
       </div>
       <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;font-family:inherit;"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -2623,14 +2730,15 @@ function renderDroppedLeadsTable() {
   wrap.innerHTML = `
     <div class="providers-table-wrap">
       <table class="providers-table">
-        <thead><tr><th>Business</th><th>Vertical</th><th>Location</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Business</th><th>Vertical</th><th>Reason</th><th>Location</th><th>Actions</th></tr></thead>
         <tbody>${dropped.length ? dropped.map(lead => `
           <tr>
             <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(lead.business_name || 'Unnamed')}</td>
             <td>${escapeHtml(lead.vertical || '—')}</td>
+            <td>${escapeHtml((lead.drop_reason || '—').replace(/_/g, ' '))}</td>
             <td>${escapeHtml(lead.location || '—')}</td>
             <td>${canDelete() ? `<button class="mini-btn" type="button" onclick="deleteLead('${lead.id}')" style="color:var(--red);"><span>Delete</span></button>` : '—'}</td>
-          </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--text-tertiary);padding:20px;">No dropped leads</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:20px;">No dropped leads</td></tr>`}</tbody>
       </table>
     </div>`;
 }
@@ -2645,7 +2753,7 @@ function leadCardHtml(lead) {
   return `
     <div class="provider-card" data-lead-id="${lead.id}" onclick="openLeadDrawer('${lead.id}')" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
       <div class="pc-name">${escapeHtml(lead.business_name || 'Unnamed')}</div>
-      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}</div>` : ''}
+      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${lead.stage_entered_at ? (() => { const d = daysSince(lead.stage_entered_at); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-tertiary)'};">${d}d in stage</span>`; })() : ''}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}${waLink(lead.contact_phone, lead.business_name) ? `<a href="${waLink(lead.contact_phone, lead.business_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}</div>` : ''}
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
         ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
@@ -2698,6 +2806,24 @@ function openLeadDrawer(leadId) {
     ? `<div style="border-top:.5px solid var(--border-subtle);padding-top:14px;"><div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Why promising</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">${escapeHtml(lead.why_promising)}</div></div>`
     : '';
 
+  const naDate = document.getElementById('lead-drawer-na-date');
+  const naNote = document.getElementById('lead-drawer-na-note');
+  naDate.value = lead.next_action_date || '';
+  naNote.value = lead.next_action_note || '';
+  document.getElementById('lead-drawer-na-save').onclick = async () => {
+    try {
+      const body = { next_action_date: naDate.value || null, next_action_note: naNote.value || null };
+      await sbPatch(`wein_leads?id=eq.${lead.id}`, body);
+      const check = await sbGet(`wein_leads?id=eq.${lead.id}&select=next_action_date`);
+      if (!check.length || (check[0].next_action_date || null) !== body.next_action_date) {
+        alert('Did not save — has migration 033_bd_sales_tools.sql been run in Supabase?');
+        return;
+      }
+      Object.assign(lead, body);
+      refreshNavCounts();
+    } catch (e) { alert('Could not save next action (migration 033 may be missing): ' + (e.message || e)); }
+  };
+
   const noteEl = document.getElementById('lead-drawer-note');
   noteEl.value = lead.notes || '';
   document.getElementById('lead-drawer-note-save').onclick = async () => {
@@ -2718,7 +2844,7 @@ function openLeadDrawer(leadId) {
         ${!isFirst ? `<button class="lead-drawer-back" onclick="retreatLead('${lead.id}');closeLeadDrawer();">← Move back</button>` : ''}
         ${!isLast ? `<button class="lead-drawer-advance" onclick="advanceLead('${lead.id}');closeLeadDrawer();">${stageIdx === LEAD_STAGES.length - 2 ? 'Promote →' : 'Advance to ' + LEAD_STAGES[stageIdx + 1].label + ' →'}</button>` : ''}
       </div>
-      <button type="button" onclick="if(confirm('Drop this lead?')){dropLead('${lead.id}');closeLeadDrawer();}" style="width:100%;margin-top:8px;background:transparent;border:none;color:var(--red);font-size:11px;font-weight:600;cursor:pointer;padding:2px;">Drop lead</button>
+      <button type="button" onclick="closeLeadDrawer();dropLead('${lead.id}');" style="width:100%;margin-top:8px;background:transparent;border:none;color:var(--red);font-size:11px;font-weight:600;cursor:pointer;padding:2px;">Drop lead</button>
     </div>`;
 
   document.getElementById('lead-drawer-backdrop').style.display = 'block';
@@ -2750,6 +2876,14 @@ function renderLeadsKanban() {
   }).join('');
 }
 
+// Only write 033 columns when they exist (feature-detect off fetched rows),
+// so core actions keep working before the migration is pasted.
+function leadHasCol(col) { return cachedLeads.length > 0 && col in cachedLeads[0]; }
+function withStageStamp(body) {
+  if (leadHasCol('stage_entered_at')) body.stage_entered_at = new Date().toISOString();
+  return body;
+}
+
 async function advanceLead(leadId) {
   const lead = cachedLeads.find(l => l.id === leadId);
   if (!lead) return;
@@ -2758,7 +2892,7 @@ async function advanceLead(leadId) {
   const nextStage = LEAD_STAGES[stageIdx + 1].id;
   if (nextStage === 'promoted') { await promoteLead(leadId); return; }
   try {
-    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: nextStage, updated_at: new Date().toISOString() });
+    await sbPatch(`wein_leads?id=eq.${leadId}`, withStageStamp({ status: nextStage, updated_at: new Date().toISOString() }));
     await loadDashboard();
   } catch (e) { console.error('advanceLead error:', e); alert('Could not advance lead: ' + e.message); }
 }
@@ -2776,22 +2910,78 @@ async function submitLead() {
   const location = document.getElementById('leadLocation').value.trim();
   const source = document.getElementById('leadSource').value.trim();
   const why_promising = document.getElementById('leadWhyPromising').value.trim();
+  const contact_phone = (document.getElementById('leadContactPhone')?.value || '').trim();
   try {
-    await sbPost('wein_leads', {
+    const body = {
       business_name, vertical: vertical || null, location: location || null,
       source: source || null, why_promising: why_promising || null,
       created_by: sessionStorage.getItem('weinRole') || 'portal',
-    });
+    };
+    if (contact_phone && leadHasCol('contact_phone')) body.contact_phone = contact_phone;
+    if (leadHasCol('stage_entered_at')) body.stage_entered_at = new Date().toISOString();
+    await sbPost('wein_leads', body);
     leadFormVisible = false;
     await loadDashboard();
   } catch (e) { console.error('submitLead error:', e); alert('Could not save lead: ' + e.message); }
 }
 
+const DROP_REASONS = [
+  ['price_objection', 'Price objection'],
+  ['not_interested', 'Not interested'],
+  ['wrong_contact', 'Wrong contact'],
+  ['seasonal', 'Seasonal / bad timing'],
+  ['other', 'Other'],
+];
 async function dropLead(leadId) {
+  // Pre-033 fallback: no drop_reason column yet, keep the old direct drop
+  if (!leadHasCol('drop_reason')) {
+    if (!confirm('Drop this lead?')) return;
+    await doDropLead(leadId, null);
+    return;
+  }
+  const lead = cachedLeads.find(l => l.id === leadId);
+  const overlay = document.createElement('div');
+  overlay.id = 'drop-reason-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:18px;width:340px;max-width:92vw;box-shadow:0 18px 44px rgba(0,0,0,.45);">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Drop "${escapeHtml(lead?.business_name || 'lead')}"?</div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Why? One tap — this data shows what's killing deals.</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${DROP_REASONS.map(([v, label]) => `<button class="mini-btn" type="button" data-reason="${v}" style="justify-content:flex-start;width:100%;">${label}</button>`).join('')}
+      </div>
+      <input type="text" id="drop-reason-other" placeholder="Details (required for Other)" style="display:none;width:100%;margin-top:8px;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:7px;color:var(--text-primary);font-size:12px;padding:7px 9px;outline:none;box-sizing:border-box;">
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <button class="mini-btn" type="button" id="drop-reason-cancel">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#drop-reason-cancel').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelectorAll('[data-reason]').forEach(btn => {
+    btn.onclick = async () => {
+      const reason = btn.dataset.reason;
+      if (reason === 'other') {
+        const inp = overlay.querySelector('#drop-reason-other');
+        if (inp.style.display === 'none') { inp.style.display = 'block'; inp.focus(); return; }
+        if (!inp.value.trim()) { inp.focus(); return; }
+        close();
+        await doDropLead(leadId, 'other: ' + inp.value.trim());
+        return;
+      }
+      close();
+      await doDropLead(leadId, reason);
+    };
+  });
+}
+async function doDropLead(leadId, reason) {
   try {
-    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'dropped', updated_at: new Date().toISOString() });
+    const body = withStageStamp({ status: 'dropped', updated_at: new Date().toISOString() });
+    if (reason !== null && leadHasCol('drop_reason')) body.drop_reason = reason;
+    await sbPatch(`wein_leads?id=eq.${leadId}`, body);
     await loadDashboard();
-  } catch (e) { console.error('dropLead error:', e); }
+  } catch (e) { console.error('dropLead error:', e); alert('Could not drop lead: ' + e.message); }
 }
 
 async function retreatLead(leadId) {
@@ -2801,7 +2991,7 @@ async function retreatLead(leadId) {
   if (stageIdx <= 0) return;
   const prevStage = LEAD_STAGES[stageIdx - 1].id;
   try {
-    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: prevStage, updated_at: new Date().toISOString() });
+    await sbPatch(`wein_leads?id=eq.${leadId}`, withStageStamp({ status: prevStage, updated_at: new Date().toISOString() }));
     await loadDashboard();
   } catch (e) { console.error('retreatLead error:', e); alert('Could not move lead back: ' + e.message); }
 }
