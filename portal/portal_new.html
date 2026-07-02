@@ -1702,7 +1702,7 @@ async function submitProvider() {
     });
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
+      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
     });
     addProviderFormVisible = false;
     await loadDashboard();
@@ -2784,6 +2784,14 @@ async function renderMapView() {
   const dot = (color) => L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
   const unmapped = [];
   cachedProviders.forEach(p => {
+    // Exact geocoded coordinates (migration 034 + PROVIDER_LOCATIONS.md) take
+    // priority over area-level guessing — real research, not a text match.
+    if (p.latitude != null && p.longitude != null) {
+      const precision = p.geocode_confidence === 'medium' ? ' (approx. — venue not in map data)' : '';
+      L.marker([p.latitude, p.longitude], { icon: dot('#3fb950') }).addTo(map)
+        .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider${precision}<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
+      return;
+    }
     const area = matchSharmArea(p);
     if (!area) { unmapped.push(`${p.provider_name} (provider)`); return; }
     L.marker(jitter(area), { icon: dot('#3fb950') }).addTo(map)
@@ -3250,7 +3258,7 @@ async function promoteLead(leadId) {
     });
     await sbPost('wein_negotiations', {
       provider_id: provider.id, provider_name: provider.provider_name,
-      deal_breaker: sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
+      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
     });
     await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'promoted', promoted_provider_id: provider.id, updated_at: new Date().toISOString() });
     await loadDashboard();
