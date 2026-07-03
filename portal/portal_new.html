@@ -269,6 +269,13 @@ tr.row-selected { background: var(--blue-tint); }
   border:.5px solid var(--border); background:var(--bg-surface); color:var(--text-secondary); }
 .chip:hover { background:var(--bg-elevated); }
 .chip.active { border-color:var(--border-blue); background:var(--blue-tint); color:var(--blue); }
+/* Board color identity (see renderCurrentView): Leads = cool/blue
+   (prospecting, pre-commitment), Pipeline = warm/amber (active deals,
+   real providers) -- makes the two kanban boards tellable apart at a
+   glance instead of relying on reading the page title. */
+#mainArea[data-board="pipeline"] .chip.active { border-color:var(--border-amber); background:var(--amber-tint); color:var(--amber); }
+#mainArea[data-board="pipeline"] .view-title { border-left:3px solid var(--amber); padding-left:9px; }
+#mainArea[data-board="leads"] .view-title { border-left:3px solid var(--blue); padding-left:9px; }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
@@ -1371,9 +1378,13 @@ const STAGE_COLUMNS = {
   'negotiating':    'negotiating',
   'accepted':       'accepted'
 };
+// Column ids stay ('contacted' etc.) since STAGE_COLUMNS/other code keys off
+// them -- only the visible label changed. "Onboarding" replaces "Contacted"
+// because it collided with Leads' "Contacting" stage (a real provider here
+// has already committed; this stage is menu collection, not outreach).
 const COLUMNS = [
-  { id: 'contacted',   label: 'Contacted',   color: 'var(--text-tertiary)' },
-  { id: 'negotiating', label: 'Negotiating', color: 'var(--blue)' },
+  { id: 'contacted',   label: 'Onboarding',  color: 'var(--amber)' },
+  { id: 'negotiating', label: 'Negotiating', color: 'var(--amber)' },
   { id: 'offer_sent',  label: 'Offer Sent',  color: 'var(--amber)' },
   { id: 'accepted',    label: 'Accepted',    color: 'var(--green)' },
 ];
@@ -1440,6 +1451,11 @@ function refreshNavCounts() {
 }
 
 function renderCurrentView() {
+  // Board color identity: Leads (prospecting, pre-commitment) reads cool/blue,
+  // Pipeline (active deals, real providers) reads warm/amber -- so the two
+  // near-identical-looking kanban boards are distinguishable at a glance.
+  const mainEl = document.getElementById('mainArea');
+  if (mainEl) mainEl.dataset.board = (currentView === 'leads' || currentView === 'pipeline') ? currentView : '';
   if (currentView === 'today') { renderTodayView(); return; }
   if (currentView === 'map') { renderMapView(); return; }
   if (currentView === 'providers') { renderProvidersView(); return; }
@@ -1620,6 +1636,12 @@ function setPipelineCatFilter(value) {
 
 function renderPipelineView() {
   document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Pipeline</div>
+        <div class="view-count">${cachedProviders.length} providers — active deals</div>
+      </div>
+    </div>
     <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
       <div class="kpi-card">
         <div class="kpi-label">Providers</div>
