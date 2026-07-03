@@ -2927,12 +2927,42 @@ function guessCsvField(header) {
   if (/note/.test(h)) return 'notes';
   return 'ignore';
 }
+// Downloadable example so people uploading a list know a working shape —
+// not a required shape (the mapping step below accepts any headers), but
+// having a real example removes all the guesswork.
+function downloadCsvTemplate() {
+  const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
+  const rows = [
+    ['Business Name', 'Category', 'Location', 'Phone', 'Source', 'Why Promising'],
+    ['Example Restaurant', CANON[0] || 'Dining', 'Naama Bay', '01001234567', 'Instagram', 'High foot traffic, no exclusive deals yet'],
+    ['Example Spa', CANON[1] || 'Health & Beauty', 'Soho Square', '01098765432', 'Referral', ''],
+  ];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'wein-leads-example.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 function startCsvImport(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     const rows = parseCsv(String(reader.result || ''));
-    if (rows.length < 2) { alert('CSV needs a header row plus at least one data row.'); return; }
+    if (rows.length < 2) {
+      alert('Couldn\'t find both a header row and a data row in this file — the first line must be column names (e.g. "Business Name, Category, Phone…") and every line after it a lead. Click "Example CSV" for a working file to copy the shape from.');
+      return;
+    }
+    const headerCount = rows[0].length;
+    const overLong = rows.slice(1).filter(r => r.length > headerCount);
+    if (overLong.length) {
+      alert(`${overLong.length} row(s) have MORE columns than the header (header has ${headerCount}). That usually means a comma inside a value wasn't wrapped in quotes — e.g. write "Sushi, Lounge" with quotes if a name itself contains a comma. Fix the file and re-upload, or click "Example CSV" to see the expected shape.`);
+      return;
+    }
+    // Shorter rows (trailing blank cells some spreadsheet exports drop) are
+    // harmless — pad them so mapping-by-column-index still lines up.
+    for (let i = 1; i < rows.length; i++) while (rows[i].length < headerCount) rows[i].push('');
     const headers = rows[0];
     const overlay = document.createElement('div');
     overlay.id = 'csv-import-overlay';
@@ -2960,22 +2990,41 @@ function startCsvImport(file) {
     const close = () => overlay.remove();
     overlay.querySelector('#csv-cancel').onclick = close;
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
     const currentMapping = () => Array.from(overlay.querySelectorAll('.csv-map')).map(s => s.value);
     const renderPreview = () => {
       const mapping = currentMapping();
+      const vertCol = mapping.indexOf('vertical');
+      const nameCol = mapping.indexOf('business_name');
+      let noNameCount = 0;
+      const unmatchedVerts = new Set();
+      rows.slice(1).forEach(r => {
+        if (nameCol < 0 || !r[nameCol]?.trim()) noNameCount++;
+        if (vertCol >= 0 && r[vertCol]?.trim() && !CANON.some(c => c.toLowerCase() === r[vertCol].trim().toLowerCase())) {
+          unmatchedVerts.add(r[vertCol].trim());
+        }
+      });
       const sample = rows.slice(1, 4).map(r => {
         const obj = {};
         mapping.forEach((f, i) => { if (f !== 'ignore' && r[i]?.trim()) obj[f] = r[i].trim(); });
-        return obj.business_name ? `✓ ${obj.business_name}${obj.vertical ? ' · ' + obj.vertical : ''}${obj.contact_phone ? ' · ' + obj.contact_phone : ''}` : '✗ (no business name — skipped)';
+        return obj.business_name ? `✓ ${escapeHtml(obj.business_name)}${obj.vertical ? ' · ' + escapeHtml(obj.vertical) : ''}${obj.contact_phone ? ' · ' + escapeHtml(obj.contact_phone) : ''}` : '✗ (no business name — skipped)';
       });
-      overlay.querySelector('#csv-preview').innerHTML = '<b>Preview:</b><br>' + sample.map(escapeHtml).join('<br>');
+      let html = '<b>Preview (first 3 rows):</b><br>' + sample.join('<br>');
+      if (nameCol < 0) {
+        html += `<div style="color:var(--red);margin-top:8px;">⚠ No column is mapped to <b>business_name</b> yet — every row will be skipped. Pick the column with the business's name in the dropdown above.</div>`;
+      } else if (noNameCount) {
+        html += `<div style="color:var(--amber);margin-top:8px;">⚠ ${noNameCount} of ${rows.length - 1} row(s) have an empty value in the mapped business-name column and will be skipped.</div>`;
+      }
+      if (unmatchedVerts.size) {
+        html += `<div style="color:var(--amber);margin-top:8px;">⚠ These category values don't match WeIN's 4 categories and will be left blank: <b>${[...unmatchedVerts].map(escapeHtml).join(', ')}</b>. Valid values are exactly: ${CANON.join(' / ')}.</div>`;
+      }
+      overlay.querySelector('#csv-preview').innerHTML = html;
     };
     overlay.querySelectorAll('.csv-map').forEach(s => s.addEventListener('change', renderPreview));
     renderPreview();
     overlay.querySelector('#csv-go').onclick = async () => {
       const mapping = currentMapping();
-      if (!mapping.includes('business_name')) { alert('Map one column to business_name first.'); return; }
-      const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
+      if (!mapping.includes('business_name')) { alert('No column is mapped to business_name — pick which column holds the business name before importing.'); return; }
       const leads = [];
       let skipped = 0;
       rows.slice(1).forEach(r => {
@@ -3191,7 +3240,7 @@ function renderLeadsView() {
         ${(() => { const n = cachedLeads.filter(isLeadStale).length; return n > 0 ? `<div class="stale-chip"><div class="dot"></div><span class="label">${n} stale lead${n === 1 ? '' : 's'}</span></div>` : ''; })()}
       </div>
       <div style="display:flex;gap:8px;">
-        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="document.getElementById('leadCsvInput').click()"><i class="ti ti-upload"></i><span>Import CSV</span></button><input type="file" id="leadCsvInput" accept=".csv,text/csv" style="display:none;" onchange="startCsvImport(this.files[0]);this.value='';">` : ''}
+        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="downloadCsvTemplate()"><i class="ti ti-download"></i><span>Example CSV</span></button><button class="mini-btn" type="button" onclick="document.getElementById('leadCsvInput').click()"><i class="ti ti-upload"></i><span>Import CSV</span></button><input type="file" id="leadCsvInput" accept=".csv,text/csv" style="display:none;" onchange="startCsvImport(this.files[0]);this.value='';">` : ''}
         <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
       </div>
     </div>
