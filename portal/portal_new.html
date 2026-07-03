@@ -1410,6 +1410,12 @@ async function loadDashboard() {
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
     refreshNavCounts();
+    // The Add Lead form renders inline inside the Leads view's own HTML, so
+    // a full re-render (background refresh, another tab's action, etc.)
+    // would wipe out anything typed but not yet saved. Skip the rebuild
+    // while it's open — data is still refreshed underneath, just not
+    // painted over the form until it closes.
+    if (currentView === 'leads' && leadFormVisible) return;
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
