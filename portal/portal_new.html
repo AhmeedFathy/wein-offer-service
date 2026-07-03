@@ -3246,9 +3246,10 @@ function renderLeadsView() {
     </div>
     <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <input type="text" id="leadBusinessName" placeholder="Business name" class="view-input" style="min-width:0;">
+        <input type="text" id="leadBusinessName" placeholder="Business name (required)" class="view-input" style="min-width:0;">
         <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="view-input" style="min-width:0;">
       </div>
+      <div id="addLeadError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <input type="text" id="leadLocation" placeholder="Location" class="view-input" style="min-width:0;">
         <input type="text" id="leadSource" placeholder="Source (e.g. Instagram, referral)" class="view-input" style="min-width:0;">
@@ -3259,7 +3260,7 @@ function renderLeadsView() {
       <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;font-family:inherit;"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="mini-btn" type="button" onclick="toggleAddLeadForm()">Cancel</button>
-        <button class="view-action" type="button" onclick="submitLead()"><span>Save lead</span></button>
+        <button class="view-action" type="button" id="leadSaveBtn" onclick="submitLead()"><span>Save lead</span></button>
       </div>
     </div>
     ${categoryChipsHtml(leadsCatFilter, 'setLeadsCatFilter')}
@@ -3461,16 +3462,34 @@ function toggleAddLeadForm() {
   leadFormVisible = !leadFormVisible;
   const form = document.getElementById('addLeadForm');
   if (form) form.style.display = leadFormVisible ? 'block' : 'none';
+  // Clear any leftover validation error/highlight from a previous attempt
+  // so it doesn't look "stuck" the next time the form opens.
+  const errEl = document.getElementById('addLeadError');
+  const nameEl = document.getElementById('leadBusinessName');
+  if (errEl) errEl.style.display = 'none';
+  if (nameEl) nameEl.style.borderColor = '';
 }
 
 async function submitLead() {
-  const business_name = document.getElementById('leadBusinessName').value.trim();
-  if (!business_name) return;
+  const nameEl = document.getElementById('leadBusinessName');
+  const errEl = document.getElementById('addLeadError');
+  const business_name = nameEl.value.trim();
+  if (!business_name) {
+    errEl.textContent = 'Business name is required.';
+    errEl.style.display = 'block';
+    nameEl.style.borderColor = 'var(--red)';
+    nameEl.focus();
+    return;
+  }
+  errEl.style.display = 'none';
+  nameEl.style.borderColor = '';
   const vertical = document.getElementById('leadVertical').value.trim();
   const location = document.getElementById('leadLocation').value.trim();
   const source = document.getElementById('leadSource').value.trim();
   const why_promising = document.getElementById('leadWhyPromising').value.trim();
   const contact_phone = (document.getElementById('leadContactPhone')?.value || '').trim();
+  const btn = document.getElementById('leadSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     const body = {
       business_name, vertical: vertical || null, location: location || null,
@@ -3482,7 +3501,12 @@ async function submitLead() {
     await sbPost('wein_leads', body);
     leadFormVisible = false;
     await loadDashboard();
-  } catch (e) { console.error('submitLead error:', e); alert('Could not save lead: ' + e.message); }
+  } catch (e) {
+    console.error('submitLead error:', e);
+    errEl.textContent = 'Could not save lead: ' + (e.message || e);
+    errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = 'Save lead'; }
+  }
 }
 
 const DROP_REASONS = [
