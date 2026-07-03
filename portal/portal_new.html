@@ -4250,8 +4250,22 @@ async function markAllRead() {
 // ════════════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════════════
-if (window.location.hash.includes('type=recovery')) {
+if (window.location.hash.includes('type=recovery') || window.location.hash.includes('type=invite')) {
   document.getElementById('loginScreen').style.display = 'flex';
+  if (window.location.hash.includes('type=invite')) {
+    // Invite links sign the invitee in with a SIGNED_IN event (not
+    // PASSWORD_RECOVERY), so without this they'd land in the app with no
+    // password ever set — and be locked out on their next visit. Wait for
+    // supabase-js to consume the hash, then force the set-password step.
+    (async () => {
+      for (let i = 0; i < 20; i++) {
+        const { data: { session } } = await sbAuth.auth.getSession();
+        if (session) { showSetNewPasswordForm(); return; }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      document.getElementById('loginError').textContent = 'Invite link expired or already used — use "Forgot password?" with your email to set one.';
+    })();
+  }
 } else {
   (async () => {
     const { data: { session } } = await sbAuth.auth.getSession();
