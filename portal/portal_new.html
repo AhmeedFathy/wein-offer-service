@@ -1202,19 +1202,30 @@ async function pollPipelineCompletion(providerName, providerId) {
     } catch (e) { /* keep polling */ }
   }, 15000);
 }
+// Re-queue a provider for offer generation. The old direct webhook call
+// targeted the abandoned cloud n8n and failed for everyone; generation now
+// runs through the local Intake Poller, which picks up any provider whose
+// menu_processed_at is NULL (migration 035) within ~5 minutes.
 async function runPipelineFromCard(name, vertical) {
-  runningPipelines[name] = 'running';
-  renderKanban();
-  startProgressBar(name);
+  if (!canManageDeals()) return;
+  const p = cachedProviders.find(x => x.provider_name.toLowerCase() === name.toLowerCase());
+  if (!p) return;
+  const hasMenuSource = !!(p.menu_link || p.menu_text || (Array.isArray(p.menu_file_paths) && p.menu_file_paths.length));
+  if (!hasMenuSource) {
+    alert(`${name} has no menu source on its record (it predates portal intake) — resubmit its menu via Add Provider, or run it from the n8n canvas directly.`);
+    return;
+  }
+  if (!confirm(`Queue offer generation for ${name}? The pipeline picks it up within ~5 minutes and sends a Telegram summary when done.`)) return;
   try {
-    await fetch(`${N8N}/new-provider`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider_name: name, vertical: vertical || '' }) });
-    const p = cachedProviders.find(p => p.provider_name.toLowerCase() === name.toLowerCase());
-    pollPipelineCompletion(name, p ? p.id : null);
+    await sbPatch(`wein_providers?id=eq.${p.id}`, { menu_processed_at: null });
+    const check = await sbGet(`wein_providers?id=eq.${p.id}&select=menu_processed_at`);
+    if (!check.length || check[0].menu_processed_at !== null) {
+      alert('Could not queue the run (permissions?) — nothing changed.');
+      return;
+    }
+    alert(`${name} queued. Generation starts within ~5 minutes (local n8n must be running).`);
   } catch (e) {
-    delete runningPipelines[name];
-    failProgressBar(e.message);
-    renderKanban();
+    alert('Could not queue the run: ' + (e.message || e));
   }
 }
 
@@ -1610,7 +1621,7 @@ function renderPipelineView() {
         <div class="kpi-delta" id="kpiOffersDelta"></div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Pending</div>
+        <div class="kpi-label">Awaiting offers</div>
         <div class="kpi-value mono" id="kpiPending">—</div>
         <div class="kpi-delta" id="kpiPendingDelta"></div>
       </div>
@@ -2038,7 +2049,7 @@ function renderProvidersTable() {
         <td>
           <div class="table-actions">
             <button class="act-btn act-view" type="button" onclick="event.stopPropagation();openProviderModal('${provider.id}', '${row.negotiationId}')"><i class="ti ti-eye"></i><span>View</span></button>
-            <button class="act-btn act-run" type="button" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${safeVertical}')"><i class="ti ti-player-play"></i><span>Run</span></button>
+            ${canManageDeals() ? `<button class="act-btn act-run" type="button" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${safeVertical}')"><i class="ti ti-player-play"></i><span>Run</span></button>` : ''}
             ${canDelete() ? `<button class="act-btn act-del" type="button" onclick="event.stopPropagation();deleteProvider('${provider.id}', '${safeName}')"><i class="ti ti-trash"></i><span>Delete</span></button>` : ''}
           </div>
         </td>
@@ -3658,7 +3669,7 @@ function providerCardHtml(item) {
       </div>
       <div class="pc-row">
         <span class="pc-badge mono">${item.offerCount} offers</span>
-        <button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>
+        ${canManageDeals() ? `<button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>` : ''}
       </div>
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
