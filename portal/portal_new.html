@@ -752,7 +752,10 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
   <div id="lead-drawer" style="position:fixed; right:0; top:0; bottom:0; width:390px; max-width:92vw; background:var(--bg-surface); border-left:.5px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 30px rgba(0,0,0,.35);">
     <div style="padding:18px 22px 15px; border-bottom:.5px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;">
       <div>
-        <div id="lead-drawer-cat" class="cat-badge" style="display:inline-block;"></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div id="lead-drawer-cat" class="cat-badge" style="display:inline-block;"></div>
+          <span id="lead-drawer-verify-badge" class="mono" title="AI-tagged vertical, low confidence — please confirm" style="display:none;color:var(--amber);border:0.5px solid var(--border-amber);border-radius:999px;padding:2px 7px;font-size:10px;">Verify category</span>
+        </div>
         <div id="lead-drawer-name" style="font-size:19px; font-weight:700; margin-top:8px; color:var(--text-primary);"></div>
       </div>
       <button onclick="closeLeadDrawer()" style="background:transparent;border:none;color:var(--text-tertiary);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
@@ -995,6 +998,13 @@ function canDelete() {
 }
 const canManageDeals = canDelete;
 const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
+// Human-friendly display for the "who created/owns this" field — never show
+// raw internal source strings (migration slugs, bare session-role values).
+const SOURCE_LABELS = { 'clickup-migration': 'Imported', 'portal': 'Portal' };
+function ownerLabel(createdBy) {
+  if (!createdBy) return '—';
+  return SOURCE_LABELS[createdBy] || ROLE_LABELS[createdBy] || createdBy;
+}
 
 // ── Auth: email + password (Supabase Auth) ──
 // PIN login removed 2026-07-02 (RLS migration 031): shared codes shipped to
@@ -3253,7 +3263,7 @@ function leadCardHtml(lead) {
   return `
     <div class="provider-card" data-lead-id="${lead.id}" onclick="openLeadDrawer('${lead.id}')" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
       <div class="pc-name">${escapeHtml(lead.business_name || 'Unnamed')}</div>
-      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${lead.stage_entered_at ? (() => { const d = daysSince(lead.stage_entered_at); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-tertiary)'};">${d}d in stage</span>`; })() : ''}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}${waLink(lead.contact_phone, lead.business_name) ? `<a href="${waLink(lead.contact_phone, lead.business_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}</div>` : ''}
+      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${lead.vertical_needs_review ? `<span class="pc-meta-date mono" title="AI-tagged vertical, low confidence" style="color:var(--amber);border:0.5px solid var(--border-amber);border-radius:999px;padding:2px 6px;">Verify category</span>` : ''}${lead.stage_entered_at ? (() => { const d = daysSince(lead.stage_entered_at); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-tertiary)'};">${d}d in stage</span>`; })() : ''}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}${waLink(lead.contact_phone, lead.business_name) ? `<a href="${waLink(lead.contact_phone, lead.business_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}</div>` : ''}
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
         ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
@@ -3283,6 +3293,7 @@ function openLeadDrawer(leadId) {
 
   document.getElementById('lead-drawer-cat').className = `cat-badge ${catBadgeClass(lead.vertical)}`;
   document.getElementById('lead-drawer-cat').textContent = lead.vertical || '—';
+  document.getElementById('lead-drawer-verify-badge').style.display = lead.vertical_needs_review ? 'inline-block' : 'none';
   document.getElementById('lead-drawer-name').textContent = lead.business_name || 'Unnamed';
   document.getElementById('lead-drawer-stage-label').textContent = stage.label;
   document.getElementById('lead-drawer-stage-label').style.color = stage.color;
@@ -3290,7 +3301,7 @@ function openLeadDrawer(leadId) {
   document.getElementById('lead-drawer-dots').innerHTML = LEAD_STAGES.map((s, idx) =>
     `<div class="stage-dot" style="width:${idx === stageIdx ? '20px' : '8px'};${idx <= stageIdx ? `background:${s.color};border-color:${s.color};` : ''}"></div>`
   ).join('');
-  document.getElementById('lead-drawer-owner').textContent = lead.created_by || '—';
+  document.getElementById('lead-drawer-owner').textContent = ownerLabel(lead.created_by);
   document.getElementById('lead-drawer-days').textContent = `${days}d${stale ? ' · stale' : ''}`;
   document.getElementById('lead-drawer-days').style.color = stale ? 'var(--red)' : (days >= 4 ? 'var(--amber)' : 'var(--text-secondary)');
 
