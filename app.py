@@ -466,9 +466,18 @@ def invite_user():
         profile_resp = requests_lib.post(
             f"{supabase_url}/rest/v1/profiles",
             headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
-            json={"id": user_id, "role": role, "full_name": full_name},
+            json={"id": user_id, "role": role, "full_name": full_name, "email": email},
             timeout=20,
         )
+        if profile_resp.status_code >= 300 and "email" in profile_resp.text:
+            # profiles.email arrives with migration 038 — don't break invites
+            # if this code deploys first.
+            profile_resp = requests_lib.post(
+                f"{supabase_url}/rest/v1/profiles",
+                headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
+                json={"id": user_id, "role": role, "full_name": full_name},
+                timeout=20,
+            )
     except requests_lib.exceptions.RequestException as e:
         return jsonify({"error": f"Invite was sent, but writing the profile failed: {e}"}), 502
 
