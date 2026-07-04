@@ -816,6 +816,42 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
   </div>
 </div>
 
+<!-- ══════════════ RECORD SALE MODAL (centered overlay) ══════════════ -->
+<div id="sale-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:600; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-surface); border:0.5px solid var(--border); border-radius:10px; width:380px; max-width:92vw; padding:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);">Record a sale</div>
+      <button type="button" onclick="closeRecordSaleModal()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;">×</button>
+    </div>
+    <div id="sm-provider-name" style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;"></div>
+
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">
+      <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Sale amount (EGP)</label>
+      <input type="number" id="sm-amount" placeholder="0" class="contract-field" style="font-family:'JetBrains Mono';">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Date</label>
+        <input type="date" id="sm-date" class="contract-field">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Offer (optional)</label>
+        <select id="sm-offer" class="contract-field"><option value="">— None —</option></select>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px;">
+      <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Notes (optional)</label>
+      <input type="text" id="sm-notes" placeholder="e.g. table for 4, dinner" class="contract-field">
+    </div>
+    <div id="sm-preview" style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;"></div>
+    <div id="sm-error" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="mini-btn" type="button" onclick="closeRecordSaleModal()">Cancel</button>
+      <button class="view-action" type="button" id="sm-save-btn" onclick="saveRedemption()"><span>Save sale</span></button>
+    </div>
+  </div>
+</div>
+
 <div id="lead-drawer-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:480;">
   <div id="lead-drawer" style="position:fixed; right:0; top:0; bottom:0; width:390px; max-width:92vw; background:var(--bg-surface); border-left:.5px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 30px rgba(0,0,0,.35);">
     <div style="padding:18px 22px 15px; border-bottom:.5px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;">
@@ -1150,7 +1186,7 @@ async function attemptSetNewPassword() {
 async function loadPortalForSession(session) {
   SB_TOKEN = session.access_token;
   window.WEIN.user = session.user;
-  await probeCollabReady();
+  await Promise.all([probeCollabReady(), probeDealValueReady()]);
   let role = 'deal_breaker', fullName = session.user.email;
   try {
     const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
@@ -1482,6 +1518,20 @@ async function probeCollabReady() {
   try { await sbGet('wein_comments?select=lead_id&limit=1'); COLLAB_READY = true; }
   catch (e) { COLLAB_READY = false; }
 }
+// True once migration 039 is applied (wein_redemptions table + commission
+// snapshot trigger). Same probe pattern as COLLAB_READY.
+let DEAL_VALUE_READY = false;
+async function probeDealValueReady() {
+  try { await sbGet('wein_redemptions?select=id&limit=1'); DEAL_VALUE_READY = true; }
+  catch (e) { DEAL_VALUE_READY = false; }
+}
+let cachedRedemptions = [];
+function providerRedemptionTotals(providerId) {
+  const rows = cachedRedemptions.filter(r => r.provider_id === providerId);
+  const sales = rows.reduce((sum, r) => sum + Number(r.sale_amount_egp || 0), 0);
+  const commission = rows.reduce((sum, r) => sum + Number(r.sale_amount_egp || 0) * (Number(r.commission_pct_snapshot || 0) / 100), 0);
+  return { count: rows.length, sales, commission, payout: sales - commission };
+}
 
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
@@ -1522,7 +1572,7 @@ let providerStaleOnly = false;
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles] = await Promise.all([
+    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
       sbGet('wein_offers?select=*'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
@@ -1533,9 +1583,10 @@ async function loadDashboard() {
       // email column arrives with 038; fall back to the pre-038 shape
       sbGet('profiles?select=id,role,full_name,email&order=full_name.asc')
         .catch(() => sbGet('profiles?select=id,role,full_name').catch(() => [])),
+      sbGet('wein_redemptions?select=*').catch(() => []),
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
-    cachedTasks = tasks; cachedProfiles = profiles;
+    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions;
     refreshNavCounts();
     // The Add Lead form renders inline inside the Leads view's own HTML, so
     // a full re-render (background refresh, another tab's action, etc.)
@@ -2898,6 +2949,76 @@ function renderDealsBulkBar() {
     </div>`;
 }
 
+// ── Record Sale (wein_redemptions, migration 039) ──────────────────────
+function openRecordSaleModal(providerId) {
+  if (!DEAL_VALUE_READY || !canManageDeals()) return;
+  window.currentSaleProviderId = providerId;
+  const p = cachedProviders.find(x => x.id === providerId);
+  document.getElementById('sm-provider-name').textContent = p?.provider_name || 'Unknown provider';
+  document.getElementById('sm-amount').value = '';
+  document.getElementById('sm-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('sm-notes').value = '';
+  document.getElementById('sm-error').style.display = 'none';
+  const offerSel = document.getElementById('sm-offer');
+  const providerOffers = cachedOffers.filter(o => o.provider_id === providerId && o.status === 'accepted');
+  offerSel.innerHTML = '<option value="">— None —</option>' +
+    providerOffers.map(o => `<option value="${o.id}">${escapeHtml(o.title || 'Untitled offer')}</option>`).join('');
+  updateSalePreview();
+  document.getElementById('sm-amount').oninput = updateSalePreview;
+  document.getElementById('sale-modal-backdrop').style.display = 'flex';
+}
+function updateSalePreview() {
+  const amount = Number(document.getElementById('sm-amount').value) || 0;
+  const p = cachedProviders.find(x => x.id === window.currentSaleProviderId);
+  const pct = Number(p?.commission_pct || 0);
+  const commission = amount * (pct / 100);
+  document.getElementById('sm-preview').textContent = amount > 0
+    ? `At ${pct}% commission: EGP ${commission.toFixed(0)} to WeIN, EGP ${(amount - commission).toFixed(0)} to ${p?.provider_name || 'provider'}.`
+    : (pct ? `Commission rate on file: ${pct}%.` : 'This provider has no commission % set yet — record will show 0 commission until one is set.');
+}
+function closeRecordSaleModal() {
+  document.getElementById('sale-modal-backdrop').style.display = 'none';
+  window.currentSaleProviderId = null;
+}
+document.getElementById('sale-modal-backdrop').addEventListener('click', function (e) { if (e.target === this) closeRecordSaleModal(); });
+
+async function saveRedemption() {
+  const errEl = document.getElementById('sm-error');
+  const amount = Number(document.getElementById('sm-amount').value);
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a sale amount greater than 0.'; errEl.style.display = 'block'; return; }
+  const providerId = window.currentSaleProviderId;
+  if (!providerId) return;
+  const body = {
+    provider_id: providerId,
+    offer_id: document.getElementById('sm-offer').value || null,
+    sale_amount_egp: amount,
+    redeemed_at: document.getElementById('sm-date').value || new Date().toISOString().slice(0, 10),
+    notes: document.getElementById('sm-notes').value.trim() || null,
+    recorded_by: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+  };
+  const btn = document.getElementById('sm-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const rows = await sbPost('wein_redemptions', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    // read-back verify: never trust the write status alone
+    const check = await sbGet(`wein_redemptions?id=eq.${created?.id}&select=id,sale_amount_egp`);
+    if (!created?.id || !check.length) {
+      errEl.textContent = 'Save did not verify — nothing recorded. Check permissions.';
+      errEl.style.display = 'block';
+      return;
+    }
+    cachedRedemptions.push(created);
+    closeRecordSaleModal();
+    renderContractsTable();
+  } catch (e) {
+    errEl.textContent = 'Could not save: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save sale';
+  }
+}
+
 function exportSelectedDealsCsv() {
   const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = cachedProviders.filter(p => selectedDeals.has(p.id));
@@ -2905,9 +3026,11 @@ function exportSelectedDealsCsv() {
   const lines = [header.join(',')];
   rows.forEach(p => {
     const neg = negotiationFor(p);
+    const t = DEAL_VALUE_READY ? providerRedemptionTotals(p.id) : null;
     lines.push([
       csvEscape(p.provider_name), csvEscape(categoryLabel(p)), csvEscape(CONTRACT_STATUS_LABELS[p.contract_status || 'none']),
-      p.commission_pct ?? '', neg?.estimated_value_egp ?? '', 'Not tracked yet', 'Not tracked yet',
+      p.commission_pct ?? '', neg?.estimated_value_egp ?? '',
+      t ? t.commission.toFixed(2) : 'Not tracked yet', t ? t.payout.toFixed(2) : 'Not tracked yet',
     ].join(','));
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -2948,8 +3071,8 @@ function renderContractsTable() {
           <th class="th-sort" data-sort="commission">Commission</th>
           <th>Contract period</th>
           <th class="th-sort" data-sort="value">Deal value</th>
-          <th>Our commission <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
-          <th>Provider payout <i class="ti ti-info-circle" title="Not connected to real sales data yet — needs a redemptions/sales table" style="font-size:11px;color:var(--text-tertiary);"></i></th>
+          <th>Our commission${DEAL_VALUE_READY ? '' : ` <i class="ti ti-info-circle" title="Needs migration 039_deal_value_and_role_hardening.sql" style="font-size:11px;color:var(--text-tertiary);"></i>`}</th>
+          <th>Provider payout${DEAL_VALUE_READY ? '' : ` <i class="ti ti-info-circle" title="Needs migration 039_deal_value_and_role_hardening.sql" style="font-size:11px;color:var(--text-tertiary);"></i>`}</th>
           <th>Featured</th>
           <th>Actions</th>
         </tr></thead>
@@ -2981,12 +3104,18 @@ function renderContractsTable() {
                         : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
                     : '<span style="color:var(--text-tertiary);">—</span>'}
                 </td>
-                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
-                <td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>
+                ${(() => {
+                  if (!DEAL_VALUE_READY) return `<td><span style="color:var(--text-tertiary);">Not tracked yet</span></td><td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>`;
+                  const t = providerRedemptionTotals(p.id);
+                  return `
+                <td class="mono" title="${t.count} sale${t.count === 1 ? '' : 's'} recorded">${t.count ? `EGP ${t.commission.toFixed(0)}` : '<span style="color:var(--text-tertiary);">EGP 0</span>'}</td>
+                <td class="mono">${t.count ? `EGP ${t.payout.toFixed(0)}` : '<span style="color:var(--text-tertiary);">EGP 0</span>'}</td>`;
+                })()}
                 <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
                 <td>
                   ${canManageDeals() ? `
                     <div class="table-actions">
+                      ${DEAL_VALUE_READY ? `<button class="mini-btn" type="button" onclick="openRecordSaleModal('${p.id}')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-plus"></i><span>Sale</span></button>` : ''}
                       <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
                     </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
                 </td>
