@@ -276,6 +276,8 @@ tr.row-selected { background: var(--blue-tint); }
 #mainArea[data-board="pipeline"] .chip.active { border-color:var(--border-amber); background:var(--amber-tint); color:var(--amber); }
 #mainArea[data-board="pipeline"] .view-title { border-left:3px solid var(--amber); padding-left:9px; }
 #mainArea[data-board="leads"] .view-title { border-left:3px solid var(--blue); padding-left:9px; }
+.task-avatar { width:20px;height:20px;border-radius:50%;background:var(--blue-tint);border:.5px solid var(--border-blue);display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--blue);flex-shrink:0; }
+.prio-flag { font-size:12px;flex-shrink:0; }
 .table-actions { display:flex;gap:6px;align-items:center; }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
@@ -541,6 +543,7 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
     </div>
     <div class="nav-subitems" data-group-items="sales">
       <div class="nav-item" data-view="today"><i class="ti ti-calendar-check"></i><span>Today</span><span class="nav-count" data-count="today"></span></div>
+      <div class="nav-item" data-view="tasks"><i class="ti ti-checkbox"></i><span>Tasks</span><span class="nav-count" data-count="tasks"></span></div>
       <div class="nav-item" data-view="leads"><i class="ti ti-target-arrow"></i><span>Leads</span><span class="nav-count" data-count="leads"></span></div>
       <div class="nav-item active" data-view="pipeline"><i class="ti ti-git-branch"></i><span>Pipeline</span><span class="nav-count" data-count="pipeline"></span></div>
       <div class="nav-item" data-view="deals"><i class="ti ti-file-text"></i><span>Deals</span><span class="nav-count" data-count="deals"></span></div>
@@ -580,7 +583,7 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
     </div>
     <div class="nav-subitems" data-group-items="system">
       <div class="nav-item" data-view="files"><i class="ti ti-files"></i><span>Files</span></div>
-      <div class="nav-item disabled"><i class="ti ti-users"></i><span>Team (soon)</span></div>
+      <div class="nav-item" data-view="team"><i class="ti ti-users"></i><span>Team</span></div>
     </div>
   </div>
 </aside>
@@ -750,6 +753,64 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
       <div style="display:flex;gap:8px;">
         <button type="button" onclick="addProviderGoStep(2)" class="mini-btn" style="height:32px;padding:0 14px;">← Back</button>
         <button type="button" id="apSubmitBtn" onclick="submitAddProvider()" class="ap-btn-primary" style="flex:1;">Submit Provider</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TASK DETAIL MODAL (centered overlay) ══════════════ -->
+<div id="task-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:600; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-surface); border:0.5px solid var(--border); border-radius:10px; width:480px; max-width:94vw; max-height:88vh; overflow-y:auto; padding:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <input type="text" id="tm-title" placeholder="Task title" style="flex:1;background:transparent;border:none;font-family:'Instrument Sans';font-size:15px;font-weight:600;color:var(--text-primary);outline:none;min-width:0;">
+      <button type="button" onclick="closeTaskModal()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 10px;flex-shrink:0;">×</button>
+    </div>
+    <textarea id="tm-description" placeholder="Description…" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:10px;font-family:inherit;"></textarea>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Assignee</label>
+        <select id="tm-assignee" class="view-select"><option value="">Unassigned</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Due date</label>
+        <input type="date" id="tm-due" class="view-input">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Priority</label>
+        <select id="tm-priority" class="view-select">
+          <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Status</label>
+        <select id="tm-status" class="view-select">
+          <option value="pending">To do</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div id="tm-link-row" style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
+      <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Linked to (optional)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <select id="tm-link-provider" class="view-select"><option value="">— No provider —</option></select>
+        <select id="tm-link-lead" class="view-select"><option value="">— No lead —</option></select>
+      </div>
+    </div>
+    <div id="tm-error" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:14px;">
+      <button type="button" id="tm-delete-btn" onclick="deleteTaskFromModal()" style="display:none;background:transparent;border:none;color:var(--red);font-size:11px;font-weight:600;cursor:pointer;padding:0;margin-right:auto;">Delete task</button>
+      <button class="mini-btn" type="button" onclick="closeTaskModal()">Cancel</button>
+      <button class="view-action" type="button" id="tm-save-btn" onclick="saveTask()"><span>Save</span></button>
+    </div>
+
+    <div id="tm-comments-section" style="border-top:.5px solid var(--border-subtle);padding-top:12px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Notes</div>
+      <div id="tm-comments" style="display:flex;flex-direction:column;gap:8px;max-height:180px;overflow-y:auto;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="tm-comment-input" placeholder="Add a note…" style="flex:1;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-primary);outline:none;min-width:0;" onkeydown="if(event.key==='Enter')submitThreadComment('task_id', window.currentTaskId, 'tm-comment-input', 'tm-comments')">
+        <button type="button" class="mini-btn" onclick="submitThreadComment('task_id', window.currentTaskId, 'tm-comment-input', 'tm-comments')">Send</button>
       </div>
     </div>
   </div>
@@ -1067,6 +1128,7 @@ async function attemptSetNewPassword() {
 async function loadPortalForSession(session) {
   SB_TOKEN = session.access_token;
   window.WEIN.user = session.user;
+  await probeCollabReady();
   let role = 'deal_breaker', fullName = session.user.email;
   try {
     const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
@@ -1107,7 +1169,18 @@ async function logout() {
 
 let autoRefreshInterval = null;
 
-const NAV_HIDDEN_FOR_ROLE = { deal_breaker: ['analytics', 'settings'], team: ['analytics', 'settings'] };
+// Role split (2026-07-03, supersedes "team = same as deal_breaker"):
+// deal_breaker = full deal flow; team = general work only (Today's tasks,
+// Tasks, Team, Files) — the entire deal world is hidden for them.
+// NOTE: client-side scope only; DB-level enforcement is tracked as task #7.
+const NAV_HIDDEN_FOR_ROLE = {
+  deal_breaker: ['analytics', 'settings'],
+  team: ['analytics', 'settings', 'leads', 'pipeline', 'deals', 'launch', 'providers', 'offers', 'map'],
+};
+// Where each role lands when their requested view is hidden (or on login).
+function defaultViewForRole(role) {
+  return (NAV_HIDDEN_FOR_ROLE[role] || []).includes('pipeline') ? 'tasks' : 'pipeline';
+}
 
 function applyNavPermissions(role) {
   const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
@@ -1140,6 +1213,12 @@ function showApp(role) {
   document.getElementById('appShell').style.display = 'block';
   document.getElementById('chatFab').classList.add('visible');
   applyNavPermissions(role);
+  // Land each role on a view it can actually see (team can't see pipeline)
+  if ((NAV_HIDDEN_FOR_ROLE[role] || []).includes(currentView)) {
+    currentView = defaultViewForRole(role);
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === currentView));
+    document.getElementById('page-title').textContent = PAGE_TITLES[currentView] || currentView;
+  }
   setTimeout(() => setNavGroupOpen(VIEW_GROUP[currentView], true), 0);
   const nameSrc = window.WEIN.fullName || role || 'W';
   const initials = nameSrc.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -1324,8 +1403,8 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { today: 'Today', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', files: 'Files', settings: 'Settings' };
-const VIEW_GROUP = { today: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', files: 'system', settings: 'system' };
+const PAGE_TITLES = { today: 'Today', tasks: 'Tasks', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', files: 'Files', team: 'Team', settings: 'Settings' };
+const VIEW_GROUP = { today: 'sales', tasks: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', files: 'system', team: 'system', settings: 'system' };
 let currentView = 'pipeline';
 
 function setNavGroupOpen(groupId, open) {
@@ -1351,8 +1430,9 @@ function toggleMobileSidebar(force) {
 }
 
 function showView(name) {
-  const hidden = NAV_HIDDEN_FOR_ROLE[sessionStorage.getItem('weinRole')] || [];
-  if (hidden.includes(name)) name = 'pipeline';
+  const role = sessionStorage.getItem('weinRole');
+  const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
+  if (hidden.includes(name)) name = defaultViewForRole(role);
   currentView = name;
   document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
@@ -1371,6 +1451,15 @@ document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click'
 // DASHBOARD DATA + KANBAN
 // ════════════════════════════════════════════════════════════════════
 let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [], cachedOutcomes = [];
+let cachedTasks = [], cachedProfiles = [];
+// True once migration 038 is applied (multi-target comments, assignee uuids,
+// profiles directory). Probed once per session — a 400 on the lead_id column
+// means 038 isn't pasted yet, and all 038-dependent UI stays hidden.
+let COLLAB_READY = false;
+async function probeCollabReady() {
+  try { await sbGet('wein_comments?select=lead_id&limit=1'); COLLAB_READY = true; }
+  catch (e) { COLLAB_READY = false; }
+}
 
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
@@ -1411,15 +1500,20 @@ let providerStaleOnly = false;
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files, leads, outcomes] = await Promise.all([
+    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
       sbGet('wein_offers?select=*'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
       sbGet('wein_files?select=*&order=created_at.desc').catch(() => []),
       sbGet('wein_leads?select=*&order=created_at.desc').catch(() => []),
       sbGet('offer_outcomes?select=*&order=created_at.desc').catch(() => []),
+      sbGet('wein_tasks?select=*&order=created_at.desc').catch(() => []),
+      // email column arrives with 038; fall back to the pre-038 shape
+      sbGet('profiles?select=id,role,full_name,email&order=full_name.asc')
+        .catch(() => sbGet('profiles?select=id,role,full_name').catch(() => [])),
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
+    cachedTasks = tasks; cachedProfiles = profiles;
     refreshNavCounts();
     // The Add Lead form renders inline inside the Leads view's own HTML, so
     // a full re-render (background refresh, another tab's action, etc.)
@@ -1427,6 +1521,7 @@ async function loadDashboard() {
     // while it's open — data is still refreshed underneath, just not
     // painted over the form until it closes.
     if (currentView === 'leads' && leadFormVisible) return;
+    if (currentView === 'tasks' && taskFormVisible) return;
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
@@ -1457,6 +1552,8 @@ function renderCurrentView() {
   const mainEl = document.getElementById('mainArea');
   if (mainEl) mainEl.dataset.board = (currentView === 'leads' || currentView === 'pipeline') ? currentView : '';
   if (currentView === 'today') { renderTodayView(); return; }
+  if (currentView === 'tasks') { renderTasksView(); return; }
+  if (currentView === 'team') { renderTeamView(); return; }
   if (currentView === 'map') { renderMapView(); return; }
   if (currentView === 'providers') { renderProvidersView(); return; }
   if (currentView === 'files') { renderFilesView(); return; }
@@ -1689,6 +1786,28 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+// ── Task/team helpers ────────────────────────────────────────────────
+function profileById(id) { return cachedProfiles.find(p => p.id === id) || null; }
+function assigneeLabel(task) {
+  return profileById(task.assigned_to_user_id)?.full_name || task.assigned_to || 'Unassigned';
+}
+function initialsOf(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+function taskIsOpen(t) { return t.status === 'pending' || t.status === 'in_progress'; }
+function taskOverdueDays(t) {
+  if (!t.due_date) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(t.due_date); due.setHours(0, 0, 0, 0);
+  return Math.round((today - due) / 86400000); // >0 overdue, 0 today, <0 future
+}
+const TASK_PRIORITY_COLORS = { urgent: 'var(--red)', high: 'var(--amber)', medium: 'var(--blue)', low: 'var(--text-tertiary)' };
+function taskLinkedName(t) {
+  if (t.provider_id) return cachedProviders.find(p => p.id === t.provider_id)?.provider_name || t.provider_name || null;
+  if (t.lead_id) return cachedLeads.find(l => l.id === t.lead_id)?.business_name || null;
+  return null;
 }
 
 function negotiationFor(provider) {
@@ -3257,6 +3376,361 @@ function renderTodayView() {
     ${!items.length ? `<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:40px 0;">Nothing scheduled — open a lead or provider and set a next action date.<br>Pick 3 leads to chase and give each a date.</div>` : ''}`;
 }
 
+// ── Tasks view: ClickUp-style board + list (wein_tasks, dormant since 012) ──
+const TASK_COLUMNS = [
+  { id: 'pending',     label: 'To do',       color: 'var(--text-secondary)' },
+  { id: 'in_progress', label: 'In progress', color: 'var(--blue)' },
+  { id: 'done',        label: 'Done',        color: 'var(--green)' },
+];
+let tasksViewMode = 'board';   // 'board' | 'list'
+let tasksMineOnly = false;
+let showCancelledTasks = false;
+let taskFormVisible = false;
+let taskSortKey = 'due', taskSortDir = 1;
+
+function visibleTasks() {
+  return cachedTasks.filter(t => {
+    if (t.status === 'cancelled' && !showCancelledTasks) return false;
+    if (tasksMineOnly && t.assigned_to_user_id !== window.WEIN.user?.id) return false;
+    return true;
+  });
+}
+
+function renderTasksView() {
+  const mine = cachedTasks.filter(t => taskIsOpen(t) && t.assigned_to_user_id === window.WEIN.user?.id).length;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Tasks</div>
+        <div class="view-count">${cachedTasks.filter(taskIsOpen).length} open · ${mine} mine</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mini-btn ${tasksViewMode === 'board' ? 'active' : ''}" type="button" onclick="tasksViewMode='board';renderTasksView()" style="${tasksViewMode === 'board' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-layout-kanban"></i><span>Board</span></button>
+        <button class="mini-btn" type="button" onclick="tasksViewMode='list';renderTasksView()" style="${tasksViewMode === 'list' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-list"></i><span>List</span></button>
+        <button class="view-action" type="button" onclick="toggleAddTaskForm()"><i class="ti ti-plus"></i><span>Add Task</span></button>
+      </div>
+    </div>
+    ${!COLLAB_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>038_collaboration.sql</b> hasn't been run in Supabase yet — assignee picker, lead links, task comments and notifications are hidden until it is.</div>` : ''}
+    <div id="addTaskForm" style="display:${taskFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="taskTitle" placeholder="Task title (required)" class="view-input" style="min-width:0;">
+        ${COLLAB_READY ? `<select id="taskAssignee" class="view-select" style="min-width:0;">
+          <option value="">Unassigned</option>
+          ${cachedProfiles.map(p => `<option value="${p.id}" ${p.id === window.WEIN.user?.id ? 'selected' : ''}>${escapeHtml(p.full_name || p.email || 'Unnamed')}</option>`).join('')}
+        </select>` : `<input type="text" id="taskAssigneeText" placeholder="Assignee name" class="view-input" style="min-width:0;">`}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="date" id="taskDue" class="view-input" style="min-width:0;">
+        <select id="taskPriority" class="view-select" style="min-width:0;">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div id="addTaskError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddTaskForm()">Cancel</button>
+        <button class="view-action" type="button" id="taskSaveBtn" onclick="quickAddTask()"><span>Save task</span></button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="chip ${tasksMineOnly ? 'active' : ''}" type="button" onclick="tasksMineOnly=!tasksMineOnly;renderTasksView()">My Tasks</button>
+      <button class="chip ${showCancelledTasks ? 'active' : ''}" type="button" onclick="showCancelledTasks=!showCancelledTasks;renderTasksView()">Show cancelled</button>
+    </div>
+    ${tasksViewMode === 'board'
+      ? `<div class="kanban-board" style="grid-template-columns:repeat(${TASK_COLUMNS.length},1fr);" id="tasksKanbanBoard"></div>`
+      : `<div id="tasksListWrap"></div>`}`;
+  if (tasksViewMode === 'board') renderTasksKanban(); else renderTasksList();
+}
+
+function toggleAddTaskForm() {
+  taskFormVisible = !taskFormVisible;
+  const form = document.getElementById('addTaskForm');
+  if (form) form.style.display = taskFormVisible ? 'block' : 'none';
+  const errEl = document.getElementById('addTaskError');
+  if (errEl) errEl.style.display = 'none';
+}
+
+function taskCardHtml(t) {
+  const overdue = taskOverdueDays(t);
+  const dueChip = t.due_date
+    ? `<span class="pc-meta-date mono" style="color:${overdue > 0 ? 'var(--red)' : overdue === 0 ? 'var(--amber)' : 'var(--text-tertiary)'};">${overdue > 0 ? `${overdue}d overdue` : overdue === 0 ? 'due today' : new Date(t.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>`
+    : '';
+  const linked = taskLinkedName(t);
+  const name = assigneeLabel(t);
+  const colIdx = TASK_COLUMNS.findIndex(c => c.id === t.status);
+  return `
+    <div class="provider-card" data-task-id="${t.id}" onclick="openTaskModal('${t.id}')">
+      <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
+        <i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};" title="${escapeHtml(t.priority || 'medium')} priority"></i>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.title || 'Untitled task')}</span>
+      </div>
+      <div class="pc-meta" style="margin-top:5px;">
+        <span class="task-avatar" title="${escapeHtml(name)}">${initialsOf(name)}</span>
+        ${dueChip}
+        ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
+      </div>
+      <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
+        ${colIdx > 0 && t.status !== 'cancelled' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','${TASK_COLUMNS[colIdx - 1].id}')" title="Move back"><i class="ti ti-arrow-left"></i></button>` : ''}
+        ${t.status === 'pending' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','in_progress')" style="flex:1;"><span>Start →</span></button>` : ''}
+        ${t.status === 'in_progress' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','done')" style="flex:1;border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Done</span></button>` : ''}
+        ${t.status === 'cancelled' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','pending')" style="flex:1;"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderTasksKanban() {
+  const board = document.getElementById('tasksKanbanBoard');
+  if (!board) return;
+  const tasks = visibleTasks();
+  board.innerHTML = TASK_COLUMNS.map(col => {
+    const items = tasks.filter(t => t.status === col.id);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${col.label}</span>
+          <span class="kanban-col-count mono" style="color:${col.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${items.length ? items.map(taskCardHtml).join('') : '<div class="empty-col">No tasks</div>'}</div>
+      </div>`;
+  }).join('') + (showCancelledTasks ? `
+      <div class="kanban-col" style="opacity:.75;">
+        <div class="kanban-col-header"><span class="kanban-col-label">Cancelled</span><span class="kanban-col-count mono" style="color:var(--text-tertiary)">${tasks.filter(t => t.status === 'cancelled').length}</span></div>
+        <div class="kanban-col-body">${tasks.filter(t => t.status === 'cancelled').map(taskCardHtml).join('') || '<div class="empty-col">None</div>'}</div>
+      </div>` : '');
+}
+
+const TASK_SORTERS = {
+  title: (a, b) => (a.title || '').localeCompare(b.title || ''),
+  assignee: (a, b) => assigneeLabel(a).localeCompare(assigneeLabel(b)),
+  due: (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'),
+  priority: (a, b) => ['urgent', 'high', 'medium', 'low'].indexOf(a.priority || 'medium') - ['urgent', 'high', 'medium', 'low'].indexOf(b.priority || 'medium'),
+  status: (a, b) => TASK_COLUMNS.findIndex(c => c.id === a.status) - TASK_COLUMNS.findIndex(c => c.id === b.status),
+};
+function sortTasksBy(key) {
+  if (taskSortKey === key) taskSortDir *= -1; else { taskSortKey = key; taskSortDir = 1; }
+  renderTasksList();
+}
+function renderTasksList() {
+  const wrap = document.getElementById('tasksListWrap');
+  if (!wrap) return;
+  const tasks = visibleTasks().slice().sort((a, b) => (TASK_SORTERS[taskSortKey] || TASK_SORTERS.due)(a, b) * taskSortDir);
+  const th = (key, label) => `<th class="th-sort" onclick="sortTasksBy('${key}')" style="cursor:pointer;">${label}${taskSortKey === key ? (taskSortDir === 1 ? ' ↑' : ' ↓') : ''}</th>`;
+  wrap.innerHTML = `
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr>${th('title', 'Task')}${th('assignee', 'Assignee')}${th('due', 'Due')}${th('priority', 'Priority')}${th('status', 'Status')}<th>Linked to</th></tr></thead>
+        <tbody>${tasks.length ? tasks.map(t => {
+          const overdue = taskOverdueDays(t);
+          const col = TASK_COLUMNS.find(c => c.id === t.status);
+          return `
+          <tr onclick="openTaskModal('${t.id}')" style="cursor:pointer;">
+            <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};"></i> ${escapeHtml(t.title || 'Untitled')}</td>
+            <td>${escapeHtml(assigneeLabel(t))}</td>
+            <td class="mono" style="color:${overdue > 0 ? 'var(--red)' : overdue === 0 ? 'var(--amber)' : 'var(--text-secondary)'};">${t.due_date ? new Date(t.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</td>
+            <td>${escapeHtml(t.priority || 'medium')}</td>
+            <td>${col ? col.label : escapeHtml(t.status)}</td>
+            <td>${escapeHtml(taskLinkedName(t) || '—')}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:20px;">No tasks</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+async function setTaskStatus(taskId, status) {
+  const task = cachedTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const body = { status, completed_at: status === 'done' ? new Date().toISOString() : null };
+  try {
+    await sbPatch(`wein_tasks?id=eq.${taskId}`, body);
+    const check = await sbGet(`wein_tasks?id=eq.${taskId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Task update did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(task, body);
+    refreshNavCounts();
+    if (currentView === 'tasks') renderTasksView();
+    else if (currentView === 'today') renderTodayView();
+  } catch (e) { alert('Could not update task: ' + (e.message || e)); }
+}
+
+async function quickAddTask(prelink) {
+  const titleEl = document.getElementById('taskTitle');
+  const errEl = document.getElementById('addTaskError');
+  const title = titleEl?.value.trim();
+  if (!title) {
+    if (errEl) { errEl.textContent = 'Task title is required.'; errEl.style.display = 'block'; }
+    titleEl?.focus();
+    return;
+  }
+  const assigneeId = COLLAB_READY ? (document.getElementById('taskAssignee')?.value || null) : null;
+  const assigneeName = COLLAB_READY
+    ? (profileById(assigneeId)?.full_name || null)
+    : (document.getElementById('taskAssigneeText')?.value.trim() || null);
+  const body = {
+    title,
+    status: 'pending',
+    priority: document.getElementById('taskPriority')?.value || 'medium',
+    task_type: 'general',
+    due_date: document.getElementById('taskDue')?.value || null,
+    created_by: window.WEIN.fullName || sessionStorage.getItem('weinRole') || 'portal',
+    assigned_to: assigneeName,
+  };
+  if (COLLAB_READY && assigneeId) body.assigned_to_user_id = assigneeId;
+  if (prelink?.provider_id) { body.provider_id = prelink.provider_id; body.provider_name = prelink.provider_name || null; }
+  if (COLLAB_READY && prelink?.lead_id) body.lead_id = prelink.lead_id;
+  const btn = document.getElementById('taskSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const rows = await sbPost('wein_tasks', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (created?.id) cachedTasks.unshift(created);
+    taskFormVisible = false;
+    await notifyTaskAssigned(created);
+    refreshNavCounts();
+    renderCurrentView();
+    return created;
+  } catch (e) {
+    if (errEl) { errEl.textContent = 'Could not save task: ' + (e.message || e); errEl.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save task'; }
+  }
+}
+
+// Fire-and-forget bell notification when a task is assigned to someone else.
+async function notifyTaskAssigned(task) {
+  if (!COLLAB_READY || !task?.assigned_to_user_id || task.assigned_to_user_id === window.WEIN.user?.id) return;
+  try {
+    await sbPost('wein_notifications', {
+      type: 'task_assigned',
+      title: `Task assigned: ${task.title}`,
+      body: [task.due_date ? `Due ${new Date(task.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : null, task.priority ? `${task.priority} priority` : null].filter(Boolean).join(' · ') || null,
+      actor_name: window.WEIN.fullName || null,
+      entity_type: 'task',
+      entity_id: task.id,
+      recipient_user_id: task.assigned_to_user_id,
+    });
+  } catch (e) { /* bell is non-critical */ }
+}
+
+// ── Task detail modal ────────────────────────────────────────────────
+function populateTaskModalPickers() {
+  const assigneeSel = document.getElementById('tm-assignee');
+  assigneeSel.innerHTML = '<option value="">Unassigned</option>' +
+    cachedProfiles.map(p => `<option value="${p.id}">${escapeHtml(p.full_name || p.email || 'Unnamed')}</option>`).join('');
+  assigneeSel.disabled = !COLLAB_READY;
+
+  const linkRow = document.getElementById('tm-link-row');
+  const role = sessionStorage.getItem('weinRole');
+  const dealWorldHidden = (NAV_HIDDEN_FOR_ROLE[role] || []).includes('pipeline');
+  linkRow.style.display = dealWorldHidden ? 'none' : 'flex';
+
+  const provSel = document.getElementById('tm-link-provider');
+  provSel.innerHTML = '<option value="">— No provider —</option>' +
+    cachedProviders.map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`).join('');
+  const leadSel = document.getElementById('tm-link-lead');
+  leadSel.innerHTML = '<option value="">— No lead —</option>' +
+    cachedLeads.map(l => `<option value="${l.id}">${escapeHtml(l.business_name || 'Unnamed')}</option>`).join('');
+  leadSel.disabled = !COLLAB_READY;
+  // Provider and lead links are mutually exclusive — picking one clears the other.
+  provSel.onchange = () => { if (provSel.value) leadSel.value = ''; };
+  leadSel.onchange = () => { if (leadSel.value) provSel.value = ''; };
+}
+
+function openTaskModal(taskId, prelink) {
+  window.currentTaskId = taskId || null;
+  populateTaskModalPickers();
+  const t = taskId ? cachedTasks.find(x => x.id === taskId) : null;
+  document.getElementById('tm-title').value = t?.title || '';
+  document.getElementById('tm-description').value = t?.description || '';
+  document.getElementById('tm-assignee').value = t?.assigned_to_user_id || '';
+  document.getElementById('tm-due').value = t?.due_date || '';
+  document.getElementById('tm-priority').value = t?.priority || 'medium';
+  document.getElementById('tm-status').value = t?.status || 'pending';
+  document.getElementById('tm-link-provider').value = t?.provider_id || prelink?.provider_id || '';
+  document.getElementById('tm-link-lead').value = t?.lead_id || prelink?.lead_id || '';
+  document.getElementById('tm-delete-btn').style.display = (t && canDelete()) ? '' : 'none';
+  document.getElementById('tm-error').style.display = 'none';
+  const commentsSection = document.getElementById('tm-comments-section');
+  if (t && COLLAB_READY) {
+    commentsSection.style.display = 'block';
+    fetchThread('task_id', t.id).then(c => renderThread('tm-comments', c, 'task_id', t.id));
+  } else {
+    commentsSection.style.display = 'none'; // no thread until the task is saved once, or 038 isn't applied
+  }
+  document.getElementById('task-modal-backdrop').style.display = 'flex';
+}
+
+function closeTaskModal() {
+  document.getElementById('task-modal-backdrop').style.display = 'none';
+  window.currentTaskId = null;
+}
+document.getElementById('task-modal-backdrop').addEventListener('click', function (e) { if (e.target === this) closeTaskModal(); });
+
+async function saveTask() {
+  const errEl = document.getElementById('tm-error');
+  const title = document.getElementById('tm-title').value.trim();
+  if (!title) { errEl.textContent = 'Task title is required.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  const assigneeId = COLLAB_READY ? (document.getElementById('tm-assignee').value || null) : undefined;
+  const providerId = document.getElementById('tm-link-provider').value || null;
+  const leadId = COLLAB_READY ? (document.getElementById('tm-link-lead').value || null) : undefined;
+  const body = {
+    title,
+    description: document.getElementById('tm-description').value.trim() || null,
+    due_date: document.getElementById('tm-due').value || null,
+    priority: document.getElementById('tm-priority').value,
+    status: document.getElementById('tm-status').value,
+    provider_id: providerId,
+    provider_name: providerId ? (cachedProviders.find(p => p.id === providerId)?.provider_name || null) : null,
+  };
+  if (assigneeId !== undefined) { body.assigned_to_user_id = assigneeId; body.assigned_to = profileById(assigneeId)?.full_name || null; }
+  if (leadId !== undefined) body.lead_id = leadId;
+  if (body.status === 'done' && (!window.currentTaskId || cachedTasks.find(t => t.id === window.currentTaskId)?.status !== 'done')) body.completed_at = new Date().toISOString();
+
+  const btn = document.getElementById('tm-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const prevAssignee = window.currentTaskId ? cachedTasks.find(t => t.id === window.currentTaskId)?.assigned_to_user_id : null;
+    if (window.currentTaskId) {
+      await sbPatch(`wein_tasks?id=eq.${window.currentTaskId}`, body);
+      const check = await sbGet(`wein_tasks?id=eq.${window.currentTaskId}&select=title`);
+      if (!check.length) { errEl.textContent = 'Update did not apply (permissions?).'; errEl.style.display = 'block'; return; }
+      Object.assign(cachedTasks.find(t => t.id === window.currentTaskId), body);
+      if (assigneeId && assigneeId !== prevAssignee) await notifyTaskAssigned({ ...body, id: window.currentTaskId });
+    } else {
+      body.status = body.status || 'pending';
+      body.task_type = 'general';
+      body.created_by = window.WEIN.fullName || sessionStorage.getItem('weinRole') || 'portal';
+      const rows = await sbPost('wein_tasks', body);
+      const created = Array.isArray(rows) ? rows[0] : rows;
+      if (created?.id) { cachedTasks.unshift(created); window.currentTaskId = created.id; await notifyTaskAssigned(created); }
+    }
+    refreshNavCounts();
+    closeTaskModal();
+    renderCurrentView();
+  } catch (e) {
+    errEl.textContent = 'Could not save task: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteTaskFromModal() {
+  if (!window.currentTaskId || !canDelete()) return;
+  if (!confirm('Delete this task permanently?')) return;
+  try {
+    await sbDelete(`wein_tasks?id=eq.${window.currentTaskId}`);
+    cachedTasks = cachedTasks.filter(t => t.id !== window.currentTaskId);
+    refreshNavCounts();
+    closeTaskModal();
+    renderCurrentView();
+  } catch (e) { alert('Could not delete task: ' + (e.message || e)); }
+}
+
 function renderLeadsView() {
   document.getElementById('mainArea').innerHTML = `
     <div class="view-header">
@@ -4001,27 +4475,32 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   }
 }
 
-async function deleteComment(commentId) {
+// ── Generalized comment threads ──────────────────────────────────────
+// One system for provider (negotiation_id), lead (lead_id) and task
+// (task_id) threads — the 038 migration made wein_comments multi-target.
+function fetchThread(targetCol, targetId) {
+  return sbGet(`wein_comments?${targetCol}=eq.${targetId}&order=created_at.asc&select=*`);
+}
+
+async function deleteComment(commentId, targetCol, targetId, elId) {
   if (!canDelete()) return;
   if (!confirm('Delete this note permanently?')) return;
   try {
     await sbDelete(`wein_comments?id=eq.${commentId}`);
-    if (window.currentNegotiationId) {
-      const comments = await sbGet(`wein_comments?negotiation_id=eq.${window.currentNegotiationId}&order=created_at.asc&select=*`);
-      renderComments(comments);
-    }
+    if (targetCol && targetId) renderThread(elId, await fetchThread(targetCol, targetId), targetCol, targetId);
   } catch (e) { console.error('deleteComment error:', e); alert('Could not delete note: ' + e.message); }
 }
 
-function renderComments(comments) {
-  const commentsEl = document.getElementById('modal-comments');
+function renderThread(elId, comments, targetCol, targetId) {
+  const commentsEl = document.getElementById(elId);
+  if (!commentsEl) return;
   const myName = window.WEIN?.fullName || ROLE_LABELS[sessionStorage.getItem('weinRole')] || '';
   commentsEl.innerHTML = comments.length ? comments.map(c => {
     const isMine = !!myName && c.author_name === myName;
     const authorLabel = ROLE_LABELS[c.author_role] && c.author_name !== ROLE_LABELS[c.author_role]
       ? `${escapeHtml(c.author_name)} (${ROLE_LABELS[c.author_role]})`
       : escapeHtml(c.author_name || ROLE_LABELS[c.author_role] || 'Unknown');
-    const delBtn = canDelete() ? `<button type="button" onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;display:inline-flex;margin-left:6px;"><i class="ti ti-trash" style="font-size:11px;"></i></button>` : '';
+    const delBtn = canDelete() ? `<button type="button" onclick="deleteComment('${c.id}','${targetCol}','${targetId}','${elId}')" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;display:inline-flex;margin-left:6px;"><i class="ti ti-trash" style="font-size:11px;"></i></button>` : '';
     return isMine ? `
       <div style="display:flex;flex-direction:column;align-items:flex-end;">
         <div style="background:var(--blue-tint);border:0.5px solid var(--border-blue);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
@@ -4039,23 +4518,25 @@ function renderComments(comments) {
   commentsEl.scrollTop = commentsEl.scrollHeight;
 }
 
-async function submitComment() {
-  const body = document.getElementById('comment-input').value.trim();
-  if (!body || !window.currentNegotiationId) return;
+async function submitThreadComment(targetCol, targetId, inputId, elId) {
+  const input = document.getElementById(inputId);
+  const body = input?.value.trim();
+  if (!body || !targetId) return;
   const role = sessionStorage.getItem('weinRole') || 'team';
   const name = window.WEIN?.fullName || ROLE_LABELS[role] || role;
-
-  await sbPost('wein_comments', {
-    negotiation_id: window.currentNegotiationId,
-    author_role: role,
-    author_name: name,
-    body: body,
-  });
-
-  document.getElementById('comment-input').value = '';
-  const comments = await sbGet(`wein_comments?negotiation_id=eq.${window.currentNegotiationId}&order=created_at.asc&select=*`);
-  renderComments(comments);
+  try {
+    await sbPost('wein_comments', { [targetCol]: targetId, author_role: role, author_name: name, body });
+  } catch (e) {
+    alert('Could not post note: ' + (e.message || e) + (String(e.message || '').includes('author_role') ? ' — has migration 038 been run? (it fixes the roles allowed to comment)' : ''));
+    return;
+  }
+  input.value = '';
+  renderThread(elId, await fetchThread(targetCol, targetId), targetCol, targetId);
 }
+
+// Provider modal call sites keep their original names/behavior:
+function renderComments(comments) { renderThread('modal-comments', comments, 'negotiation_id', window.currentNegotiationId); }
+function submitComment() { return submitThreadComment('negotiation_id', window.currentNegotiationId, 'comment-input', 'modal-comments'); }
 
 async function saveProviderContact() {
   if (!window.currentProviderId) return;
