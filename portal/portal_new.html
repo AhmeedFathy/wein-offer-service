@@ -2580,6 +2580,14 @@ function offerProviderName(offer) {
   const provider = cachedProviders.find(p => p.id === offer.provider_id);
   return provider?.provider_name || offer.provider_name || 'Unknown provider';
 }
+// wein_offers.category is actually party-size (Solo/Couple/Group/Family/
+// Other), NOT a business vertical -- despite the offer card's badge
+// displaying it as if it were one. The category chips filter needs the
+// linked provider's real vertical/category instead.
+function offerProviderVertical(offer) {
+  const provider = cachedProviders.find(p => p.id === offer.provider_id);
+  return provider ? categoryLabel(provider) : null;
+}
 
 // Offer lifecycle: rows without a status column (pre-migration-032) are
 // treated as archived history so the Pending view stays clean.
@@ -2740,7 +2748,7 @@ function renderOffersGrid() {
     const matchesQuery = !query || title.includes(query) || providerName.includes(query);
     const matchesProvider = providerId === 'all' || o.provider_id === providerId;
     const matchesStatus = offerStatus(o) === offerStatusFilter;
-    const matchesCategory = matchesCategoryFilter(o.category, offersCatFilter);
+    const matchesCategory = matchesCategoryFilter(offerProviderVertical(o), offersCatFilter);
     return matchesQuery && matchesProvider && matchesStatus && matchesCategory;
   });
 
