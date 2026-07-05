@@ -166,26 +166,28 @@ a { color: var(--blue); text-decoration: none; }
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
 .kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.16); transition: box-shadow 150ms ease, border-color 150ms ease; }
 .kpi-card:hover { border-color: var(--border-blue-strong); box-shadow: 0 6px 18px rgba(0,129,253,.10); }
-.kpi-label { font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+.kpi-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
 .kpi-delta.up { color: var(--green); }
 .kpi-delta.down { color: var(--red); }
 
 /* ── Kanban ── */
-.kanban-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; align-items: start; }
+.kanban-board { display: grid; grid-template-columns: repeat(4,minmax(155px,1fr)); gap: 10px; align-items: start; overflow-x: auto; }
 .kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; overflow: hidden; }
 .kanban-col-header { padding: 10px 12px; border-bottom: .5px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; }
-.kanban-col-label { font-size: 10px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; }
+.kanban-col-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
 .provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 9px; padding: 10px 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.14); transition: box-shadow 150ms ease, border-color 150ms ease, transform 120ms ease; }
 .provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); box-shadow: 0 10px 26px rgba(0,129,253,.14); transform: translateY(-1px); }
-.pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
-.pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
+.pc-meta > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
-.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); }
-.pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
+.pc-row > * { min-width: 0; }
 .pc-badge { font-size: 10px; color: var(--blue); background: var(--blue-tint); border: .5px solid var(--border-blue); padding: 2px 6px; border-radius: 4px; }
 .pc-run-btn { font-size: 10px; color: var(--text-secondary); background: transparent; border: .5px solid var(--border); border-radius: 4px; padding: 2px 8px; }
 .pc-run-btn:hover { color: var(--blue); border-color: var(--border-blue-strong); }
@@ -212,7 +214,7 @@ a { color: var(--blue); text-decoration: none; }
 .view-select { min-width:140px; }
 .providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(0,0,0,.14); }
 .providers-table { width:100%;border-collapse:collapse;min-width:820px; }
-.providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
+.providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
 .providers-table td { padding:10px 12px;border-bottom:.5px solid var(--border-subtle);font-size:12px;color:var(--text-secondary);vertical-align:middle; }
 .providers-table tr { cursor:pointer; }
 .providers-table tr:hover { background:var(--bg-elevated); }
@@ -286,6 +288,22 @@ tr.row-selected { background: var(--blue-tint); }
 .file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.14);transition:box-shadow 150ms ease,border-color 150ms ease,transform 120ms ease; }
 .file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated);box-shadow:0 10px 26px rgba(0,129,253,.14);transform:translateY(-1px); }
 .file-card-head { display:flex;gap:8px;align-items:flex-start;min-width:0; }
+.file-card-head > div { min-width:0; }
+/* Provider modal full-profile section */
+.fp-field { display:flex;flex-direction:column;gap:3px;min-width:0; }
+.fp-label { font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px; }
+.fp-input { background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;width:100%;box-sizing:border-box; }
+.fp-input:disabled { color:var(--text-tertiary);border-bottom-style:dotted;cursor:not-allowed; }
+.fp-group-title { font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.2px;margin:12px 0 6px; }
+.fp-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px; }
+/* Marketing calendar (v1.5 campaign HQ) */
+.mkt-cal-head { display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;font-size:9px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;text-align:center; }
+.mkt-cal { display:grid;grid-template-columns:repeat(7,1fr);gap:4px; }
+.mkt-cal-day { min-height:74px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-width:0; }
+.mkt-cal-empty { background:transparent;border:.5px dashed var(--border-subtle); }
+.mkt-cal-today { border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue); }
+.mkt-cal-num { font-size:9px;color:var(--text-tertiary); }
+.mkt-cal-chip { font-size:9px;color:var(--text-primary);background:var(--blue-tint);border:.5px solid var(--border-blue);border-radius:4px;padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer; }
 .file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .file-provider { font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -304,7 +322,7 @@ tr.row-selected { background: var(--blue-tint); }
 }
 
 /* ── Pipeline alerts (now shown in Settings) ── */
-.rp-section-title { padding: 12px 16px 6px; font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; border-bottom: .5px solid var(--border-subtle); }
+.rp-section-title { padding: 12px 16px 6px; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; border-bottom: .5px solid var(--border-subtle); }
 .rp-alerts { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .rp-alert { background: var(--bg-elevated); border: .5px solid var(--border); border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; padding: 8px 10px; }
 .rp-alert-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
@@ -986,6 +1004,8 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
           <input type="text" id="modal-contact-whatsapp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderContact()">
         </div>
       </div>
+      <button id="modal-full-profile-btn" type="button" class="mini-btn" style="margin-top:10px;" onclick="toggleFullProfile()"><i class="ti ti-chevron-down" id="fp-chevron"></i><span>Full profile</span></button>
+      <div id="modal-full-profile" style="display:none;max-height:250px;overflow-y:auto;margin-top:4px;padding-right:6px;"></div>
     </div>
 
     <!-- Onboarding progress strip + next-action (derived from real stage/contract/launch data) -->
@@ -1051,7 +1071,7 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
 
       <!-- Column 1: Offers -->
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;min-width:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
         <div id="modal-offers" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;"></div>
       </div>
 
@@ -1059,18 +1079,18 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;min-width:0;">
         <div id="modal-tasks-wrap" style="display:none;flex-shrink:0;border-bottom:0.5px solid var(--border-subtle);">
           <div style="padding:10px 12px 6px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;">Tasks</span>
+            <span style="font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;">Tasks</span>
             <button type="button" class="mini-btn" style="height:20px;padding:0 6px;" onclick="openTaskModal(null, {provider_id: window.currentProviderId})"><i class="ti ti-plus" style="font-size:11px;"></i></button>
           </div>
           <div id="modal-tasks" style="padding:0 8px 8px;display:flex;flex-direction:column;gap:4px;max-height:110px;overflow-y:auto;"></div>
         </div>
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
         <div id="modal-files" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:4px;min-width:0;"></div>
       </div>
 
       <!-- Column 3: Comments thread -->
       <div style="display:flex;flex-direction:column;min-height:0;min-width:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
         <div id="modal-comments" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;"></div>
         <div style="border-top:0.5px solid var(--border);padding:8px;flex-shrink:0;">
           <textarea id="comment-input" placeholder="Leave a note or instruction..." style="
@@ -1577,9 +1597,19 @@ function providerRedemptionTotals(providerId) {
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
   'paused':         'contacted',
+  'contacted':      'contacted',
   'negotiating':    'negotiating',
+  // offer_sent was missing here, which silently DROPPED those rows from the
+  // board entirely (renderKanban skips unmapped stages) -- the "Offer Sent"
+  // column has been unreachable since it was added.
+  'offer_sent':     'offer_sent',
   'accepted':       'accepted'
 };
+// Canonical raw stage per visible column, in board order -- what the
+// advance/retreat buttons set. (Non-canonical stages like 'paused' still
+// display via STAGE_COLUMNS; moving a paused card writes the canonical
+// stage of the target column.)
+const PIPELINE_STAGE_ORDER = ['menu_collected', 'negotiating', 'offer_sent', 'accepted'];
 // Column ids stay ('contacted' etc.) since STAGE_COLUMNS/other code keys off
 // them -- only the visible label changed. "Onboarding" replaces "Contacted"
 // because it collided with Leads' "Contacting" stage (a real provider here
@@ -1593,7 +1623,9 @@ const COLUMNS = [
 const STAGE_PROGRESS = {
   'menu_collected': 25,
   'paused':         15,
+  'contacted':      10,
   'negotiating':    55,
+  'offer_sent':     80,
   'accepted':       100
 };
 const STALE_DAYS = 14;
@@ -3519,7 +3551,7 @@ async function renderMapView() {
           <div class="view-count">Area-level positions (approximate) — exact pins come once locations are captured</div>
         </div>
       </div>
-      <div id="sharmMap" style="height:56vh;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);"></div>
+      <div id="sharmMap" style="height:56vh;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);position:relative;z-index:0;isolation:isolate;"></div>
       <div id="mapUnmapped" style="margin-top:12px;font-size:12px;color:var(--text-tertiary);"></div>`;
     try { await loadLeaflet(); } catch (e) {
       document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
@@ -3562,6 +3594,16 @@ async function renderMapView() {
   document.getElementById('mapUnmapped').innerHTML = unmapped.length
     ? `<b>${unmapped.length} without a recognisable area</b> (add a location to place them): ${unmapped.map(escapeHtml).join(', ')}`
     : 'Everything has an area match.';
+  // Smoothness: size can be stale if the container changed while hidden, and
+  // fitting to the actual markers beats the hardcoded whole-peninsula view.
+  // Fit ONLY on first mount -- refitting on the 30s auto-refresh would yank
+  // the view away from wherever the user panned/zoomed.
+  sharmMapInstance.invalidateSize();
+  const markerLayers = sharmMarkersLayer.getLayers();
+  if (!alreadyMounted && markerLayers.length) {
+    const bounds = L.latLngBounds(markerLayers.map(m => m.getLatLng()));
+    sharmMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+  }
 }
 
 // ── Today view: next-action tracking (needs migration 033) ──────────
@@ -3873,6 +3915,9 @@ const CAMPAIGN_CHANNEL_LABELS = { instagram: 'Instagram', facebook: 'Facebook', 
 const CAMPAIGN_CHANNEL_ICONS = { instagram: 'ti-brand-instagram', facebook: 'ti-brand-facebook', whatsapp: 'ti-brand-whatsapp', email: 'ti-mail', other: 'ti-speakerphone' };
 let campaignFormVisible = false;
 let showArchivedCampaigns = false;
+let marketingViewMode = 'board';      // 'board' | 'calendar'
+let marketingChannelFilter = 'all';
+let marketingCalMonth = null;         // Date pinned to the 1st of the displayed month
 
 function campaignLinkedName(c) {
   if (c.provider_id) return cachedProviders.find(p => p.id === c.provider_id)?.provider_name || null;
@@ -3896,7 +3941,31 @@ function nearbyRedemptionsForCampaign(c) {
 }
 
 function visibleCampaigns() {
-  return cachedCampaigns.filter(c => showArchivedCampaigns || c.status !== 'archived');
+  return cachedCampaigns.filter(c =>
+    (showArchivedCampaigns || c.status !== 'archived') &&
+    (marketingChannelFilter === 'all' || c.channel === marketingChannelFilter));
+}
+
+// Real before/after signal: redemptions for the linked provider/offer in the
+// 7 days BEFORE the scheduled date vs the 7 days AFTER. Only meaningful once
+// the date has passed; returns null otherwise (card falls back to the plain
+// "N redemptions within 7 days" count).
+function campaignBeforeAfter(c) {
+  if (!c.scheduled_date || (!c.provider_id && !c.offer_id)) return null;
+  const center = new Date(c.scheduled_date).getTime();
+  if (Date.now() < center) return null;
+  const w = 7 * 86400000;
+  const before = { count: 0, egp: 0 }, after = { count: 0, egp: 0 };
+  cachedRedemptions.forEach(r => {
+    const matches = (c.provider_id && r.provider_id === c.provider_id) || (c.offer_id && r.offer_id === c.offer_id);
+    if (!matches || !r.redeemed_at) return;
+    const t = new Date(r.redeemed_at).getTime();
+    if (t >= center - w && t < center) { before.count++; before.egp += Number(r.sale_amount_egp || 0); }
+    else if (t >= center && t <= center + w) { after.count++; after.egp += Number(r.sale_amount_egp || 0); }
+  });
+  if (!before.count && !after.count) return null;
+  const deltaPct = before.egp > 0 ? Math.round((after.egp - before.egp) / before.egp * 100) : null;
+  return { before, after, deltaPct };
 }
 
 function renderMarketingView() {
@@ -3906,7 +3975,11 @@ function renderMarketingView() {
         <div class="view-title">Marketing</div>
         <div class="view-count">${cachedCampaigns.filter(c => c.status !== 'archived').length} active campaigns</div>
       </div>
-      <button class="view-action" type="button" onclick="toggleAddCampaignForm()"><i class="ti ti-plus"></i><span>Campaign</span></button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mini-btn" type="button" onclick="marketingViewMode='board';renderMarketingView()" style="${marketingViewMode === 'board' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-layout-kanban"></i><span>Board</span></button>
+        <button class="mini-btn" type="button" onclick="marketingViewMode='calendar';renderMarketingView()" style="${marketingViewMode === 'calendar' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-calendar"></i><span>Calendar</span></button>
+        <button class="view-action" type="button" onclick="toggleAddCampaignForm()"><i class="ti ti-plus"></i><span>Campaign</span></button>
+      </div>
     </div>
     ${!MARKETING_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>040_marketing_campaigns.sql</b> hasn't been run yet — the Marketing tab is empty until it is.</div>` : ''}
     <div id="addCampaignForm" style="display:${campaignFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
@@ -3932,10 +4005,57 @@ function renderMarketingView() {
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="chip ${marketingChannelFilter === 'all' ? 'active' : ''}" type="button" onclick="marketingChannelFilter='all';renderMarketingView()">All channels</button>
+      ${Object.entries(CAMPAIGN_CHANNEL_LABELS).map(([k, label]) =>
+        `<button class="chip ${marketingChannelFilter === k ? 'active' : ''}" type="button" onclick="marketingChannelFilter='${k}';renderMarketingView()"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[k]}" style="font-size:11px;"></i> ${label}</button>`).join('')}
       <button class="chip ${showArchivedCampaigns ? 'active' : ''}" type="button" onclick="showArchivedCampaigns=!showArchivedCampaigns;renderMarketingView()">Show archived</button>
     </div>
-    <div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`;
-  renderMarketingKanban();
+    ${marketingViewMode === 'calendar'
+      ? `<div id="marketingCalendarWrap"></div>`
+      : `<div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`}
+    <div style="margin-top:16px;font-size:11px;color:var(--text-tertiary);border-top:.5px solid var(--border-subtle);padding-top:10px;">
+      <i class="ti ti-map-2"></i> Roadmap: <b>v1</b> planner/tracker (done) · <b>v1.5</b> calendar + before/after redemption analytics (this) · <b>v2</b> real auto-publishing to Instagram/Facebook/WhatsApp — blocked on Meta/WhatsApp Business API app review, not on code.
+    </div>`;
+  if (marketingViewMode === 'calendar') renderMarketingCalendar(); else renderMarketingKanban();
+}
+
+function shiftMarketingMonth(delta) {
+  marketingCalMonth = new Date(marketingCalMonth.getFullYear(), marketingCalMonth.getMonth() + delta, 1);
+  renderMarketingCalendar();
+}
+
+function renderMarketingCalendar() {
+  const wrap = document.getElementById('marketingCalendarWrap');
+  if (!wrap) return;
+  if (!marketingCalMonth) { const now = new Date(); marketingCalMonth = new Date(now.getFullYear(), now.getMonth(), 1); }
+  const y = marketingCalMonth.getFullYear(), m = marketingCalMonth.getMonth();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const monthLabel = marketingCalMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const byDay = {};
+  visibleCampaigns().forEach(c => {
+    if (!c.scheduled_date) return;
+    const d = new Date(c.scheduled_date);
+    if (d.getFullYear() === y && d.getMonth() === m) (byDay[d.getDate()] = byDay[d.getDate()] || []).push(c);
+  });
+  const todayStr = new Date().toDateString();
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += `<div class="mkt-cal-day mkt-cal-empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = new Date(y, m, d).toDateString() === todayStr;
+    cells += `<div class="mkt-cal-day${isToday ? ' mkt-cal-today' : ''}">
+      <div class="mkt-cal-num mono">${d}</div>
+      ${(byDay[d] || []).map(c => `<div class="mkt-cal-chip" title="${escapeHtml(c.title || '')} · ${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}" onclick="marketingViewMode='board';renderMarketingView()"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="font-size:9px;"></i> ${escapeHtml(c.title || 'Untitled')}</div>`).join('')}
+    </div>`;
+  }
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${monthLabel}</div>
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="mkt-cal-head">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div>${d}</div>`).join('')}</div>
+    <div class="mkt-cal">${cells}</div>`;
 }
 
 function toggleAddCampaignForm() {
@@ -3949,6 +4069,14 @@ function toggleAddCampaignForm() {
 function campaignCardHtml(c) {
   const linked = campaignLinkedName(c);
   const nearby = nearbyRedemptionsForCampaign(c);
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  const impactLine = ba
+    ? `<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);" title="Redemptions 7 days before vs 7 days after the scheduled date">
+        <i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i>
+        ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` <span style="color:${ba.deltaPct >= 0 ? 'var(--green)' : 'var(--red)'};">(${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)</span>` : ''}
+      </div>`
+    : (nearby.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-tertiary);"><i class="ti ti-trending-up"></i> ${nearby.length} redemption${nearby.length === 1 ? '' : 's'} within 7 days</div>` : '');
   return `
     <div class="provider-card" data-campaign-id="${c.id}">
       <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
@@ -3960,7 +4088,7 @@ function campaignCardHtml(c) {
         ${c.scheduled_date ? `<span class="pc-meta-date mono">${new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>` : ''}
         ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
       </div>
-      ${nearby.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-tertiary);"><i class="ti ti-trending-up"></i> ${nearby.length} redemption${nearby.length === 1 ? '' : 's'} within 7 days</div>` : ''}
+      ${impactLine}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
         ${c.status === 'planned' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','posted')" style="flex:1;"><span>Mark posted →</span></button>` : ''}
         ${c.status === 'posted' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','live')" style="flex:1;border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><span>Mark live</span></button>` : ''}
@@ -4739,6 +4867,61 @@ function renderOnboardStrip(p, neg) {
     </div>`).join('');
 }
 
+// Column index (0-3) for a raw negotiation stage, via STAGE_COLUMNS -> COLUMNS.
+function pipelineColIdx(stage) {
+  const colId = STAGE_COLUMNS[stage];
+  return COLUMNS.findIndex(c => c.id === colId);
+}
+
+// Stage moves for Pipeline cards -- mirrors advanceLead/retreatLead, but on
+// wein_negotiations.stage with a read-back verify (same pattern as
+// setTaskStatus). canManageDeals-gated: moving a deal is a deal action.
+async function moveNegotiationStage(negotiationId, direction) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg) return;
+  const colIdx = pipelineColIdx(neg.stage);
+  if (colIdx === -1) return;
+  const targetIdx = colIdx + direction;
+  if (targetIdx < 0 || targetIdx >= PIPELINE_STAGE_ORDER.length) return;
+  const stage = PIPELINE_STAGE_ORDER[targetIdx];
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+  } catch (e) { alert('Could not move stage: ' + (e.message || e)); }
+}
+function advanceNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, 1); }
+function retreatNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, -1); }
+
+// Direct stage set from the provider modal's stage selector.
+async function saveNegotiationStage(negotiationId, stage) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg || neg.stage === stage) return;
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+    // Refresh the modal so pill colors / onboarding strip / meta reflect the move
+    if (window.currentProviderId) await openProviderModal(window.currentProviderId, negotiationId);
+  } catch (e) { alert('Could not change stage: ' + (e.message || e)); }
+}
+
 function providerCardHtml(item) {
   const p = item.provider;
   const isRunning = runningPipelines[p.provider_name] === 'running';
@@ -4763,6 +4946,17 @@ function providerCardHtml(item) {
         <span class="pc-badge mono">${item.offerCount} offers</span>
         ${canManageDeals() ? `<button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>` : ''}
       </div>
+      ${(() => {
+        if (!canManageDeals() || !item.negotiationId) return '';
+        const colIdx = pipelineColIdx(item.stage);
+        if (colIdx === -1) return '';
+        const isFirst = colIdx === 0, isLast = colIdx === COLUMNS.length - 1;
+        const nextLabel = isLast ? '' : COLUMNS[colIdx + 1].label;
+        return `<div class="table-actions" style="margin-bottom:8px;flex-wrap:nowrap;gap:4px;">
+          ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatNegotiation('${item.negotiationId}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
+          ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceNegotiation('${item.negotiationId}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>→ ${nextLabel}</span></button>` : ''}
+        </div>`;
+      })()}
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
         <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
@@ -4793,7 +4987,9 @@ let modalOpenToken = 0;
 const STAGE_COLORS = {
   'menu_collected': { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'paused':         { bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.22)', text: 'var(--text-secondary)', dot: 'var(--text-secondary)' },
+  'contacted':      { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'negotiating':    { bg: 'var(--blue-tint)', border: 'rgba(59,130,246,0.22)', text: 'var(--blue)', dot: 'var(--blue)' },
+  'offer_sent':     { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'accepted':       { bg: 'var(--green-tint)', border: 'rgba(34,197,94,0.22)', text: 'var(--green)', dot: 'var(--green)' },
 };
 
@@ -4912,6 +5108,14 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   document.getElementById('modal-provider-name').textContent = p.provider_name;
   document.getElementById('modal-provider-meta').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
   const profileEditable = canEditProviderProfile();
+  // Full-profile section starts collapsed per provider; stale content from a
+  // previously-opened provider must never show through.
+  fullProfileVisible = false;
+  currentProviderProfileRow = null;
+  const fpWrap = document.getElementById('modal-full-profile');
+  if (fpWrap) { fpWrap.style.display = 'none'; fpWrap.innerHTML = ''; }
+  const fpChevron = document.getElementById('fp-chevron');
+  if (fpChevron) fpChevron.className = 'ti ti-chevron-down';
   document.getElementById('modal-profile-name').value = p.provider_name || '';
   document.getElementById('modal-profile-name').disabled = !profileEditable;
   document.getElementById('modal-profile-location').disabled = !profileEditable;
@@ -4923,8 +5127,17 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   document.getElementById('modal-profile-location').value = p.location || '';
   document.getElementById('modal-stage-dot').style.background = colors.dot;
   const pill = document.getElementById('modal-stage-pill');
-  pill.textContent = stage;
   pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
+  // For deal roles with a real negotiation, the pill is a working stage
+  // selector; otherwise (team/no negotiation yet) it stays display-only.
+  if (canManageDeals() && activeNeg) {
+    const stageLabel = s => COLUMNS[pipelineColIdx(s)]?.label || s;
+    const opts = PIPELINE_STAGE_ORDER.slice();
+    if (!opts.includes(stage)) opts.unshift(stage); // non-canonical (e.g. paused) still shows truthfully
+    pill.innerHTML = `<select onchange="saveNegotiationStage('${activeNeg.id}', this.value)" style="background:transparent;border:none;color:inherit;font-family:'Instrument Sans';font-size:11px;font-weight:500;outline:none;cursor:pointer;">${opts.map(s => `<option value="${s}" ${s === stage ? 'selected' : ''} style="color:#0a1018;background:#fff;">${escapeHtml(stageLabel(s))}</option>`).join('')}</select>`;
+  } else {
+    pill.textContent = stage;
+  }
 
   document.getElementById('modal-contact-name').value = p.contact_name || '';
   document.getElementById('modal-contact-phone').value = p.contact_phone || '';
@@ -5101,9 +5314,148 @@ async function saveProviderProfile() {
     const cached = cachedProviders.find(p => p.id === window.currentProviderId);
     if (cached) Object.assign(cached, body);
     document.getElementById('modal-provider-name').textContent = provider_name;
-    const stage = document.getElementById('modal-stage-pill')?.textContent || '';
-    document.getElementById('modal-provider-meta').textContent = `${vertical} · ${stage}`;
+    // Don't read the pill's textContent -- it may now contain a <select>
+    // whose textContent is every option label concatenated.
+    const negRow = cachedNegotiations.find(n => n.id === window.currentNegotiationId)
+      || (cached ? negotiationFor(cached) : null);
+    document.getElementById('modal-provider-meta').textContent = `${vertical} · ${negRow?.stage || 'new'}`;
   } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// ── Full provider profile (migration 042 + provider_profiles constraints) ──
+// Everything the Add Provider wizard collects, editable post-creation.
+// wein_providers fields save via saveFullProfile (042's trigger enforces the
+// admin/manager/deal_breaker tier server-side); constraint fields upsert into
+// provider_profiles -- the table the n8n pipeline reads as HARD offer rules.
+const FULL_PROFILE_FIELDS = {
+  'Identity & map': [
+    { key: 'address',   label: 'Exact address', icon: 'ti-map-pin',  ph: 'Street / landmark', table: 'p' },
+    { key: 'latitude',  label: 'Latitude',      icon: 'ti-world',    ph: 'e.g. 27.9158 (paste from Google Maps)', table: 'p' },
+    { key: 'longitude', label: 'Longitude',     icon: 'ti-world',    ph: 'e.g. 34.3300', table: 'p' },
+  ],
+  'Contact & links': [
+    { key: 'email',         label: 'Email',     icon: 'ti-mail',            ph: 'contact@business.com', table: 'p' },
+    { key: 'website_url',   label: 'Website',   icon: 'ti-world-www',       ph: 'https://…', table: 'p' },
+    { key: 'instagram_url', label: 'Instagram', icon: 'ti-brand-instagram', ph: 'https://instagram.com/…', table: 'p' },
+    { key: 'menu_link',        label: 'Menu link',    icon: 'ti-link',               ph: 'https://…', table: 'p' },
+    { key: 'drive_folder_url', label: 'Drive folder', icon: 'ti-brand-google-drive', ph: 'https://drive.google.com/…', table: 'p' },
+  ],
+  'Business intel': [
+    { key: 'view_or_atmosphere', label: 'Atmosphere / view', icon: 'ti-sparkles', table: 'p' },
+    { key: 'peak_moments',       label: 'Peak moments',      icon: 'ti-clock',    table: 'p' },
+    { key: 'tourist_split',      label: 'Tourist split',     icon: 'ti-users',    ph: 'e.g. 70% tourists', table: 'p' },
+    { key: 'location_hook',      label: 'Location hook',     icon: 'ti-anchor',   table: 'p' },
+    { key: 'unique_format',      label: 'Unique format',     icon: 'ti-star',     table: 'p' },
+    { key: 'wein_exclusives',    label: 'WeIN exclusives',   icon: 'ti-diamond',  table: 'p' },
+    { key: 'internal_notes',     label: 'Internal notes',    icon: 'ti-note',     ph: 'Team-only notes', table: 'p' },
+  ],
+  'Offer constraints (pipeline hard rules)': [
+    { key: 'minimum_spend',  label: 'Minimum spend',   icon: 'ti-cash',       ph: 'e.g. EGP 300', table: 'prof' },
+    { key: 'max_group_size', label: 'Max group size',  icon: 'ti-users-group', ph: 'e.g. 8', table: 'prof' },
+    { key: 'peak_hours',     label: 'Peak hours rule', icon: 'ti-clock-bolt', table: 'prof' },
+    { key: 'blackout_dates', label: 'Blackout dates',  icon: 'ti-calendar-x', table: 'prof' },
+    { key: 'excluded_items', label: 'Excluded items',  icon: 'ti-ban',        table: 'prof' },
+    { key: 'special_terms',  label: 'Special terms',   icon: 'ti-file-text',  table: 'prof' },
+  ],
+};
+let fullProfileVisible = false;
+let currentProviderProfileRow = null; // provider_profiles row for the open provider (null = none yet)
+
+async function toggleFullProfile() {
+  fullProfileVisible = !fullProfileVisible;
+  const wrap = document.getElementById('modal-full-profile');
+  const chevron = document.getElementById('fp-chevron');
+  if (chevron) chevron.className = fullProfileVisible ? 'ti ti-chevron-up' : 'ti ti-chevron-down';
+  if (!fullProfileVisible) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  wrap.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:8px 0;">Loading…</div>';
+  try {
+    const rows = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=*`);
+    currentProviderProfileRow = rows[0] || null;
+  } catch (e) { currentProviderProfileRow = null; }
+  renderFullProfile(p, currentProviderProfileRow);
+}
+
+function renderFullProfile(p, prof) {
+  const wrap = document.getElementById('modal-full-profile');
+  if (!wrap) return;
+  const editable = canEditProviderProfile();
+  wrap.innerHTML = Object.entries(FULL_PROFILE_FIELDS).map(([group, fields]) => `
+    <div class="fp-group-title">${group}</div>
+    <div class="fp-grid">
+      ${fields.map(f => {
+        const src = f.table === 'prof' ? (prof || {}) : p;
+        const val = src[f.key] != null ? String(src[f.key]) : '';
+        const saveFn = f.table === 'prof' ? 'saveProviderConstraints()' : 'saveFullProfile()';
+        return `
+        <div class="fp-field">
+          <label class="fp-label"><i class="ti ${f.icon}" style="font-size:11px;"></i>${f.label}</label>
+          <input type="text" class="fp-input" id="fp-${f.key}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" ${editable ? '' : 'disabled'} onblur="${saveFn}">
+        </div>`;
+      }).join('')}
+    </div>`).join('')
+    + (p.geocode_confidence ? `<div style="margin-top:8px;font-size:10px;color:var(--text-tertiary);"><i class="ti ti-map-check"></i> Geocode: ${escapeHtml(p.geocode_source || 'unknown source')} · ${escapeHtml(p.geocode_confidence)} confidence${(p.latitude != null && p.longitude != null) ? ' — shown as an exact pin on the Map' : ''}</div>` : '');
+}
+
+// wein_providers-side fields of the full profile. Setting real coordinates
+// marks them manual/exact so the Map treats them as a true pin (the user's
+// explicit ask: exact location feeding the map).
+async function saveFullProfile() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const get = k => document.getElementById('fp-' + k)?.value.trim() ?? null;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'p').forEach(f => {
+    body[f.key] = get(f.key) || null;
+  });
+  const lat = parseFloat(body.latitude), lng = parseFloat(body.longitude);
+  body.latitude = isNaN(lat) ? null : lat;
+  body.longitude = isNaN(lng) ? null : lng;
+  const coordsChanged = body.latitude !== (p.latitude ?? null) || body.longitude !== (p.longitude ?? null);
+  if (coordsChanged && body.latitude != null && body.longitude != null) {
+    body.geocode_source = 'manual';
+    body.geocode_confidence = 'exact';
+    body.geocoded_at = new Date().toISOString();
+  }
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, body);
+    const check = await sbGet(`wein_providers?id=eq.${window.currentProviderId}&select=address,latitude,email`);
+    if (!check.length || (check[0].address ?? null) !== body.address || (check[0].email ?? null) !== body.email) {
+      alert('Full-profile update did not apply (permissions or migration 042 missing). Nothing changed.');
+      return;
+    }
+    Object.assign(p, body);
+  } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// provider_profiles-side constraint fields: the pipeline reads these as HARD
+// generation rules. Same get->patch-else-post upsert (keyed by provider_name)
+// the Add Provider wizard uses.
+async function saveProviderConstraints() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'prof').forEach(f => {
+    body[f.key] = document.getElementById('fp-' + f.key)?.value.trim() || null;
+  });
+  try {
+    const existing = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=id`);
+    if (existing.length) {
+      await sbPatch(`provider_profiles?id=eq.${existing[0].id}`, body);
+    } else {
+      await sbPost('provider_profiles', { provider_name: p.provider_name, ...body });
+    }
+    const check = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=minimum_spend,excluded_items`);
+    if (!check.length || (check[0].minimum_spend ?? null) !== body.minimum_spend) {
+      alert('Constraints did not save (permissions?). The pipeline will keep using the old rules.');
+      return;
+    }
+    currentProviderProfileRow = { ...(currentProviderProfileRow || {}), ...body };
+  } catch (e) { alert('Could not save constraints: ' + (e.message || e)); }
 }
 
 async function saveDealValue(negotiationId, rawValue) {
