@@ -304,6 +304,12 @@ tr.row-selected { background: var(--blue-tint); }
 .mkt-cal-today { border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue); }
 .mkt-cal-num { font-size:9px;color:var(--text-tertiary); }
 .mkt-cal-chip { font-size:9px;color:var(--text-primary);background:var(--blue-tint);border:.5px solid var(--border-blue);border-radius:4px;padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer; }
+.mkt-cal-note { font-size:9px;color:var(--amber);background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:4px;padding:2px 4px;display:flex;align-items:center;gap:3px;min-width:0;white-space:nowrap; }
+.mkt-cal-note-x { cursor:pointer;color:var(--text-tertiary);margin-left:auto;flex-shrink:0;line-height:1; }
+.mkt-cal-note-x:hover { color:var(--red); }
+.mkt-cal-add { background:none;border:.5px dashed var(--border);border-radius:4px;color:var(--text-tertiary);font-size:9px;cursor:pointer;padding:1px 4px;margin-top:auto;opacity:0;transition:opacity .12s;font-family:'Instrument Sans'; }
+.mkt-cal-day:hover .mkt-cal-add { opacity:1; }
+.mkt-cal-note-input { background:var(--bg-elevated);border:.5px solid var(--border-blue);border-radius:4px;color:var(--text-primary);font-size:9px;padding:2px 4px;outline:none;min-width:0;width:100%;box-sizing:border-box;font-family:'Instrument Sans'; }
 .file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .file-provider { font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -871,6 +877,31 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
   </div>
 </div>
 
+<!-- Campaign detail modal -- opened from Marketing calendar chips and board
+     cards. Comment thread reuses the generalized wein_comments system
+     (campaign_id target arrives with migration 043). -->
+<div id="campaign-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:600; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-surface); border:0.5px solid var(--border); border-radius:12px; width:460px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column; box-shadow:0 18px 44px rgba(0,0,0,.45);">
+    <div style="padding:14px 18px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <i id="cm-channel-icon" class="ti ti-speakerphone" style="font-size:16px;color:var(--text-secondary);flex-shrink:0;"></i>
+      <div style="flex:1;min-width:0;">
+        <div id="cm-title" style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div id="cm-meta" style="font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);margin-top:2px;"></div>
+      </div>
+      <span id="cm-status" style="font-family:'Instrument Sans';font-size:10px;padding:3px 8px;border-radius:999px;border:.5px solid var(--border);color:var(--text-secondary);flex-shrink:0;"></span>
+      <button type="button" onclick="closeCampaignModal()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;margin-left:4px;">×</button>
+    </div>
+    <div id="cm-body" style="padding:12px 18px;font-family:'Instrument Sans';font-size:12px;color:var(--text-secondary);border-bottom:.5px solid var(--border-subtle);flex-shrink:0;"></div>
+    <div style="padding:10px 12px 4px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Comments</div>
+    <div id="cm-comments" style="overflow-y:auto;flex:1;min-height:110px;max-height:270px;padding:8px 12px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div id="cm-input-row" style="border-top:.5px solid var(--border);padding:8px 12px;display:flex;gap:8px;flex-shrink:0;">
+      <input type="text" id="cm-comment-input" placeholder="Write a comment…" class="view-input" style="flex:1;min-width:0;" onkeydown="if(event.key==='Enter')document.getElementById('cm-send-btn').click()">
+      <button id="cm-send-btn" class="mini-btn" type="button" style="flex-shrink:0;"><i class="ti ti-send"></i></button>
+    </div>
+    <div id="cm-migration-hint" style="display:none;padding:8px 12px;font-family:'Instrument Sans';font-size:11px;color:var(--amber);border-top:.5px solid var(--border);flex-shrink:0;"><i class="ti ti-alert-triangle"></i> Run migration <b>043_marketing_comments_and_notes.sql</b> to enable comments and calendar notes.</div>
+  </div>
+</div>
+
 <div id="lead-drawer-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:480;">
   <div id="lead-drawer" style="position:fixed; right:0; top:0; bottom:0; width:390px; max-width:92vw; background:var(--bg-surface); border-left:.5px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 30px rgba(0,0,0,.35);">
     <div style="padding:18px 22px 15px; border-bottom:.5px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;">
@@ -1239,7 +1270,7 @@ async function attemptSetNewPassword() {
 async function loadPortalForSession(session) {
   SB_TOKEN = session.access_token;
   window.WEIN.user = session.user;
-  await Promise.all([probeCollabReady(), probeDealValueReady(), probeMarketingReady()]);
+  await Promise.all([probeCollabReady(), probeDealValueReady(), probeMarketingReady(), probeMktNotesReady()]);
   let role = 'deal_breaker', fullName = session.user.email;
   try {
     const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
@@ -1585,7 +1616,21 @@ async function probeMarketingReady() {
   try { await sbGet('wein_campaigns?select=id&limit=1'); MARKETING_READY = true; }
   catch (e) { MARKETING_READY = false; }
 }
+// True once migration 043 is applied (campaign comment threads + calendar
+// day notes). Probes both halves -- the flag only turns on when the whole
+// migration ran.
+let MKT_NOTES_READY = false;
+async function probeMktNotesReady() {
+  try {
+    await Promise.all([
+      sbGet('wein_comments?select=campaign_id&limit=1'),
+      sbGet('wein_calendar_notes?select=id&limit=1'),
+    ]);
+    MKT_NOTES_READY = true;
+  } catch (e) { MKT_NOTES_READY = false; }
+}
 let cachedCampaigns = [];
+let cachedCalendarNotes = [];
 let cachedRedemptions = [];
 function providerRedemptionTotals(providerId) {
   const rows = cachedRedemptions.filter(r => r.provider_id === providerId);
@@ -1645,7 +1690,7 @@ let providerStaleOnly = false;
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions, campaigns] = await Promise.all([
+    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions, campaigns, calNotes] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
       sbGet('wein_offers?select=*'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
@@ -1658,9 +1703,10 @@ async function loadDashboard() {
         .catch(() => sbGet('profiles?select=id,role,full_name').catch(() => [])),
       sbGet('wein_redemptions?select=*').catch(() => []),
       sbGet('wein_campaigns?select=*&order=scheduled_date.desc').catch(() => []),
+      sbGet('wein_calendar_notes?select=*&order=note_date.asc').catch(() => []),
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
-    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions; cachedCampaigns = campaigns;
+    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions; cachedCampaigns = campaigns; cachedCalendarNotes = calNotes;
     refreshNavCounts();
     // The Add Lead form renders inline inside the Leads view's own HTML, so
     // a full re-render (background refresh, another tab's action, etc.)
@@ -4038,14 +4084,23 @@ function renderMarketingCalendar() {
     const d = new Date(c.scheduled_date);
     if (d.getFullYear() === y && d.getMonth() === m) (byDay[d.getDate()] = byDay[d.getDate()] || []).push(c);
   });
+  const notesByDay = {};
+  (cachedCalendarNotes || []).forEach(n => {
+    if (!n.note_date) return;
+    const nd = new Date(n.note_date);
+    if (nd.getFullYear() === y && nd.getMonth() === m) (notesByDay[nd.getDate()] = notesByDay[nd.getDate()] || []).push(n);
+  });
   const todayStr = new Date().toDateString();
   let cells = '';
   for (let i = 0; i < firstDow; i++) cells += `<div class="mkt-cal-day mkt-cal-empty"></div>`;
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = new Date(y, m, d).toDateString() === todayStr;
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     cells += `<div class="mkt-cal-day${isToday ? ' mkt-cal-today' : ''}">
       <div class="mkt-cal-num mono">${d}</div>
-      ${(byDay[d] || []).map(c => `<div class="mkt-cal-chip" title="${escapeHtml(c.title || '')} · ${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}" onclick="marketingViewMode='board';renderMarketingView()"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="font-size:9px;"></i> ${escapeHtml(c.title || 'Untitled')}</div>`).join('')}
+      ${(byDay[d] || []).map(c => `<div class="mkt-cal-chip" title="${escapeHtml(c.title || '')} · ${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}" onclick="openCampaignModal('${c.id}')"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="font-size:9px;"></i> ${escapeHtml(c.title || 'Untitled')}</div>`).join('')}
+      ${(notesByDay[d] || []).map(n => `<div class="mkt-cal-note" title="${escapeHtml(n.note)}${n.created_by ? ' — ' + escapeHtml(n.created_by) : ''}"><i class="ti ti-note" style="font-size:9px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(n.note)}</span>${canDelete() ? `<span class="mkt-cal-note-x" title="Delete note" onclick="deleteCalendarNote('${n.id}')">×</span>` : ''}</div>`).join('')}
+      ${MKT_NOTES_READY ? `<button class="mkt-cal-add" type="button" title="Add a note to this day" onclick="startCalendarNote(this, '${dateStr}')">+ note</button>` : ''}
     </div>`;
   }
   wrap.innerHTML = `
@@ -4078,7 +4133,7 @@ function campaignCardHtml(c) {
       </div>`
     : (nearby.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-tertiary);"><i class="ti ti-trending-up"></i> ${nearby.length} redemption${nearby.length === 1 ? '' : 's'} within 7 days</div>` : '');
   return `
-    <div class="provider-card" data-campaign-id="${c.id}">
+    <div class="provider-card" data-campaign-id="${c.id}" onclick="openCampaignModal('${c.id}')">
       <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
         <i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="color:var(--text-secondary);"></i>
         <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.title || 'Untitled campaign')}</span>
@@ -4097,6 +4152,91 @@ function campaignCardHtml(c) {
         ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="deleteCampaign('${c.id}')" title="Delete"><i class="ti ti-trash"></i></button>` : ''}
       </div>
     </div>`;
+}
+
+// ── Campaign detail modal + calendar day notes (migration 043) ─────────
+let currentCampaignId = null;
+
+function openCampaignModal(campaignId) {
+  const c = cachedCampaigns.find(x => x.id === campaignId);
+  if (!c) return;
+  currentCampaignId = campaignId;
+  document.getElementById('cm-title').textContent = c.title || 'Untitled campaign';
+  document.getElementById('cm-channel-icon').className = `ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}`;
+  const linked = campaignLinkedName(c);
+  document.getElementById('cm-meta').textContent = [
+    CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel,
+    c.scheduled_date ? new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+    linked,
+  ].filter(Boolean).join(' · ');
+  document.getElementById('cm-status').textContent = c.status;
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  document.getElementById('cm-body').innerHTML = [
+    c.caption ? `<div style="white-space:pre-wrap;">${escapeHtml(c.caption)}</div>` : '',
+    c.asset_url ? `<a href="${escapeHtml(c.asset_url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px;">Asset ↗</a>` : '',
+    ba ? `<div style="margin-top:6px;font-size:11px;" title="Redemptions 7 days before vs 7 days after the scheduled date"><i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i> ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` (${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)` : ''}</div>` : '',
+  ].filter(Boolean).join('') || '<span style="color:var(--text-tertiary);">No caption</span>';
+  document.getElementById('cm-input-row').style.display = MKT_NOTES_READY ? 'flex' : 'none';
+  document.getElementById('cm-migration-hint').style.display = MKT_NOTES_READY ? 'none' : 'block';
+  const commentsEl = document.getElementById('cm-comments');
+  if (MKT_NOTES_READY) {
+    commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Loading…</div>';
+    fetchThread('campaign_id', campaignId).then(cs => renderThread('cm-comments', cs, 'campaign_id', campaignId))
+      .catch(() => { commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Could not load comments</div>'; });
+  } else {
+    commentsEl.innerHTML = '';
+  }
+  document.getElementById('cm-send-btn').onclick = () => submitThreadComment('campaign_id', campaignId, 'cm-comment-input', 'cm-comments');
+  document.getElementById('campaign-modal-backdrop').style.display = 'flex';
+}
+
+function closeCampaignModal() {
+  document.getElementById('campaign-modal-backdrop').style.display = 'none';
+  currentCampaignId = null;
+}
+
+// "+ note" in a calendar day cell swaps itself for an inline input; Enter or
+// clicking away saves, Escape cancels.
+function startCalendarNote(btn, dateStr) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Note…';
+  input.className = 'mkt-cal-note-input';
+  input.onkeydown = e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = ''; input.blur(); }
+  };
+  input.onblur = () => saveCalendarNote(dateStr, input);
+  btn.replaceWith(input);
+  input.focus();
+}
+
+async function saveCalendarNote(dateStr, input) {
+  const note = input.value.trim();
+  if (!note) { renderMarketingCalendar(); return; }
+  try {
+    const rows = await sbPost('wein_calendar_notes', {
+      note_date: dateStr, note,
+      created_by: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+    });
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (!created?.id) throw new Error('insert returned no row');
+    cachedCalendarNotes.push(created);
+  } catch (e) { alert('Could not save note: ' + (e.message || e)); }
+  renderMarketingCalendar();
+}
+
+async function deleteCalendarNote(noteId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this note?')) return;
+  try {
+    await sbDelete(`wein_calendar_notes?id=eq.${noteId}`);
+    const check = await sbGet(`wein_calendar_notes?id=eq.${noteId}&select=id`);
+    if (check.length) { alert('Delete did not apply (permissions?). Nothing changed.'); return; }
+    cachedCalendarNotes = cachedCalendarNotes.filter(n => n.id !== noteId);
+    renderMarketingCalendar();
+  } catch (e) { alert('Could not delete note: ' + (e.message || e)); }
 }
 
 function renderMarketingKanban() {
