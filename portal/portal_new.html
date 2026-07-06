@@ -188,7 +188,7 @@ a { color: var(--blue); text-decoration: none; }
 .pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
 .pc-meta > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
-.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
 .pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
 .pc-row > * { min-width: 0; }
 .pc-badge { font-size: 10px; color: var(--blue); background: var(--blue-tint); border: .5px solid var(--border-blue); padding: 2px 6px; border-radius: 4px; }
@@ -5653,7 +5653,7 @@ async function saveContract() {
 }
 
 const CONTRACT_STATUS_COLORS = {
-  none:       { bg: 'var(--bg-elevated)', border: 'var(--border)',        text: 'var(--text-tertiary)' },
+  none:       { bg: 'var(--bg-elevated)', border: 'var(--border)',        text: 'var(--text-secondary)' },
   draft:      { bg: 'var(--blue-tint)',   border: 'var(--border-blue)',   text: 'var(--blue)' },
   active:     { bg: 'var(--green-tint)',  border: 'var(--green)',         text: 'var(--green)' },
   expired:    { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
