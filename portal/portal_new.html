@@ -31,8 +31,8 @@
   --bg-elevated:    #141c2b;
   --bg-deep:        #03060c;
 
-  --border:         #1c2838;
-  --border-subtle:  #141c2b;
+  --border:         #2a3a50;
+  --border-subtle:  #1a2434;
   --border-blue:    #0081fd35;
   --border-blue-strong: #0081fd55;
 
@@ -56,8 +56,10 @@
   --amber-soft-strong: #f59e0b40;
 
   --text-primary:   #f0f4fa;
-  --text-secondary: #7a8aa0;
-  --text-tertiary:  #2e3a4c;
+  --text-secondary: #8b9cb3;
+  /* Was #2e3a4c -- ~1.5:1 contrast on surface backgrounds, effectively
+     invisible. Small labels/dates/empty-states must still be READABLE. */
+  --text-tertiary:  #5f7189;
 
   --green:          #22c55e;
   --green-tint:     #22c55e15;
@@ -70,8 +72,8 @@
   --bg-elevated:    #eef3fa;
   --bg-deep:        #f8fafc;
 
-  --border:         #dde4ee;
-  --border-subtle:  #eef3fa;
+  --border:         #c6d1e0;
+  --border-subtle:  #e4eaf3;
   --border-blue:    #0081fd40;
   --border-blue-strong: #004d9755;
 
@@ -90,8 +92,9 @@
   --amber-soft-strong: #f59e0b33;
 
   --text-primary:   #0a1018;
-  --text-secondary: #5c6b80;
-  --text-tertiary:  #a0acba;
+  --text-secondary: #4d5c72;
+  /* Was #a0acba -- ~2.1:1 on white, washed out. */
+  --text-tertiary:  #75849a;
 
   --green:          #16a34a;
   --green-tint:     #16a34a12;
@@ -5002,7 +5005,7 @@ function renderOnboardStrip(p, neg) {
       ${i ? `<div style="flex:1;height:1.5px;background:${steps[i - 1].done && s.done ? 'var(--green)' : 'var(--border)'};margin:0 5px 12px;"></div>` : ''}
       <div title="${s.label}" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
         <div style="width:10px;height:10px;border-radius:50%;background:${s.done ? 'var(--green)' : 'var(--bg-elevated)'};border:1.5px solid ${s.done ? 'var(--green)' : 'var(--border)'};"></div>
-        <span style="font-family:'Instrument Sans';font-size:8px;color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
+        <span style="font-family:'Instrument Sans';font-size:9px;font-weight:${s.done ? '600' : '500'};color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
       </div>
     </div>`).join('');
 }
