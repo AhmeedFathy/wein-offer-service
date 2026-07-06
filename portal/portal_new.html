@@ -31,8 +31,8 @@
   --bg-elevated:    #141c2b;
   --bg-deep:        #03060c;
 
-  --border:         #1c2838;
-  --border-subtle:  #141c2b;
+  --border:         #2a3a50;
+  --border-subtle:  #1a2434;
   --border-blue:    #0081fd35;
   --border-blue-strong: #0081fd55;
 
@@ -56,8 +56,10 @@
   --amber-soft-strong: #f59e0b40;
 
   --text-primary:   #f0f4fa;
-  --text-secondary: #7a8aa0;
-  --text-tertiary:  #2e3a4c;
+  --text-secondary: #8b9cb3;
+  /* Was #2e3a4c -- ~1.5:1 contrast on surface backgrounds, effectively
+     invisible. Small labels/dates/empty-states must still be READABLE. */
+  --text-tertiary:  #5f7189;
 
   --green:          #22c55e;
   --green-tint:     #22c55e15;
@@ -70,8 +72,8 @@
   --bg-elevated:    #eef3fa;
   --bg-deep:        #f8fafc;
 
-  --border:         #dde4ee;
-  --border-subtle:  #eef3fa;
+  --border:         #c6d1e0;
+  --border-subtle:  #e4eaf3;
   --border-blue:    #0081fd40;
   --border-blue-strong: #004d9755;
 
@@ -90,8 +92,9 @@
   --amber-soft-strong: #f59e0b33;
 
   --text-primary:   #0a1018;
-  --text-secondary: #5c6b80;
-  --text-tertiary:  #a0acba;
+  --text-secondary: #4d5c72;
+  /* Was #a0acba -- ~2.1:1 on white, washed out. */
+  --text-tertiary:  #75849a;
 
   --green:          #16a34a;
   --green-tint:     #16a34a12;
@@ -166,26 +169,28 @@ a { color: var(--blue); text-decoration: none; }
 .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
 .kpi-card { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.16); transition: box-shadow 150ms ease, border-color 150ms ease; }
 .kpi-card:hover { border-color: var(--border-blue-strong); box-shadow: 0 6px 18px rgba(0,129,253,.10); }
-.kpi-label { font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+.kpi-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
 .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--text-primary); line-height: 1; }
 .kpi-delta { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
 .kpi-delta.up { color: var(--green); }
 .kpi-delta.down { color: var(--red); }
 
 /* ── Kanban ── */
-.kanban-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; align-items: start; }
+.kanban-board { display: grid; grid-template-columns: repeat(4,minmax(155px,1fr)); gap: 10px; align-items: start; overflow-x: auto; }
 .kanban-col { background: var(--bg-surface); border: .5px solid var(--border); border-radius: 10px; overflow: hidden; }
 .kanban-col-header { padding: 10px 12px; border-bottom: .5px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; }
-.kanban-col-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; }
+.kanban-col-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; }
 .kanban-col-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .kanban-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; max-height: calc(100vh - 280px); overflow-y: auto; }
 .provider-card { background: var(--bg-elevated); border: .5px solid var(--border); border-radius: 9px; padding: 10px 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.14); transition: box-shadow 150ms ease, border-color 150ms ease, transform 120ms ease; }
 .provider-card:hover { border-color: var(--border-blue-strong); background: var(--bg-elevated); box-shadow: 0 10px 26px rgba(0,129,253,.14); transform: translateY(-1px); }
-.pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
-.pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pc-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pc-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
+.pc-meta > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pc-meta-cat { font-size: 11px; color: var(--text-secondary); }
-.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); }
-.pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pc-meta-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.pc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
+.pc-row > * { min-width: 0; }
 .pc-badge { font-size: 10px; color: var(--blue); background: var(--blue-tint); border: .5px solid var(--border-blue); padding: 2px 6px; border-radius: 4px; }
 .pc-run-btn { font-size: 10px; color: var(--text-secondary); background: transparent; border: .5px solid var(--border); border-radius: 4px; padding: 2px 8px; }
 .pc-run-btn:hover { color: var(--blue); border-color: var(--border-blue-strong); }
@@ -193,7 +198,7 @@ a { color: var(--blue); text-decoration: none; }
 .pc-progress-fill { height: 2px; border-radius: 1px; }
 .empty-col { padding: 20px 8px; text-align: center; font-size: 11px; color: var(--text-tertiary); }
 .view-header { display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px; }
-.view-title { font-size:18px;font-weight:600;color:var(--text-primary); }
+.view-title { font-size:19px;font-weight:700;color:var(--text-primary); }
 .view-count { font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-secondary); }
 .view-action { height:34px;border-radius:6px;border:.5px solid var(--border-blue);background:transparent;color:var(--blue);font-size:12px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px; }
 .view-filterbar { display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap; }
@@ -212,7 +217,7 @@ a { color: var(--blue); text-decoration: none; }
 .view-select { min-width:140px; }
 .providers-table-wrap { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(0,0,0,.14); }
 .providers-table { width:100%;border-collapse:collapse;min-width:820px; }
-.providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
+.providers-table th { padding:10px 12px;border-bottom:.5px solid var(--border);font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1.4px;text-align:left;white-space:nowrap; }
 .providers-table td { padding:10px 12px;border-bottom:.5px solid var(--border-subtle);font-size:12px;color:var(--text-secondary);vertical-align:middle; }
 .providers-table tr { cursor:pointer; }
 .providers-table tr:hover { background:var(--bg-elevated); }
@@ -282,10 +287,32 @@ tr.row-selected { background: var(--blue-tint); }
 .mini-btn { height:26px;border-radius:5px;border:.5px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;padding:0 8px;display:inline-flex;align-items:center;gap:5px; }
 .mini-btn:hover { border-color:var(--border-blue-strong);color:var(--blue);background:var(--bg-elevated); }
 .mini-btn.active { border-color:var(--border-blue-strong);color:var(--blue);background:var(--blue-tint); }
-.files-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }
+.files-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px; }
 .file-card { background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;box-shadow:0 1px 2px rgba(0,0,0,.14);transition:box-shadow 150ms ease,border-color 150ms ease,transform 120ms ease; }
 .file-card:hover { border-color:var(--border-blue-strong);background:var(--bg-elevated);box-shadow:0 10px 26px rgba(0,129,253,.14);transform:translateY(-1px); }
 .file-card-head { display:flex;gap:8px;align-items:flex-start;min-width:0; }
+.file-card-head > div { min-width:0; }
+/* Provider modal full-profile section */
+.fp-field { display:flex;flex-direction:column;gap:3px;min-width:0; }
+.fp-label { font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px; }
+.fp-input { background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;width:100%;box-sizing:border-box; }
+.fp-input:disabled { color:var(--text-tertiary);border-bottom-style:dotted;cursor:not-allowed; }
+.fp-group-title { font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.2px;margin:12px 0 6px; }
+.fp-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px; }
+/* Marketing calendar (v1.5 campaign HQ) */
+.mkt-cal-head { display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;font-size:9px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;text-align:center; }
+.mkt-cal { display:grid;grid-template-columns:repeat(7,1fr);gap:4px; }
+.mkt-cal-day { min-height:74px;background:var(--bg-surface);border:.5px solid var(--border);border-radius:7px;padding:5px;display:flex;flex-direction:column;gap:3px;min-width:0; }
+.mkt-cal-empty { background:transparent;border:.5px dashed var(--border-subtle); }
+.mkt-cal-today { border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue); }
+.mkt-cal-num { font-size:9px;color:var(--text-tertiary); }
+.mkt-cal-chip { font-size:9px;color:var(--text-primary);background:var(--blue-tint);border:.5px solid var(--border-blue);border-radius:4px;padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer; }
+.mkt-cal-note { font-size:9px;color:var(--amber);background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:4px;padding:2px 4px;display:flex;align-items:center;gap:3px;min-width:0;white-space:nowrap; }
+.mkt-cal-note-x { cursor:pointer;color:var(--text-tertiary);margin-left:auto;flex-shrink:0;line-height:1; }
+.mkt-cal-note-x:hover { color:var(--red); }
+.mkt-cal-add { background:none;border:.5px dashed var(--border);border-radius:4px;color:var(--text-tertiary);font-size:9px;cursor:pointer;padding:1px 4px;margin-top:auto;opacity:0;transition:opacity .12s;font-family:'Instrument Sans'; }
+.mkt-cal-day:hover .mkt-cal-add { opacity:1; }
+.mkt-cal-note-input { background:var(--bg-elevated);border:.5px solid var(--border-blue);border-radius:4px;color:var(--text-primary);font-size:9px;padding:2px 4px;outline:none;min-width:0;width:100%;box-sizing:border-box;font-family:'Instrument Sans'; }
 .file-icon { width:30px;height:30px;border-radius:6px;background:var(--blue-tint);border:.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;color:var(--blue);flex-shrink:0; }
 .file-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .file-provider { font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -304,7 +331,7 @@ tr.row-selected { background: var(--blue-tint); }
 }
 
 /* ── Pipeline alerts (now shown in Settings) ── */
-.rp-section-title { padding: 12px 16px 6px; font-size: 9px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; border-bottom: .5px solid var(--border-subtle); }
+.rp-section-title { padding: 12px 16px 6px; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; border-bottom: .5px solid var(--border-subtle); }
 .rp-alerts { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .rp-alert { background: var(--bg-elevated); border: .5px solid var(--border); border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; padding: 8px 10px; }
 .rp-alert-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
@@ -384,7 +411,7 @@ html.is-mobile #notif-panel { right: 8px; left: 8px; width: auto; }
 @media (max-width: 1023px) {
   .kanban-board { grid-template-columns: 1fr !important; }
   .kpi-row { grid-template-columns: repeat(2,1fr); }
-  .files-grid { grid-template-columns:1fr; }
+  .files-grid { grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); }
   .view-input,.view-select { width:100%;min-width:0; }
   .view-header { align-items:flex-start; }
 }
@@ -572,6 +599,7 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
       <div class="nav-item" data-view="analytics"><i class="ti ti-chart-bar"></i><span>Analytics</span></div>
       <div class="nav-item" data-view="map"><i class="ti ti-map-pin"></i><span>Map</span></div>
       <div class="nav-item" data-view="offers"><i class="ti ti-tag"></i><span>Offers</span><span class="nav-count" data-count="offers"></span></div>
+      <div class="nav-item" data-view="marketing"><i class="ti ti-speakerphone"></i><span>Marketing</span></div>
     </div>
   </div>
   <div class="nav-divider"></div>
@@ -852,6 +880,31 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
   </div>
 </div>
 
+<!-- Campaign detail modal -- opened from Marketing calendar chips and board
+     cards. Comment thread reuses the generalized wein_comments system
+     (campaign_id target arrives with migration 043). -->
+<div id="campaign-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:600; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-surface); border:0.5px solid var(--border); border-radius:12px; width:460px; max-width:94vw; max-height:86vh; display:flex; flex-direction:column; box-shadow:0 18px 44px rgba(0,0,0,.45);">
+    <div style="padding:14px 18px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <i id="cm-channel-icon" class="ti ti-speakerphone" style="font-size:16px;color:var(--text-secondary);flex-shrink:0;"></i>
+      <div style="flex:1;min-width:0;">
+        <div id="cm-title" style="font-family:'Instrument Sans';font-size:14px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div id="cm-meta" style="font-family:'Instrument Sans';font-size:11px;color:var(--text-secondary);margin-top:2px;"></div>
+      </div>
+      <span id="cm-status" style="font-family:'Instrument Sans';font-size:10px;padding:3px 8px;border-radius:999px;border:.5px solid var(--border);color:var(--text-secondary);flex-shrink:0;"></span>
+      <button type="button" onclick="closeCampaignModal()" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;line-height:1;padding:0;margin-left:4px;">×</button>
+    </div>
+    <div id="cm-body" style="padding:12px 18px;font-family:'Instrument Sans';font-size:12px;color:var(--text-secondary);border-bottom:.5px solid var(--border-subtle);flex-shrink:0;"></div>
+    <div style="padding:10px 12px 4px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Comments</div>
+    <div id="cm-comments" style="overflow-y:auto;flex:1;min-height:110px;max-height:270px;padding:8px 12px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div id="cm-input-row" style="border-top:.5px solid var(--border);padding:8px 12px;display:flex;gap:8px;flex-shrink:0;">
+      <input type="text" id="cm-comment-input" placeholder="Write a comment…" class="view-input" style="flex:1;min-width:0;" onkeydown="if(event.key==='Enter')document.getElementById('cm-send-btn').click()">
+      <button id="cm-send-btn" class="mini-btn" type="button" style="flex-shrink:0;"><i class="ti ti-send"></i></button>
+    </div>
+    <div id="cm-migration-hint" style="display:none;padding:8px 12px;font-family:'Instrument Sans';font-size:11px;color:var(--amber);border-top:.5px solid var(--border);flex-shrink:0;"><i class="ti ti-alert-triangle"></i> Run migration <b>043_marketing_comments_and_notes.sql</b> to enable comments and calendar notes.</div>
+  </div>
+</div>
+
 <div id="lead-drawer-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:480;">
   <div id="lead-drawer" style="position:fixed; right:0; top:0; bottom:0; width:390px; max-width:92vw; background:var(--bg-surface); border-left:.5px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 30px rgba(0,0,0,.35);">
     <div style="padding:18px 22px 15px; border-bottom:.5px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0;">
@@ -952,14 +1005,41 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
       ">x</button>
     </div>
 
-    <!-- Contact person -- closes the "Contacts" gap vs. a standard CRM. Deal value moved to the Deals tab. -->
-    <div style="padding:10px 20px;border-bottom:0.5px solid var(--border);display:flex;gap:18px;align-items:center;flex-wrap:wrap;flex-shrink:0;background:var(--bg-surface);">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <i class="ti ti-user" style="font-size:13px;color:var(--text-tertiary);"></i>
-        <input type="text" id="modal-contact-name" placeholder="Contact name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
-        <input type="text" id="modal-contact-phone" placeholder="Phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
-        <input type="text" id="modal-contact-whatsapp" placeholder="WhatsApp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;width:110px;" onblur="saveProviderContact()">
+    <!-- Profile -- identity (name/category/location, editable by admin/manager/deal_breaker
+         via canEditProviderProfile) + contact person, all in one place instead of a sparse
+         unlabeled row / hidden popover. Contact fields stay open to every role -- they also
+         power the WhatsApp quick-link (waLink()) used in Today's follow-up list and provider rows. -->
+    <div style="padding:12px 20px;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--bg-surface);">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:10px;">
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-building-store" style="font-size:11px;"></i>Name</label>
+          <input type="text" id="modal-profile-name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderProfile()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-tag" style="font-size:11px;"></i>Category</label>
+          <select id="modal-profile-vertical" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onchange="saveProviderProfile()"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-map-pin" style="font-size:11px;"></i>Location</label>
+          <input type="text" id="modal-profile-location" placeholder="e.g. Naama Bay" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderProfile()">
+        </div>
       </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-user" style="font-size:11px;"></i>Contact name</label>
+          <input type="text" id="modal-contact-name" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderContact()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-phone" style="font-size:11px;"></i>Phone</label>
+          <input type="text" id="modal-contact-phone" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderContact()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0;">
+          <label style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:4px;"><i class="ti ti-brand-whatsapp" style="font-size:11px;"></i>WhatsApp</label>
+          <input type="text" id="modal-contact-whatsapp" style="background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--text-primary);font-family:'Instrument Sans';font-size:12px;padding:2px 0;outline:none;min-width:0;" onblur="saveProviderContact()">
+        </div>
+      </div>
+      <button id="modal-full-profile-btn" type="button" class="mini-btn" style="margin-top:10px;" onclick="toggleFullProfile()"><i class="ti ti-chevron-down" id="fp-chevron"></i><span>Full profile</span></button>
+      <div id="modal-full-profile" style="display:none;max-height:250px;overflow-y:auto;margin-top:4px;padding-right:6px;"></div>
     </div>
 
     <!-- Onboarding progress strip + next-action (derived from real stage/contract/launch data) -->
@@ -1025,7 +1105,7 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
 
       <!-- Column 1: Offers -->
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;min-width:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Offers</div>
         <div id="modal-offers" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;"></div>
       </div>
 
@@ -1033,18 +1113,18 @@ html.is-mobile #lead-drawer { width: 100vw !important; max-width: 100vw !importa
       <div style="display:flex;flex-direction:column;border-right:0.5px solid var(--border);min-height:0;min-width:0;">
         <div id="modal-tasks-wrap" style="display:none;flex-shrink:0;border-bottom:0.5px solid var(--border-subtle);">
           <div style="padding:10px 12px 6px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;">Tasks</span>
+            <span style="font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;">Tasks</span>
             <button type="button" class="mini-btn" style="height:20px;padding:0 6px;" onclick="openTaskModal(null, {provider_id: window.currentProviderId})"><i class="ti ti-plus" style="font-size:11px;"></i></button>
           </div>
           <div id="modal-tasks" style="padding:0 8px 8px;display:flex;flex-direction:column;gap:4px;max-height:110px;overflow-y:auto;"></div>
         </div>
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Files</div>
         <div id="modal-files" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:4px;min-width:0;"></div>
       </div>
 
       <!-- Column 3: Comments thread -->
       <div style="display:flex;flex-direction:column;min-height:0;min-width:0;">
-        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:9px;font-weight:500;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
+        <div style="padding:10px 12px 6px;font-family:'Instrument Sans';font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0;">Notes &amp; Instructions</div>
         <div id="modal-comments" style="overflow-y:auto;flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;"></div>
         <div style="border-top:0.5px solid var(--border);padding:8px;flex-shrink:0;">
           <textarea id="comment-input" placeholder="Leave a note or instruction..." style="
@@ -1123,6 +1203,13 @@ function canDelete() {
   return role === 'admin' || role === 'manager';
 }
 const canManageDeals = canDelete;
+// Provider identity fields (name/vertical/location) -- a wider tier than
+// canManageDeals() (contract fields stay admin/manager only per migration
+// 039/041): deal_breaker can also edit these, team cannot.
+function canEditProviderProfile() {
+  const role = sessionStorage.getItem('weinRole');
+  return role === 'admin' || role === 'manager' || role === 'deal_breaker';
+}
 const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
 // Human-friendly display for the "who created/owns this" field — never show
 // raw internal source strings (migration slugs, bare session-role values).
@@ -1158,7 +1245,7 @@ async function attemptForgotPassword() {
   const errEl = document.getElementById('loginError');
   if (!email) { errEl.textContent = 'Enter your email above first'; return; }
   try {
-    const { error } = await sbAuth.auth.resetPasswordForEmail(email, { redirectTo: 'https://wein.pythonanywhere.com/portal-new' });
+    const { error } = await sbAuth.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/portal-new' });
     if (error) { errEl.textContent = error.message; return; }
     errEl.style.color = 'var(--green)';
     errEl.textContent = 'Password reset email sent. Check your inbox.';
@@ -1186,7 +1273,7 @@ async function attemptSetNewPassword() {
 async function loadPortalForSession(session) {
   SB_TOKEN = session.access_token;
   window.WEIN.user = session.user;
-  await Promise.all([probeCollabReady(), probeDealValueReady()]);
+  await Promise.all([probeCollabReady(), probeDealValueReady(), probeMarketingReady(), probeMktNotesReady()]);
   let role = 'deal_breaker', fullName = session.user.email;
   try {
     const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
@@ -1233,7 +1320,7 @@ let autoRefreshInterval = null;
 // NOTE: client-side scope only; DB-level enforcement is tracked as task #7.
 const NAV_HIDDEN_FOR_ROLE = {
   deal_breaker: ['analytics', 'settings'],
-  team: ['analytics', 'settings', 'leads', 'pipeline', 'deals', 'launch', 'providers', 'offers', 'map'],
+  team: ['analytics', 'settings', 'leads', 'pipeline', 'deals', 'launch', 'providers', 'offers', 'map', 'marketing'],
 };
 // Where each role lands when their requested view is hidden (or on login).
 function defaultViewForRole(role) {
@@ -1461,8 +1548,8 @@ initTheme();
 // ════════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════════════
-const PAGE_TITLES = { today: 'Today', tasks: 'Tasks', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', files: 'Files', team: 'Team', settings: 'Settings' };
-const VIEW_GROUP = { today: 'sales', tasks: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', files: 'system', team: 'system', settings: 'system' };
+const PAGE_TITLES = { today: 'Today', tasks: 'Tasks', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', marketing: 'Marketing', files: 'Files', team: 'Team', settings: 'Settings' };
+const VIEW_GROUP = { today: 'sales', tasks: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', marketing: 'insights', files: 'system', team: 'system', settings: 'system' };
 let currentView = 'pipeline';
 
 function setNavGroupOpen(groupId, open) {
@@ -1525,6 +1612,28 @@ async function probeDealValueReady() {
   try { await sbGet('wein_redemptions?select=id&limit=1'); DEAL_VALUE_READY = true; }
   catch (e) { DEAL_VALUE_READY = false; }
 }
+// True once migration 040 is applied (wein_campaigns table). Same probe
+// pattern as COLLAB_READY/DEAL_VALUE_READY.
+let MARKETING_READY = false;
+async function probeMarketingReady() {
+  try { await sbGet('wein_campaigns?select=id&limit=1'); MARKETING_READY = true; }
+  catch (e) { MARKETING_READY = false; }
+}
+// True once migration 043 is applied (campaign comment threads + calendar
+// day notes). Probes both halves -- the flag only turns on when the whole
+// migration ran.
+let MKT_NOTES_READY = false;
+async function probeMktNotesReady() {
+  try {
+    await Promise.all([
+      sbGet('wein_comments?select=campaign_id&limit=1'),
+      sbGet('wein_calendar_notes?select=id&limit=1'),
+    ]);
+    MKT_NOTES_READY = true;
+  } catch (e) { MKT_NOTES_READY = false; }
+}
+let cachedCampaigns = [];
+let cachedCalendarNotes = [];
 let cachedRedemptions = [];
 function providerRedemptionTotals(providerId) {
   const rows = cachedRedemptions.filter(r => r.provider_id === providerId);
@@ -1536,9 +1645,19 @@ function providerRedemptionTotals(providerId) {
 const STAGE_COLUMNS = {
   'menu_collected': 'contacted',
   'paused':         'contacted',
+  'contacted':      'contacted',
   'negotiating':    'negotiating',
+  // offer_sent was missing here, which silently DROPPED those rows from the
+  // board entirely (renderKanban skips unmapped stages) -- the "Offer Sent"
+  // column has been unreachable since it was added.
+  'offer_sent':     'offer_sent',
   'accepted':       'accepted'
 };
+// Canonical raw stage per visible column, in board order -- what the
+// advance/retreat buttons set. (Non-canonical stages like 'paused' still
+// display via STAGE_COLUMNS; moving a paused card writes the canonical
+// stage of the target column.)
+const PIPELINE_STAGE_ORDER = ['menu_collected', 'negotiating', 'offer_sent', 'accepted'];
 // Column ids stay ('contacted' etc.) since STAGE_COLUMNS/other code keys off
 // them -- only the visible label changed. "Onboarding" replaces "Contacted"
 // because it collided with Leads' "Contacting" stage (a real provider here
@@ -1552,7 +1671,9 @@ const COLUMNS = [
 const STAGE_PROGRESS = {
   'menu_collected': 25,
   'paused':         15,
+  'contacted':      10,
   'negotiating':    55,
+  'offer_sent':     80,
   'accepted':       100
 };
 const STALE_DAYS = 14;
@@ -1572,7 +1693,7 @@ let providerStaleOnly = false;
 
 async function loadDashboard() {
   try {
-    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions] = await Promise.all([
+    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions, campaigns, calNotes] = await Promise.all([
       sbGet('wein_providers?select=*&order=created_at.desc'),
       sbGet('wein_offers?select=*'),
       sbGet('wein_negotiations?select=*&order=updated_at.desc'),
@@ -1584,9 +1705,11 @@ async function loadDashboard() {
       sbGet('profiles?select=id,role,full_name,email&order=full_name.asc')
         .catch(() => sbGet('profiles?select=id,role,full_name').catch(() => [])),
       sbGet('wein_redemptions?select=*').catch(() => []),
+      sbGet('wein_campaigns?select=*&order=scheduled_date.desc').catch(() => []),
+      sbGet('wein_calendar_notes?select=*&order=note_date.asc').catch(() => []),
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
-    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions;
+    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions; cachedCampaigns = campaigns; cachedCalendarNotes = calNotes;
     refreshNavCounts();
     // The Add Lead form renders inline inside the Leads view's own HTML, so
     // a full re-render (background refresh, another tab's action, etc.)
@@ -1595,6 +1718,7 @@ async function loadDashboard() {
     // painted over the form until it closes.
     if (currentView === 'leads' && leadFormVisible) return;
     if (currentView === 'tasks' && taskFormVisible) return;
+    if (currentView === 'marketing' && campaignFormVisible) return;
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
@@ -1637,6 +1761,7 @@ function renderCurrentView() {
   if (currentView === 'files') { renderFilesView(); return; }
   if (currentView === 'leads') { renderLeadsView(); return; }
   if (currentView === 'offers') { renderOffersView(); return; }
+  if (currentView === 'marketing') { renderMarketingView(); return; }
   if (currentView === 'deals') { renderDealsView(); return; }
   if (currentView === 'launch') { renderLaunchView(); return; }
   if (currentView === 'analytics') { renderAnalyticsView(); return; }
@@ -2527,11 +2652,27 @@ function offerProviderName(offer) {
   const provider = cachedProviders.find(p => p.id === offer.provider_id);
   return provider?.provider_name || offer.provider_name || 'Unknown provider';
 }
+// wein_offers.category is actually party-size (Solo/Couple/Group/Family/
+// Other), NOT a business vertical -- despite the offer card's badge
+// displaying it as if it were one. The category chips filter needs the
+// linked provider's real vertical/category instead.
+function offerProviderVertical(offer) {
+  const provider = cachedProviders.find(p => p.id === offer.provider_id);
+  return provider ? categoryLabel(provider) : null;
+}
 
 // Offer lifecycle: rows without a status column (pre-migration-032) are
 // treated as archived history so the Pending view stays clean.
 function offerStatus(o) { return o.status || 'archived'; }
 let offerStatusFilter = 'pending';
+
+let offersCatFilter = 'all';
+function setOffersCatFilter(value) {
+  offersCatFilter = value;
+  const wrap = document.getElementById('offersCatChipsWrap');
+  if (wrap) wrap.innerHTML = categoryChipsHtml(offersCatFilter, 'setOffersCatFilter');
+  renderOffersGrid();
+}
 
 function renderOffersView() {
   const providerOptions = cachedProviders
@@ -2551,6 +2692,7 @@ function renderOffersView() {
         <div class="view-count">${counts.pending} pending &middot; ${counts.accepted} accepted</div>
       </div>
     </div>
+    <div id="offersCatChipsWrap">${categoryChipsHtml(offersCatFilter, 'setOffersCatFilter')}</div>
     <div class="view-filterbar" style="flex-wrap:wrap;">
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${chip('pending', 'Pending')}
@@ -2678,7 +2820,8 @@ function renderOffersGrid() {
     const matchesQuery = !query || title.includes(query) || providerName.includes(query);
     const matchesProvider = providerId === 'all' || o.provider_id === providerId;
     const matchesStatus = offerStatus(o) === offerStatusFilter;
-    return matchesQuery && matchesProvider && matchesStatus;
+    const matchesCategory = matchesCategoryFilter(offerProviderVertical(o), offersCatFilter);
+    return matchesQuery && matchesProvider && matchesStatus && matchesCategory;
   });
 
   offers = offers.slice().sort((a, b) => {
@@ -3412,37 +3555,63 @@ function matchSharmArea(entity) {
 }
 let leafletLoading = null;
 function loadLeaflet() {
-  if (window.L) return Promise.resolve();
+  if (window.L && window.L.markerClusterGroup) return Promise.resolve();
   if (leafletLoading) return leafletLoading;
   leafletLoading = new Promise((resolve, reject) => {
     const css = document.createElement('link');
     css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(css);
+    const clusterCss = document.createElement('link');
+    clusterCss.rel = 'stylesheet'; clusterCss.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css';
+    document.head.appendChild(clusterCss);
+    const clusterDefaultCss = document.createElement('link');
+    clusterDefaultCss.rel = 'stylesheet'; clusterDefaultCss.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css';
+    document.head.appendChild(clusterDefaultCss);
     const js = document.createElement('script');
     js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    js.onload = resolve; js.onerror = () => reject(new Error('Leaflet failed to load (offline?)'));
+    js.onerror = () => reject(new Error('Leaflet failed to load (offline?)'));
+    js.onload = () => {
+      const clusterJs = document.createElement('script');
+      clusterJs.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+      clusterJs.onload = resolve;
+      clusterJs.onerror = () => reject(new Error('Leaflet marker-cluster plugin failed to load (offline?)'));
+      document.head.appendChild(clusterJs);
+    };
     document.head.appendChild(js);
   });
   return leafletLoading;
 }
+// Kept across renderMapView() calls so the 30s dashboard auto-refresh
+// (loadDashboard -> renderCurrentView -> renderMapView while already on the
+// Map tab) just refreshes markers instead of tearing down and rebuilding the
+// whole Leaflet instance + tile layer every time.
+let sharmMapInstance = null;
+let sharmMarkersLayer = null;
 async function renderMapView() {
   const main = document.getElementById('mainArea');
-  main.innerHTML = `
-    <div class="view-header">
-      <div>
-        <div class="view-title">Map</div>
-        <div class="view-count">Area-level positions (approximate) — exact pins come once locations are captured</div>
+  const alreadyMounted = sharmMapInstance && document.getElementById('sharmMap');
+  if (!alreadyMounted) {
+    sharmMapInstance = null;
+    sharmMarkersLayer = null;
+    main.innerHTML = `
+      <div class="view-header">
+        <div>
+          <div class="view-title">Map</div>
+          <div class="view-count">Area-level positions (approximate) — exact pins come once locations are captured</div>
+        </div>
       </div>
-    </div>
-    <div id="sharmMap" style="height:56vh;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);"></div>
-    <div id="mapUnmapped" style="margin-top:12px;font-size:12px;color:var(--text-tertiary);"></div>`;
-  try { await loadLeaflet(); } catch (e) {
-    document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
-    return;
+      <div id="sharmMap" style="height:56vh;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);position:relative;z-index:0;isolation:isolate;"></div>
+      <div id="mapUnmapped" style="margin-top:12px;font-size:12px;color:var(--text-tertiary);"></div>`;
+    try { await loadLeaflet(); } catch (e) {
+      document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    if (currentView !== 'map' || !document.getElementById('sharmMap')) return;
+    sharmMapInstance = L.map('sharmMap').setView([27.94, 34.37], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(sharmMapInstance);
+    sharmMarkersLayer = (L.markerClusterGroup ? L.markerClusterGroup() : L.layerGroup()).addTo(sharmMapInstance);
   }
-  if (currentView !== 'map' || !document.getElementById('sharmMap')) return;
-  const map = L.map('sharmMap').setView([27.94, 34.37], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  sharmMarkersLayer.clearLayers();
   const areaCounts = {};
   const jitter = (area) => {
     const n = (areaCounts[area] = (areaCounts[area] || 0) + 1);
@@ -3456,24 +3625,34 @@ async function renderMapView() {
     // priority over area-level guessing — real research, not a text match.
     if (p.latitude != null && p.longitude != null) {
       const precision = p.geocode_confidence === 'medium' ? ' (approx. — venue not in map data)' : '';
-      L.marker([p.latitude, p.longitude], { icon: dot('#3fb950') }).addTo(map)
+      L.marker([p.latitude, p.longitude], { icon: dot('#3fb950') }).addTo(sharmMarkersLayer)
         .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider${precision}<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
       return;
     }
     const area = matchSharmArea(p);
     if (!area) { unmapped.push(`${p.provider_name} (provider)`); return; }
-    L.marker(jitter(area), { icon: dot('#3fb950') }).addTo(map)
+    L.marker(jitter(area), { icon: dot('#3fb950') }).addTo(sharmMarkersLayer)
       .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
   });
   cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').forEach(l => {
     const area = matchSharmArea(l);
     if (!area) { unmapped.push(`${l.business_name} (lead)`); return; }
-    L.marker(jitter(area), { icon: dot('#0081FD') }).addTo(map)
+    L.marker(jitter(area), { icon: dot('#0081FD') }).addTo(sharmMarkersLayer)
       .bindPopup(`<b>${escapeHtml(l.business_name)}</b><br>Lead · ${leadStatusLabel(l.status)} · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="showView('leads');openLeadDrawer('${l.id}');return false;">Open</a>`);
   });
   document.getElementById('mapUnmapped').innerHTML = unmapped.length
     ? `<b>${unmapped.length} without a recognisable area</b> (add a location to place them): ${unmapped.map(escapeHtml).join(', ')}`
     : 'Everything has an area match.';
+  // Smoothness: size can be stale if the container changed while hidden, and
+  // fitting to the actual markers beats the hardcoded whole-peninsula view.
+  // Fit ONLY on first mount -- refitting on the 30s auto-refresh would yank
+  // the view away from wherever the user panned/zoomed.
+  sharmMapInstance.invalidateSize();
+  const markerLayers = sharmMarkersLayer.getLayers();
+  if (!alreadyMounted && markerLayers.length) {
+    const bounds = L.latLngBounds(markerLayers.map(m => m.getLatLng()));
+    sharmMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+  }
 }
 
 // ── Today view: next-action tracking (needs migration 033) ──────────
@@ -3768,6 +3947,377 @@ async function setTaskStatus(taskId, status) {
     if (currentView === 'tasks') renderTasksView();
     else if (currentView === 'today') renderTodayView();
   } catch (e) { alert('Could not update task: ' + (e.message || e)); }
+}
+
+// ── Marketing tab: campaign planner + tracker (migration 040) ──────────
+// v1 scope only -- plan/track campaigns and eyeball nearby redemptions.
+// NOT live auto-publishing: that needs Meta/WhatsApp API app review
+// (external, days-to-weeks), so `channel` just records what platform was
+// used manually. Values match real platform names so a future real
+// integration can key off the same field without a schema change.
+const CAMPAIGN_COLUMNS = [
+  { id: 'planned', label: 'Planned', color: 'var(--text-secondary)' },
+  { id: 'posted',  label: 'Posted',  color: 'var(--blue)' },
+  { id: 'live',    label: 'Live',    color: 'var(--green)' },
+];
+const CAMPAIGN_CHANNEL_LABELS = { instagram: 'Instagram', facebook: 'Facebook', whatsapp: 'WhatsApp', email: 'Email', other: 'Other' };
+const CAMPAIGN_CHANNEL_ICONS = { instagram: 'ti-brand-instagram', facebook: 'ti-brand-facebook', whatsapp: 'ti-brand-whatsapp', email: 'ti-mail', other: 'ti-speakerphone' };
+let campaignFormVisible = false;
+let showArchivedCampaigns = false;
+let marketingViewMode = 'board';      // 'board' | 'calendar'
+let marketingChannelFilter = 'all';
+let marketingCalMonth = null;         // Date pinned to the 1st of the displayed month
+
+function campaignLinkedName(c) {
+  if (c.provider_id) return cachedProviders.find(p => p.id === c.provider_id)?.provider_name || null;
+  if (c.offer_id) return cachedOffers.find(o => o.id === c.offer_id)?.title || null;
+  return null;
+}
+
+// Lightweight "did this correlate with a bump" signal -- redemptions for the
+// same provider/offer within a week either side of the scheduled date. No
+// charting, just the raw rows so staff can eyeball it themselves.
+function nearbyRedemptionsForCampaign(c) {
+  if (!c.scheduled_date || (!c.provider_id && !c.offer_id)) return [];
+  const center = new Date(c.scheduled_date).getTime();
+  const windowMs = 7 * 86400000;
+  return cachedRedemptions.filter(r => {
+    const matchesEntity = (c.provider_id && r.provider_id === c.provider_id) || (c.offer_id && r.offer_id === c.offer_id);
+    if (!matchesEntity || !r.redeemed_at) return false;
+    const d = new Date(r.redeemed_at).getTime();
+    return Math.abs(d - center) <= windowMs;
+  });
+}
+
+function visibleCampaigns() {
+  return cachedCampaigns.filter(c =>
+    (showArchivedCampaigns || c.status !== 'archived') &&
+    (marketingChannelFilter === 'all' || c.channel === marketingChannelFilter));
+}
+
+// Real before/after signal: redemptions for the linked provider/offer in the
+// 7 days BEFORE the scheduled date vs the 7 days AFTER. Only meaningful once
+// the date has passed; returns null otherwise (card falls back to the plain
+// "N redemptions within 7 days" count).
+function campaignBeforeAfter(c) {
+  if (!c.scheduled_date || (!c.provider_id && !c.offer_id)) return null;
+  const center = new Date(c.scheduled_date).getTime();
+  if (Date.now() < center) return null;
+  const w = 7 * 86400000;
+  const before = { count: 0, egp: 0 }, after = { count: 0, egp: 0 };
+  cachedRedemptions.forEach(r => {
+    const matches = (c.provider_id && r.provider_id === c.provider_id) || (c.offer_id && r.offer_id === c.offer_id);
+    if (!matches || !r.redeemed_at) return;
+    const t = new Date(r.redeemed_at).getTime();
+    if (t >= center - w && t < center) { before.count++; before.egp += Number(r.sale_amount_egp || 0); }
+    else if (t >= center && t <= center + w) { after.count++; after.egp += Number(r.sale_amount_egp || 0); }
+  });
+  if (!before.count && !after.count) return null;
+  const deltaPct = before.egp > 0 ? Math.round((after.egp - before.egp) / before.egp * 100) : null;
+  return { before, after, deltaPct };
+}
+
+function renderMarketingView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Marketing</div>
+        <div class="view-count">${cachedCampaigns.filter(c => c.status !== 'archived').length} active campaigns</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mini-btn" type="button" onclick="marketingViewMode='board';renderMarketingView()" style="${marketingViewMode === 'board' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-layout-kanban"></i><span>Board</span></button>
+        <button class="mini-btn" type="button" onclick="marketingViewMode='calendar';renderMarketingView()" style="${marketingViewMode === 'calendar' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-calendar"></i><span>Calendar</span></button>
+        <button class="view-action" type="button" onclick="toggleAddCampaignForm()"><i class="ti ti-plus"></i><span>Campaign</span></button>
+      </div>
+    </div>
+    ${!MARKETING_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>040_marketing_campaigns.sql</b> hasn't been run yet — the Marketing tab is empty until it is.</div>` : ''}
+    <div id="addCampaignForm" style="display:${campaignFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="campaignTitle" placeholder="Campaign title (required)" class="view-input" style="min-width:0;">
+        <select id="campaignChannel" class="view-select" style="min-width:0;">
+          ${Object.entries(CAMPAIGN_CHANNEL_LABELS).map(([k, label]) => `<option value="${k}">${label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <select id="campaignProvider" class="view-select" style="min-width:0;">
+          <option value="">No linked provider</option>
+          ${cachedProviders.map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`).join('')}
+        </select>
+        <input type="date" id="campaignDate" class="view-input" style="min-width:0;">
+      </div>
+      <textarea id="campaignCaption" placeholder="Caption / notes" class="view-input" style="width:100%;box-sizing:border-box;min-height:60px;margin-bottom:8px;"></textarea>
+      <input type="text" id="campaignAssetUrl" placeholder="Asset URL (optional)" class="view-input" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
+      <div id="addCampaignError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddCampaignForm()">Cancel</button>
+        <button class="view-action" type="button" id="campaignSaveBtn" onclick="saveCampaign()"><span>Save campaign</span></button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="chip ${marketingChannelFilter === 'all' ? 'active' : ''}" type="button" onclick="marketingChannelFilter='all';renderMarketingView()">All channels</button>
+      ${Object.entries(CAMPAIGN_CHANNEL_LABELS).map(([k, label]) =>
+        `<button class="chip ${marketingChannelFilter === k ? 'active' : ''}" type="button" onclick="marketingChannelFilter='${k}';renderMarketingView()"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[k]}" style="font-size:11px;"></i> ${label}</button>`).join('')}
+      <button class="chip ${showArchivedCampaigns ? 'active' : ''}" type="button" onclick="showArchivedCampaigns=!showArchivedCampaigns;renderMarketingView()">Show archived</button>
+    </div>
+    ${marketingViewMode === 'calendar'
+      ? `<div id="marketingCalendarWrap"></div>`
+      : `<div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`}
+    <div style="margin-top:16px;font-size:11px;color:var(--text-tertiary);border-top:.5px solid var(--border-subtle);padding-top:10px;">
+      <i class="ti ti-map-2"></i> Roadmap: <b>v1</b> planner/tracker (done) · <b>v1.5</b> calendar + before/after redemption analytics (this) · <b>v2</b> real auto-publishing to Instagram/Facebook/WhatsApp — blocked on Meta/WhatsApp Business API app review, not on code.
+    </div>`;
+  if (marketingViewMode === 'calendar') renderMarketingCalendar(); else renderMarketingKanban();
+}
+
+function shiftMarketingMonth(delta) {
+  marketingCalMonth = new Date(marketingCalMonth.getFullYear(), marketingCalMonth.getMonth() + delta, 1);
+  renderMarketingCalendar();
+}
+
+function renderMarketingCalendar() {
+  const wrap = document.getElementById('marketingCalendarWrap');
+  if (!wrap) return;
+  if (!marketingCalMonth) { const now = new Date(); marketingCalMonth = new Date(now.getFullYear(), now.getMonth(), 1); }
+  const y = marketingCalMonth.getFullYear(), m = marketingCalMonth.getMonth();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const monthLabel = marketingCalMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const byDay = {};
+  visibleCampaigns().forEach(c => {
+    if (!c.scheduled_date) return;
+    const d = new Date(c.scheduled_date);
+    if (d.getFullYear() === y && d.getMonth() === m) (byDay[d.getDate()] = byDay[d.getDate()] || []).push(c);
+  });
+  const notesByDay = {};
+  (cachedCalendarNotes || []).forEach(n => {
+    if (!n.note_date) return;
+    const nd = new Date(n.note_date);
+    if (nd.getFullYear() === y && nd.getMonth() === m) (notesByDay[nd.getDate()] = notesByDay[nd.getDate()] || []).push(n);
+  });
+  const todayStr = new Date().toDateString();
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += `<div class="mkt-cal-day mkt-cal-empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = new Date(y, m, d).toDateString() === todayStr;
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells += `<div class="mkt-cal-day${isToday ? ' mkt-cal-today' : ''}">
+      <div class="mkt-cal-num mono">${d}</div>
+      ${(byDay[d] || []).map(c => `<div class="mkt-cal-chip" title="${escapeHtml(c.title || '')} · ${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}" onclick="openCampaignModal('${c.id}')"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="font-size:9px;"></i> ${escapeHtml(c.title || 'Untitled')}</div>`).join('')}
+      ${(notesByDay[d] || []).map(n => `<div class="mkt-cal-note" title="${escapeHtml(n.note)}${n.created_by ? ' — ' + escapeHtml(n.created_by) : ''}"><i class="ti ti-note" style="font-size:9px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(n.note)}</span>${canDelete() ? `<span class="mkt-cal-note-x" title="Delete note" onclick="deleteCalendarNote('${n.id}')">×</span>` : ''}</div>`).join('')}
+      ${MKT_NOTES_READY ? `<button class="mkt-cal-add" type="button" title="Add a note to this day" onclick="startCalendarNote(this, '${dateStr}')">+ note</button>` : ''}
+    </div>`;
+  }
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${monthLabel}</div>
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="mkt-cal-head">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div>${d}</div>`).join('')}</div>
+    <div class="mkt-cal">${cells}</div>`;
+}
+
+function toggleAddCampaignForm() {
+  campaignFormVisible = !campaignFormVisible;
+  const form = document.getElementById('addCampaignForm');
+  if (form) form.style.display = campaignFormVisible ? 'block' : 'none';
+  const errEl = document.getElementById('addCampaignError');
+  if (errEl) errEl.style.display = 'none';
+}
+
+function campaignCardHtml(c) {
+  const linked = campaignLinkedName(c);
+  const nearby = nearbyRedemptionsForCampaign(c);
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  const impactLine = ba
+    ? `<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);" title="Redemptions 7 days before vs 7 days after the scheduled date">
+        <i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i>
+        ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` <span style="color:${ba.deltaPct >= 0 ? 'var(--green)' : 'var(--red)'};">(${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)</span>` : ''}
+      </div>`
+    : (nearby.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-tertiary);"><i class="ti ti-trending-up"></i> ${nearby.length} redemption${nearby.length === 1 ? '' : 's'} within 7 days</div>` : '');
+  return `
+    <div class="provider-card" data-campaign-id="${c.id}" onclick="openCampaignModal('${c.id}')">
+      <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
+        <i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="color:var(--text-secondary);"></i>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.title || 'Untitled campaign')}</span>
+      </div>
+      <div class="pc-meta" style="margin-top:5px;">
+        <span class="cat-badge">${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}</span>
+        ${c.scheduled_date ? `<span class="pc-meta-date mono">${new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>` : ''}
+        ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
+      </div>
+      ${impactLine}
+      <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
+        ${c.status === 'planned' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','posted')" style="flex:1;"><span>Mark posted →</span></button>` : ''}
+        ${c.status === 'posted' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','live')" style="flex:1;border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><span>Mark live</span></button>` : ''}
+        ${c.status === 'live' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','archived')" style="flex:1;"><i class="ti ti-archive"></i><span>Archive</span></button>` : ''}
+        ${c.status === 'archived' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','planned')" style="flex:1;"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>` : ''}
+        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="deleteCampaign('${c.id}')" title="Delete"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Campaign detail modal + calendar day notes (migration 043) ─────────
+let currentCampaignId = null;
+
+function openCampaignModal(campaignId) {
+  const c = cachedCampaigns.find(x => x.id === campaignId);
+  if (!c) return;
+  currentCampaignId = campaignId;
+  document.getElementById('cm-title').textContent = c.title || 'Untitled campaign';
+  document.getElementById('cm-channel-icon').className = `ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}`;
+  const linked = campaignLinkedName(c);
+  document.getElementById('cm-meta').textContent = [
+    CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel,
+    c.scheduled_date ? new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+    linked,
+  ].filter(Boolean).join(' · ');
+  document.getElementById('cm-status').textContent = c.status;
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  document.getElementById('cm-body').innerHTML = [
+    c.caption ? `<div style="white-space:pre-wrap;">${escapeHtml(c.caption)}</div>` : '',
+    c.asset_url ? `<a href="${escapeHtml(c.asset_url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px;">Asset ↗</a>` : '',
+    ba ? `<div style="margin-top:6px;font-size:11px;" title="Redemptions 7 days before vs 7 days after the scheduled date"><i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i> ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` (${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)` : ''}</div>` : '',
+  ].filter(Boolean).join('') || '<span style="color:var(--text-tertiary);">No caption</span>';
+  document.getElementById('cm-input-row').style.display = MKT_NOTES_READY ? 'flex' : 'none';
+  document.getElementById('cm-migration-hint').style.display = MKT_NOTES_READY ? 'none' : 'block';
+  const commentsEl = document.getElementById('cm-comments');
+  if (MKT_NOTES_READY) {
+    commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Loading…</div>';
+    fetchThread('campaign_id', campaignId).then(cs => renderThread('cm-comments', cs, 'campaign_id', campaignId))
+      .catch(() => { commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Could not load comments</div>'; });
+  } else {
+    commentsEl.innerHTML = '';
+  }
+  document.getElementById('cm-send-btn').onclick = () => submitThreadComment('campaign_id', campaignId, 'cm-comment-input', 'cm-comments');
+  document.getElementById('campaign-modal-backdrop').style.display = 'flex';
+}
+
+function closeCampaignModal() {
+  document.getElementById('campaign-modal-backdrop').style.display = 'none';
+  currentCampaignId = null;
+}
+
+// "+ note" in a calendar day cell swaps itself for an inline input; Enter or
+// clicking away saves, Escape cancels.
+function startCalendarNote(btn, dateStr) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Note…';
+  input.className = 'mkt-cal-note-input';
+  input.onkeydown = e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = ''; input.blur(); }
+  };
+  input.onblur = () => saveCalendarNote(dateStr, input);
+  btn.replaceWith(input);
+  input.focus();
+}
+
+async function saveCalendarNote(dateStr, input) {
+  const note = input.value.trim();
+  if (!note) { renderMarketingCalendar(); return; }
+  try {
+    const rows = await sbPost('wein_calendar_notes', {
+      note_date: dateStr, note,
+      created_by: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+    });
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (!created?.id) throw new Error('insert returned no row');
+    cachedCalendarNotes.push(created);
+  } catch (e) { alert('Could not save note: ' + (e.message || e)); }
+  renderMarketingCalendar();
+}
+
+async function deleteCalendarNote(noteId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this note?')) return;
+  try {
+    await sbDelete(`wein_calendar_notes?id=eq.${noteId}`);
+    const check = await sbGet(`wein_calendar_notes?id=eq.${noteId}&select=id`);
+    if (check.length) { alert('Delete did not apply (permissions?). Nothing changed.'); return; }
+    cachedCalendarNotes = cachedCalendarNotes.filter(n => n.id !== noteId);
+    renderMarketingCalendar();
+  } catch (e) { alert('Could not delete note: ' + (e.message || e)); }
+}
+
+function renderMarketingKanban() {
+  const board = document.getElementById('marketingKanbanBoard');
+  if (!board) return;
+  const campaigns = visibleCampaigns();
+  board.innerHTML = CAMPAIGN_COLUMNS.map(col => {
+    const items = campaigns.filter(c => c.status === col.id);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${col.label}</span>
+          <span class="kanban-col-count mono" style="color:${col.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${items.length ? items.map(campaignCardHtml).join('') : '<div class="empty-col">No campaigns</div>'}</div>
+      </div>`;
+  }).join('') + (showArchivedCampaigns ? `
+      <div class="kanban-col" style="opacity:.75;">
+        <div class="kanban-col-header"><span class="kanban-col-label">Archived</span><span class="kanban-col-count mono" style="color:var(--text-tertiary)">${campaigns.filter(c => c.status === 'archived').length}</span></div>
+        <div class="kanban-col-body">${campaigns.filter(c => c.status === 'archived').map(campaignCardHtml).join('') || '<div class="empty-col">None</div>'}</div>
+      </div>` : '');
+}
+
+async function saveCampaign() {
+  const titleEl = document.getElementById('campaignTitle');
+  const errEl = document.getElementById('addCampaignError');
+  const title = titleEl?.value.trim();
+  if (!title) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
+  const body = {
+    title,
+    channel: document.getElementById('campaignChannel').value,
+    provider_id: document.getElementById('campaignProvider').value || null,
+    scheduled_date: document.getElementById('campaignDate').value || null,
+    caption: document.getElementById('campaignCaption').value.trim() || null,
+    asset_url: document.getElementById('campaignAssetUrl').value.trim() || null,
+    status: 'planned',
+    created_by: window.WEIN.user?.id || null,
+  };
+  const btn = document.getElementById('campaignSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const rows = await sbPost('wein_campaigns', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (created?.id) cachedCampaigns.unshift(created);
+    campaignFormVisible = false;
+    renderMarketingView();
+  } catch (e) {
+    errEl.textContent = 'Could not save campaign: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save campaign'; }
+  }
+}
+
+async function setCampaignStatus(campaignId, status) {
+  const campaign = cachedCampaigns.find(c => c.id === campaignId);
+  if (!campaign) return;
+  try {
+    await sbPatch(`wein_campaigns?id=eq.${campaignId}`, { status });
+    const check = await sbGet(`wein_campaigns?id=eq.${campaignId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Campaign update did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    campaign.status = status;
+    if (currentView === 'marketing') renderMarketingView();
+  } catch (e) { alert('Could not update campaign: ' + (e.message || e)); }
+}
+
+async function deleteCampaign(campaignId) {
+  if (!confirm('Delete this campaign? This cannot be undone.')) return;
+  try {
+    await sbDelete(`wein_campaigns?id=eq.${campaignId}`);
+    const check = await sbGet(`wein_campaigns?id=eq.${campaignId}&select=id`);
+    if (check.length) { alert('Delete did not apply (permissions?). Nothing changed.'); return; }
+    cachedCampaigns = cachedCampaigns.filter(c => c.id !== campaignId);
+    if (currentView === 'marketing') renderMarketingView();
+  } catch (e) { alert('Could not delete campaign: ' + (e.message || e)); }
 }
 
 async function quickAddTask(prelink) {
@@ -4455,9 +5005,64 @@ function renderOnboardStrip(p, neg) {
       ${i ? `<div style="flex:1;height:1.5px;background:${steps[i - 1].done && s.done ? 'var(--green)' : 'var(--border)'};margin:0 5px 12px;"></div>` : ''}
       <div title="${s.label}" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
         <div style="width:10px;height:10px;border-radius:50%;background:${s.done ? 'var(--green)' : 'var(--bg-elevated)'};border:1.5px solid ${s.done ? 'var(--green)' : 'var(--border)'};"></div>
-        <span style="font-family:'Instrument Sans';font-size:8px;color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
+        <span style="font-family:'Instrument Sans';font-size:9px;font-weight:${s.done ? '600' : '500'};color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
       </div>
     </div>`).join('');
+}
+
+// Column index (0-3) for a raw negotiation stage, via STAGE_COLUMNS -> COLUMNS.
+function pipelineColIdx(stage) {
+  const colId = STAGE_COLUMNS[stage];
+  return COLUMNS.findIndex(c => c.id === colId);
+}
+
+// Stage moves for Pipeline cards -- mirrors advanceLead/retreatLead, but on
+// wein_negotiations.stage with a read-back verify (same pattern as
+// setTaskStatus). canManageDeals-gated: moving a deal is a deal action.
+async function moveNegotiationStage(negotiationId, direction) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg) return;
+  const colIdx = pipelineColIdx(neg.stage);
+  if (colIdx === -1) return;
+  const targetIdx = colIdx + direction;
+  if (targetIdx < 0 || targetIdx >= PIPELINE_STAGE_ORDER.length) return;
+  const stage = PIPELINE_STAGE_ORDER[targetIdx];
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+  } catch (e) { alert('Could not move stage: ' + (e.message || e)); }
+}
+function advanceNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, 1); }
+function retreatNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, -1); }
+
+// Direct stage set from the provider modal's stage selector.
+async function saveNegotiationStage(negotiationId, stage) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg || neg.stage === stage) return;
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+    // Refresh the modal so pill colors / onboarding strip / meta reflect the move
+    if (window.currentProviderId) await openProviderModal(window.currentProviderId, negotiationId);
+  } catch (e) { alert('Could not change stage: ' + (e.message || e)); }
 }
 
 function providerCardHtml(item) {
@@ -4484,6 +5089,17 @@ function providerCardHtml(item) {
         <span class="pc-badge mono">${item.offerCount} offers</span>
         ${canManageDeals() ? `<button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>` : ''}
       </div>
+      ${(() => {
+        if (!canManageDeals() || !item.negotiationId) return '';
+        const colIdx = pipelineColIdx(item.stage);
+        if (colIdx === -1) return '';
+        const isFirst = colIdx === 0, isLast = colIdx === COLUMNS.length - 1;
+        const nextLabel = isLast ? '' : COLUMNS[colIdx + 1].label;
+        return `<div class="table-actions" style="margin-bottom:8px;flex-wrap:nowrap;gap:4px;">
+          ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatNegotiation('${item.negotiationId}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
+          ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceNegotiation('${item.negotiationId}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>→ ${nextLabel}</span></button>` : ''}
+        </div>`;
+      })()}
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
       <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
         <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
@@ -4514,7 +5130,9 @@ let modalOpenToken = 0;
 const STAGE_COLORS = {
   'menu_collected': { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'paused':         { bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.22)', text: 'var(--text-secondary)', dot: 'var(--text-secondary)' },
+  'contacted':      { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'negotiating':    { bg: 'var(--blue-tint)', border: 'rgba(59,130,246,0.22)', text: 'var(--blue)', dot: 'var(--blue)' },
+  'offer_sent':     { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
   'accepted':       { bg: 'var(--green-tint)', border: 'rgba(34,197,94,0.22)', text: 'var(--green)', dot: 'var(--green)' },
 };
 
@@ -4632,10 +5250,37 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
 
   document.getElementById('modal-provider-name').textContent = p.provider_name;
   document.getElementById('modal-provider-meta').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
+  const profileEditable = canEditProviderProfile();
+  // Full-profile section starts collapsed per provider; stale content from a
+  // previously-opened provider must never show through.
+  fullProfileVisible = false;
+  currentProviderProfileRow = null;
+  const fpWrap = document.getElementById('modal-full-profile');
+  if (fpWrap) { fpWrap.style.display = 'none'; fpWrap.innerHTML = ''; }
+  const fpChevron = document.getElementById('fp-chevron');
+  if (fpChevron) fpChevron.className = 'ti ti-chevron-down';
+  document.getElementById('modal-profile-name').value = p.provider_name || '';
+  document.getElementById('modal-profile-name').disabled = !profileEditable;
+  document.getElementById('modal-profile-location').disabled = !profileEditable;
+  const verticalSel = document.getElementById('modal-profile-vertical');
+  verticalSel.disabled = !profileEditable;
+  const currentVertical = p.vertical || p.category || CATEGORY_CHIP_OPTIONS[1];
+  verticalSel.innerHTML = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all')
+    .map(c => `<option value="${escapeHtml(c)}" ${c === currentVertical ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+  document.getElementById('modal-profile-location').value = p.location || '';
   document.getElementById('modal-stage-dot').style.background = colors.dot;
   const pill = document.getElementById('modal-stage-pill');
-  pill.textContent = stage;
   pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
+  // For deal roles with a real negotiation, the pill is a working stage
+  // selector; otherwise (team/no negotiation yet) it stays display-only.
+  if (canManageDeals() && activeNeg) {
+    const stageLabel = s => COLUMNS[pipelineColIdx(s)]?.label || s;
+    const opts = PIPELINE_STAGE_ORDER.slice();
+    if (!opts.includes(stage)) opts.unshift(stage); // non-canonical (e.g. paused) still shows truthfully
+    pill.innerHTML = `<select onchange="saveNegotiationStage('${activeNeg.id}', this.value)" style="background:transparent;border:none;color:inherit;font-family:'Instrument Sans';font-size:11px;font-weight:500;outline:none;cursor:pointer;">${opts.map(s => `<option value="${s}" ${s === stage ? 'selected' : ''} style="color:#0a1018;background:#fff;">${escapeHtml(stageLabel(s))}</option>`).join('')}</select>`;
+  } else {
+    pill.textContent = stage;
+  }
 
   document.getElementById('modal-contact-name').value = p.contact_name || '';
   document.getElementById('modal-contact-phone').value = p.contact_phone || '';
@@ -4788,6 +5433,172 @@ async function saveProviderContact() {
     const cached = cachedProviders.find(p => p.id === window.currentProviderId);
     if (cached) { cached.contact_name = contact_name; cached.contact_phone = contact_phone; cached.contact_whatsapp = contact_whatsapp; }
   } catch (e) { console.error('saveProviderContact error:', e); }
+}
+
+// Provider identity fields -- gated to admin/manager/deal_breaker client-side
+// (canEditProviderProfile) and backed by migration 041's DB trigger, which
+// blocks non-admin/manager/deal_breaker writes to these columns even via a
+// direct REST call with the caller's own JWT (same defense-in-depth pattern
+// as migration 039's contract-field trigger).
+async function saveProviderProfile() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const provider_name = document.getElementById('modal-profile-name').value.trim();
+  const vertical = document.getElementById('modal-profile-vertical').value;
+  const location = document.getElementById('modal-profile-location').value.trim();
+  if (!provider_name) return;
+  const body = { provider_name, vertical, location: location || null };
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, body);
+    const check = await sbGet(`wein_providers?id=eq.${window.currentProviderId}&select=provider_name,vertical,location`);
+    if (!check.length || check[0].provider_name !== provider_name || check[0].vertical !== vertical) {
+      alert('Profile update did not apply (permissions or migration 041 missing). Nothing changed.');
+      return;
+    }
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) Object.assign(cached, body);
+    document.getElementById('modal-provider-name').textContent = provider_name;
+    // Don't read the pill's textContent -- it may now contain a <select>
+    // whose textContent is every option label concatenated.
+    const negRow = cachedNegotiations.find(n => n.id === window.currentNegotiationId)
+      || (cached ? negotiationFor(cached) : null);
+    document.getElementById('modal-provider-meta').textContent = `${vertical} · ${negRow?.stage || 'new'}`;
+  } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// ── Full provider profile (migration 042 + provider_profiles constraints) ──
+// Everything the Add Provider wizard collects, editable post-creation.
+// wein_providers fields save via saveFullProfile (042's trigger enforces the
+// admin/manager/deal_breaker tier server-side); constraint fields upsert into
+// provider_profiles -- the table the n8n pipeline reads as HARD offer rules.
+const FULL_PROFILE_FIELDS = {
+  'Identity & map': [
+    { key: 'address',   label: 'Exact address', icon: 'ti-map-pin',  ph: 'Street / landmark', table: 'p' },
+    { key: 'latitude',  label: 'Latitude',      icon: 'ti-world',    ph: 'e.g. 27.9158 (paste from Google Maps)', table: 'p' },
+    { key: 'longitude', label: 'Longitude',     icon: 'ti-world',    ph: 'e.g. 34.3300', table: 'p' },
+  ],
+  'Contact & links': [
+    { key: 'email',         label: 'Email',     icon: 'ti-mail',            ph: 'contact@business.com', table: 'p' },
+    { key: 'website_url',   label: 'Website',   icon: 'ti-world-www',       ph: 'https://…', table: 'p' },
+    { key: 'instagram_url', label: 'Instagram', icon: 'ti-brand-instagram', ph: 'https://instagram.com/…', table: 'p' },
+    { key: 'menu_link',        label: 'Menu link',    icon: 'ti-link',               ph: 'https://…', table: 'p' },
+    { key: 'drive_folder_url', label: 'Drive folder', icon: 'ti-brand-google-drive', ph: 'https://drive.google.com/…', table: 'p' },
+  ],
+  'Business intel': [
+    { key: 'view_or_atmosphere', label: 'Atmosphere / view', icon: 'ti-sparkles', table: 'p' },
+    { key: 'peak_moments',       label: 'Peak moments',      icon: 'ti-clock',    table: 'p' },
+    { key: 'tourist_split',      label: 'Tourist split',     icon: 'ti-users',    ph: 'e.g. 70% tourists', table: 'p' },
+    { key: 'location_hook',      label: 'Location hook',     icon: 'ti-anchor',   table: 'p' },
+    { key: 'unique_format',      label: 'Unique format',     icon: 'ti-star',     table: 'p' },
+    { key: 'wein_exclusives',    label: 'WeIN exclusives',   icon: 'ti-diamond',  table: 'p' },
+    { key: 'internal_notes',     label: 'Internal notes',    icon: 'ti-note',     ph: 'Team-only notes', table: 'p' },
+  ],
+  'Offer constraints (pipeline hard rules)': [
+    { key: 'minimum_spend',  label: 'Minimum spend',   icon: 'ti-cash',       ph: 'e.g. EGP 300', table: 'prof' },
+    { key: 'max_group_size', label: 'Max group size',  icon: 'ti-users-group', ph: 'e.g. 8', table: 'prof' },
+    { key: 'peak_hours',     label: 'Peak hours rule', icon: 'ti-clock-bolt', table: 'prof' },
+    { key: 'blackout_dates', label: 'Blackout dates',  icon: 'ti-calendar-x', table: 'prof' },
+    { key: 'excluded_items', label: 'Excluded items',  icon: 'ti-ban',        table: 'prof' },
+    { key: 'special_terms',  label: 'Special terms',   icon: 'ti-file-text',  table: 'prof' },
+  ],
+};
+let fullProfileVisible = false;
+let currentProviderProfileRow = null; // provider_profiles row for the open provider (null = none yet)
+
+async function toggleFullProfile() {
+  fullProfileVisible = !fullProfileVisible;
+  const wrap = document.getElementById('modal-full-profile');
+  const chevron = document.getElementById('fp-chevron');
+  if (chevron) chevron.className = fullProfileVisible ? 'ti ti-chevron-up' : 'ti ti-chevron-down';
+  if (!fullProfileVisible) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  wrap.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:8px 0;">Loading…</div>';
+  try {
+    const rows = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=*`);
+    currentProviderProfileRow = rows[0] || null;
+  } catch (e) { currentProviderProfileRow = null; }
+  renderFullProfile(p, currentProviderProfileRow);
+}
+
+function renderFullProfile(p, prof) {
+  const wrap = document.getElementById('modal-full-profile');
+  if (!wrap) return;
+  const editable = canEditProviderProfile();
+  wrap.innerHTML = Object.entries(FULL_PROFILE_FIELDS).map(([group, fields]) => `
+    <div class="fp-group-title">${group}</div>
+    <div class="fp-grid">
+      ${fields.map(f => {
+        const src = f.table === 'prof' ? (prof || {}) : p;
+        const val = src[f.key] != null ? String(src[f.key]) : '';
+        const saveFn = f.table === 'prof' ? 'saveProviderConstraints()' : 'saveFullProfile()';
+        return `
+        <div class="fp-field">
+          <label class="fp-label"><i class="ti ${f.icon}" style="font-size:11px;"></i>${f.label}</label>
+          <input type="text" class="fp-input" id="fp-${f.key}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" ${editable ? '' : 'disabled'} onblur="${saveFn}">
+        </div>`;
+      }).join('')}
+    </div>`).join('')
+    + (p.geocode_confidence ? `<div style="margin-top:8px;font-size:10px;color:var(--text-tertiary);"><i class="ti ti-map-check"></i> Geocode: ${escapeHtml(p.geocode_source || 'unknown source')} · ${escapeHtml(p.geocode_confidence)} confidence${(p.latitude != null && p.longitude != null) ? ' — shown as an exact pin on the Map' : ''}</div>` : '');
+}
+
+// wein_providers-side fields of the full profile. Setting real coordinates
+// marks them manual/exact so the Map treats them as a true pin (the user's
+// explicit ask: exact location feeding the map).
+async function saveFullProfile() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const get = k => document.getElementById('fp-' + k)?.value.trim() ?? null;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'p').forEach(f => {
+    body[f.key] = get(f.key) || null;
+  });
+  const lat = parseFloat(body.latitude), lng = parseFloat(body.longitude);
+  body.latitude = isNaN(lat) ? null : lat;
+  body.longitude = isNaN(lng) ? null : lng;
+  const coordsChanged = body.latitude !== (p.latitude ?? null) || body.longitude !== (p.longitude ?? null);
+  if (coordsChanged && body.latitude != null && body.longitude != null) {
+    body.geocode_source = 'manual';
+    body.geocode_confidence = 'exact';
+    body.geocoded_at = new Date().toISOString();
+  }
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, body);
+    const check = await sbGet(`wein_providers?id=eq.${window.currentProviderId}&select=address,latitude,email`);
+    if (!check.length || (check[0].address ?? null) !== body.address || (check[0].email ?? null) !== body.email) {
+      alert('Full-profile update did not apply (permissions or migration 042 missing). Nothing changed.');
+      return;
+    }
+    Object.assign(p, body);
+  } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// provider_profiles-side constraint fields: the pipeline reads these as HARD
+// generation rules. Same get->patch-else-post upsert (keyed by provider_name)
+// the Add Provider wizard uses.
+async function saveProviderConstraints() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'prof').forEach(f => {
+    body[f.key] = document.getElementById('fp-' + f.key)?.value.trim() || null;
+  });
+  try {
+    const existing = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=id`);
+    if (existing.length) {
+      await sbPatch(`provider_profiles?id=eq.${existing[0].id}`, body);
+    } else {
+      await sbPost('provider_profiles', { provider_name: p.provider_name, ...body });
+    }
+    const check = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=minimum_spend,excluded_items`);
+    if (!check.length || (check[0].minimum_spend ?? null) !== body.minimum_spend) {
+      alert('Constraints did not save (permissions?). The pipeline will keep using the old rules.');
+      return;
+    }
+    currentProviderProfileRow = { ...(currentProviderProfileRow || {}), ...body };
+  } catch (e) { alert('Could not save constraints: ' + (e.message || e)); }
 }
 
 async function saveDealValue(negotiationId, rawValue) {
