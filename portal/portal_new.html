@@ -3624,7 +3624,6 @@ async function renderMapView() {
           </div>
         </div>
         <div id="sharmMap" style="flex:1;min-height:300px;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);position:relative;z-index:0;isolation:isolate;"></div>
-        <div id="mapUnmapped" style="flex-shrink:0;margin-top:12px;font-size:12px;color:var(--text-tertiary);"></div>
       </div>`;
     try { await loadLeaflet(); } catch (e) {
       document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
@@ -3664,9 +3663,6 @@ async function renderMapView() {
     L.marker(jitter(area), { icon: dot('#0081FD') }).addTo(sharmMarkersLayer)
       .bindPopup(`<b>${escapeHtml(l.business_name)}</b><br>Lead · ${leadStatusLabel(l.status)} · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="showView('leads');openLeadDrawer('${l.id}');return false;">Open</a>`);
   });
-  document.getElementById('mapUnmapped').innerHTML = unmapped.length
-    ? `<b>${unmapped.length} without a recognisable area</b> (add a location to place them): ${unmapped.map(escapeHtml).join(', ')}`
-    : 'Everything has an area match.';
   // Smoothness: size can be stale if the container changed while hidden, and
   // fitting to the actual markers beats the hardcoded whole-peninsula view.
   // Fit ONLY on first mount -- refitting on the 30s auto-refresh would yank
