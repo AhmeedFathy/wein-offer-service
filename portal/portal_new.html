@@ -105,6 +105,13 @@
 html, body { background: var(--bg-base); color: var(--text-primary); font-family: 'Instrument Sans', sans-serif; min-height: 100vh; }
 button, input { font-family: inherit; }
 button { cursor: pointer; }
+/* Native <select> popups always render on the OS's own white/light
+   background, regardless of page theme -- they can't inherit our dark
+   surface colors. Any <option> that inherits var(--text-primary) (a
+   near-white color, meant for dark surfaces) becomes nearly invisible
+   in that native popup. Force readable dark-on-light for every option
+   site-wide instead of patching each dropdown individually. */
+select option { color: #0a1018; background: #fff; }
 a { color: var(--blue); text-decoration: none; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 *:not(.ti) { transition: border-color 150ms ease, background 150ms ease; }
