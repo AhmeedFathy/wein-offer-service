@@ -4599,7 +4599,7 @@ function leadCardHtml(lead) {
       ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
         ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
-        ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
+        ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text-primary);"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
         ${canDelete() ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();deleteLead('${lead.id}')" style="color:var(--red);" title="Delete"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
       </div>
     </div>`;
@@ -5113,7 +5113,7 @@ function providerCardHtml(item) {
         const nextLabel = isLast ? '' : COLUMNS[colIdx + 1].label;
         return `<div class="table-actions" style="margin-bottom:8px;flex-wrap:nowrap;gap:4px;">
           ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatNegotiation('${item.negotiationId}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
-          ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceNegotiation('${item.negotiationId}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;"><span>→ ${nextLabel}</span></button>` : ''}
+          ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceNegotiation('${item.negotiationId}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text-primary);"><span>→ ${nextLabel}</span></button>` : ''}
         </div>`;
       })()}
       <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
