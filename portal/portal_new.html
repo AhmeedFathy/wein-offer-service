@@ -4086,10 +4086,7 @@ function renderMarketingView() {
     </div>
     ${marketingViewMode === 'calendar'
       ? `<div id="marketingCalendarWrap"></div>`
-      : `<div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`}
-    <div style="margin-top:16px;font-size:11px;color:var(--text-tertiary);border-top:.5px solid var(--border-subtle);padding-top:10px;">
-      <i class="ti ti-map-2"></i> Roadmap: <b>v1</b> planner/tracker (done) · <b>v1.5</b> calendar + before/after redemption analytics (done) · <b>v2</b> real auto-publishing to Instagram/Facebook/WhatsApp — blocked on Meta/WhatsApp Business API app review, not on code.
-    </div>`;
+      : `<div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`}`;
   if (marketingViewMode === 'calendar') renderMarketingCalendar(); else renderMarketingKanban();
 }
 
