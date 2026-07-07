@@ -2935,9 +2935,9 @@ function oeRenderItemRows() {
   if (!el) return;
   el.innerHTML = oeItemsState.length ? oeItemsState.map((it, i) => `
     <div style="display:flex;gap:6px;align-items:center;">
-      <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Item name" class="view-input" style="flex:1;min-width:0;" oninput="oeItemsState[${i}].name=this.value">
-      <input type="number" value="${it.qty != null ? it.qty : 1}" min="1" class="view-input" style="width:56px;" oninput="oeItemsState[${i}].qty=parseFloat(this.value)||1">
-      <input type="number" value="${it.unit_price_egp != null ? it.unit_price_egp : ''}" min="0" class="view-input" style="width:72px;" oninput="oeItemsState[${i}].unit_price_egp=parseFloat(this.value)||0">
+      <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Item name" style="flex:1;min-width:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].name=this.value">
+      <input type="number" value="${it.qty != null ? it.qty : 1}" min="1" style="width:56px;min-width:0;flex-shrink:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].qty=parseFloat(this.value)||1">
+      <input type="number" value="${it.unit_price_egp != null ? it.unit_price_egp : ''}" min="0" style="width:72px;min-width:0;flex-shrink:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].unit_price_egp=parseFloat(this.value)||0">
       <button type="button" onclick="oeRemoveItemRow(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:15px;padding:2px 4px;flex-shrink:0;line-height:1;">×</button>
     </div>`).join('') : '<div style="font-size:11px;color:var(--text-tertiary);">No items — click "Add item" to add one.</div>';
 }
