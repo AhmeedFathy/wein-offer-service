@@ -897,9 +897,18 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
       <textarea id="oe-terms" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:vertical;height:70px;outline:none;box-sizing:border-box;font-family:inherit;"></textarea>
     </div>
     <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
-      <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Items (JSON — advanced)</label>
-      <textarea id="oe-items" spellcheck="false" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--text-primary);resize:vertical;height:120px;outline:none;box-sizing:border-box;font-family:'JetBrains Mono',monospace;"></textarea>
-      <div style="font-size:10px;color:var(--text-tertiary);">Each item: {"name", "qty", "unit_price_egp", …}. Leave untouched if unsure.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Items</label>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="mini-btn" onclick="oeSumItemsIntoRegular()" style="padding:2px 8px;font-size:10px;"><i class="ti ti-calculator"></i><span>Sum → Regular</span></button>
+          <button type="button" class="mini-btn" onclick="oeAddItemRow()" style="padding:2px 8px;font-size:10px;"><i class="ti ti-plus"></i><span>Add item</span></button>
+        </div>
+      </div>
+      <div id="oe-items-header" style="display:flex;gap:6px;font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;padding:0 2px;">
+        <span style="flex:1;">Name</span><span style="width:56px;">Qty</span><span style="width:72px;">EGP each</span><span style="width:20px;"></span>
+      </div>
+      <div id="oe-items-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div style="font-size:10px;color:var(--text-tertiary);">"Sum → Regular" adds qty × price across all items into Regular EGP — keeps the math verifiable, same as the pipeline's own check.</div>
     </div>
     <div id="oe-error" style="display:none;color:var(--red,#e5484d);font-size:11px;margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -2919,6 +2928,35 @@ function toggleOfferDetails(offerId) {
 // is always derived from the two prices (read-only) so the three numbers
 // can never disagree — same philosophy as the pipeline's math validator.
 let editingOfferId = null;
+let oeItemsState = [];
+
+function oeRenderItemRows() {
+  const el = document.getElementById('oe-items-rows');
+  if (!el) return;
+  el.innerHTML = oeItemsState.length ? oeItemsState.map((it, i) => `
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Item name" class="view-input" style="flex:1;min-width:0;" oninput="oeItemsState[${i}].name=this.value">
+      <input type="number" value="${it.qty != null ? it.qty : 1}" min="1" class="view-input" style="width:56px;" oninput="oeItemsState[${i}].qty=parseFloat(this.value)||1">
+      <input type="number" value="${it.unit_price_egp != null ? it.unit_price_egp : ''}" min="0" class="view-input" style="width:72px;" oninput="oeItemsState[${i}].unit_price_egp=parseFloat(this.value)||0">
+      <button type="button" onclick="oeRemoveItemRow(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:15px;padding:2px 4px;flex-shrink:0;line-height:1;">×</button>
+    </div>`).join('') : '<div style="font-size:11px;color:var(--text-tertiary);">No items — click "Add item" to add one.</div>';
+}
+
+function oeAddItemRow() {
+  oeItemsState.push({ name: '', qty: 1, unit_price_egp: 0 });
+  oeRenderItemRows();
+}
+
+function oeRemoveItemRow(i) {
+  oeItemsState.splice(i, 1);
+  oeRenderItemRows();
+}
+
+function oeSumItemsIntoRegular() {
+  const sum = oeItemsState.reduce((s, it) => s + (parseFloat(it.qty) || 1) * (parseFloat(it.unit_price_egp) || 0), 0);
+  document.getElementById('oe-regular').value = Math.round(sum);
+  oeRecalcDiscount();
+}
 
 function openOfferEdit(offerId) {
   const o = cachedOffers.find(x => x.id === offerId);
@@ -2930,9 +2968,9 @@ function openOfferEdit(offerId) {
   document.getElementById('oe-promo').value = o.promo_egp != null ? o.promo_egp : '';
   const terms = Array.isArray(o.terms) ? o.terms : (o.terms ? [String(o.terms)] : []);
   document.getElementById('oe-terms').value = terms.join('\n');
-  let itemsStr = '';
-  try { itemsStr = o.items ? JSON.stringify(o.items, null, 2) : ''; } catch (e) {}
-  document.getElementById('oe-items').value = itemsStr;
+  // Deep clone so edits (and cancels) never mutate the cached offer in place.
+  oeItemsState = Array.isArray(o.items) ? JSON.parse(JSON.stringify(o.items)) : [];
+  oeRenderItemRows();
   document.getElementById('oe-error').style.display = 'none';
   oeRecalcDiscount();
   document.getElementById('offer-edit-backdrop').style.display = 'flex';
@@ -2940,6 +2978,7 @@ function openOfferEdit(offerId) {
 
 function closeOfferEdit() {
   editingOfferId = null;
+  oeItemsState = [];
   document.getElementById('offer-edit-backdrop').style.display = 'none';
 }
 
@@ -2961,17 +3000,7 @@ async function saveOfferEdit() {
     errEl.textContent = 'Prices must be positive numbers with promo below regular.';
     errEl.style.display = 'block'; return;
   }
-  let items = o ? o.items : null;
-  const itemsRaw = document.getElementById('oe-items').value.trim();
-  if (itemsRaw) {
-    try {
-      items = JSON.parse(itemsRaw);
-      if (!Array.isArray(items)) throw new Error('items must be a JSON array');
-    } catch (e) {
-      errEl.textContent = 'Items JSON invalid: ' + (e.message || e);
-      errEl.style.display = 'block'; return;
-    }
-  }
+  const items = oeItemsState.filter(it => (it.name || '').trim() !== '');
   const termsLines = document.getElementById('oe-terms').value.split('\n').map(s => s.trim()).filter(Boolean);
   const body = {
     title: document.getElementById('oe-title').value.trim(),
