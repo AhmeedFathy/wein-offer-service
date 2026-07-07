@@ -2876,6 +2876,44 @@ async function undoOfferAccept(offerId, prevStatus) {
   } catch (e) { alert('Undo failed: ' + (e.message || e)); }
 }
 
+// ── OFFER DETAILS (itemized breakdown, shown before editing) ──────────
+function formatOfferItemsHtml(items) {
+  if (!Array.isArray(items) || !items.length) return '<div style="color:var(--text-tertiary);">No item breakdown recorded.</div>';
+  return items.map(it => {
+    if (!it || typeof it !== 'object') return `<div>${escapeHtml(String(it))}</div>`;
+    const qty = it.qty || 1;
+    const price = it.unit_price_egp != null ? `${it.unit_price_egp === 0 ? 'Free' : 'EGP ' + it.unit_price_egp} ea` : '';
+    const role = it.bundle_role ? ` · ${escapeHtml(it.bundle_role)}` : '';
+    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;">
+      <span>${qty}× ${escapeHtml(it.name || '')}${role}</span>
+      <span style="color:var(--text-tertiary);white-space:nowrap;font-family:'JetBrains Mono';">${price}</span>
+    </div>`;
+  }).join('');
+}
+
+function offerDetailsHtml(o) {
+  const termsHtml = (Array.isArray(o.terms) ? o.terms : (o.terms ? [o.terms] : []))
+    .map(t => `<div style="padding:2px 0;">• ${escapeHtml(t)}</div>`).join('') || '<div style="color:var(--text-tertiary);">No terms recorded.</div>';
+  return `
+    <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Items</div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">${formatOfferItemsHtml(o.items)}</div>
+    ${o.upgrade_tier ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Upgrade</div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(o.upgrade_tier)}</div>` : ''}
+    <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Terms</div>
+    <div style="font-size:11px;color:var(--text-secondary);">${termsHtml}</div>`;
+}
+
+function toggleOfferDetails(offerId) {
+  const el = document.getElementById('offer-details-' + offerId);
+  if (!el) return;
+  const opening = el.style.display === 'none';
+  if (opening) {
+    const o = cachedOffers.find(x => x.id === offerId);
+    el.innerHTML = o ? offerDetailsHtml(o) : '<div style="color:var(--text-tertiary);">Offer not found.</div>';
+  }
+  el.style.display = opening ? 'block' : 'none';
+}
+
 // ── OFFER EDIT MODAL ────────────────────────────────────────────────
 // Surgical single-offer edits without re-running the pipeline. Discount %
 // is always derived from the two prices (read-only) so the three numbers
@@ -3015,6 +3053,7 @@ function renderOffersGrid() {
       </div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
         <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')"><i class="ti ti-eye"></i><span>View provider</span></button>
+        <button class="mini-btn" type="button" onclick="toggleOfferDetails('${o.id}')"><i class="ti ti-list-details"></i><span>Details</span></button>
         ${offerStatus(o) === 'pending' ? `
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
           <button class="mini-btn" type="button" onclick="openOfferEdit('${o.id}')"><i class="ti ti-pencil"></i><span>Edit</span></button>
@@ -3027,6 +3066,7 @@ function renderOffersGrid() {
           <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
         ` : ''}
       </div>
+      <div id="offer-details-${o.id}" style="display:none;background:var(--bg-surface);border:0.5px solid var(--border-subtle);border-radius:6px;padding:9px 10px;"></div>
     </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No ${offerStatusFilter} offers</div>`;
 }
 
@@ -5344,6 +5384,7 @@ async function renderModalOffers(providerId, token) {
         : `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct) != null ? `${discountPctLabel(o.discount_pct)}% off` : 'Offer'}</span>`;
       const actions = st === 'pending' ? `
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
+        <button class="mini-btn" type="button" onclick="toggleOfferDetails('${o.id}')"><i class="ti ti-list-details"></i><span>Details</span></button>
         <button class="mini-btn" type="button" onclick="openOfferEdit('${o.id}')"><i class="ti ti-pencil"></i><span>Edit</span></button>
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>`
         : st === 'rejected' ? `
@@ -5365,7 +5406,8 @@ async function renderModalOffers(providerId, token) {
           <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);background:var(--bg-surface);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
           <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
         </div>
-        ${actions ? `<div style="display:flex;gap:6px;">${actions}</div>` : ''}
+        ${actions ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div>` : ''}
+        <div id="offer-details-${o.id}" style="display:none;background:var(--bg-surface);border:0.5px solid var(--border-subtle);border-radius:6px;padding:9px 10px;"></div>
       </div>`;
     }).join('') : (archived.length ? '' : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>')) + archivedHtml;
   } catch (e) {
