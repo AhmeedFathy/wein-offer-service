@@ -878,20 +878,23 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
       <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Hook line</label>
       <input type="text" id="oe-hook" class="view-input">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:6px;align-items:end;margin-bottom:4px;">
       <div style="display:flex;flex-direction:column;gap:3px;">
         <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Regular EGP</label>
         <input type="number" id="oe-regular" class="view-input" oninput="oeRecalcDiscount()">
       </div>
+      <div style="color:var(--text-tertiary);font-size:14px;padding-bottom:9px;">−</div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Discount %</label>
+        <input type="number" id="oe-discount" class="view-input" min="0" max="99" oninput="oeApplyDiscount()">
+      </div>
+      <div style="color:var(--text-tertiary);font-size:14px;padding-bottom:9px;">=</div>
       <div style="display:flex;flex-direction:column;gap:3px;">
         <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Promo EGP</label>
         <input type="number" id="oe-promo" class="view-input" oninput="oeRecalcDiscount()">
       </div>
-      <div style="display:flex;flex-direction:column;gap:3px;">
-        <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Discount % (auto)</label>
-        <input type="number" id="oe-discount" class="view-input" readonly style="opacity:0.7;">
-      </div>
     </div>
+    <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;">Edit any one — the other two recalculate automatically. Changing Discount % rounds the promo price to end in 9 or 5, matching WeIN pricing convention.</div>
     <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
       <label style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.6px;">Terms — one per line</label>
       <textarea id="oe-terms" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:vertical;height:70px;outline:none;box-sizing:border-box;font-family:inherit;"></textarea>
@@ -2987,6 +2990,37 @@ function oeRecalcDiscount() {
   const promo = parseFloat(document.getElementById('oe-promo').value);
   const el = document.getElementById('oe-discount');
   el.value = (reg > 0 && promo >= 0 && promo < reg) ? Math.round((1 - promo / reg) * 100) : '';
+}
+
+// WeIN's mandatory price rule: promo prices end in 9 or 5. Picks the
+// closest such value to the raw calculated price.
+function oeRoundToNearest9or5(n) {
+  const base = Math.round(n);
+  let best = null, bestDiff = Infinity;
+  for (let d = -9; d <= 9; d++) {
+    const candidate = base + d;
+    if (candidate <= 0) continue;
+    const last = ((candidate % 10) + 10) % 10;
+    if (last === 9 || last === 5) {
+      const diff = Math.abs(d);
+      if (diff < bestDiff) { bestDiff = diff; best = candidate; }
+    }
+  }
+  return best != null ? best : base;
+}
+
+// Discount % drives Promo (the reverse of the usual direction): pick a
+// target discount, get the exact price it produces, rounded to WeIN's
+// 9/5 price-ending convention. Discount is then refreshed to the ACHIEVED
+// value (may shift by <1 point from what was typed, due to rounding) so
+// the three fields never disagree.
+function oeApplyDiscount() {
+  const reg = parseFloat(document.getElementById('oe-regular').value);
+  const discPct = parseFloat(document.getElementById('oe-discount').value);
+  if (!(reg > 0) || isNaN(discPct) || discPct < 0 || discPct >= 100) return;
+  const rawPromo = reg * (1 - discPct / 100);
+  document.getElementById('oe-promo').value = oeRoundToNearest9or5(rawPromo);
+  oeRecalcDiscount();
 }
 
 async function saveOfferEdit() {
