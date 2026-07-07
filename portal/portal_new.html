@@ -5344,6 +5344,7 @@ async function renderModalOffers(providerId, token) {
         : `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct) != null ? `${discountPctLabel(o.discount_pct)}% off` : 'Offer'}</span>`;
       const actions = st === 'pending' ? `
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
+        <button class="mini-btn" type="button" onclick="openOfferEdit('${o.id}')"><i class="ti ti-pencil"></i><span>Edit</span></button>
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>`
         : st === 'rejected' ? `
         <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>`
