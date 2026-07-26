@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeIN Chat Mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./chat-styles.css">
+</head>
+<body style="margin:0;">
+  <div id="chat-root"></div>
+  <script type="module">
+    import { createChatViewModule } from "./chat-view.mjs";
+    import { createMockChatService } from "./mock-chat-service.mjs";
+
+    const currentUser = {
+      id: "u-ahmed",
+      full_name: "Ahmed Fathy",
+      role: "admin",
+      email: "af8847492@gmail.com",
+    };
+    const service = createMockChatService(currentUser.id);
+    await service.__seed();
+    createChatViewModule().mount(document.getElementById("chat-root"), {
+      currentUser,
+      service,
+    });
+  </script>
+</body>
+</html>

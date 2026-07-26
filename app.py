@@ -22,6 +22,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 import requests as requests_lib
+from assistant_read_tools import execute_requested_read_tools
+from assistant_runtime import build_system_prompt, normalize_chat_messages, resolve_capability_pack
 
 TEMPLATES_DIR = Path(__file__).resolve().parent
 
@@ -222,121 +224,30 @@ def intake():
     return _serve_portal()
 
 
-CHAT_SYSTEM_PROMPT = """You are the WeIN pipeline controller for a premium lifestyle marketplace in Sharm El Sheikh, Egypt.
+def _supabase_read_with_user_jwt(path, bearer_token):
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    supabase_anon = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_url:
+        raise RuntimeError("SUPABASE_URL is not configured on the server")
+    if not supabase_anon:
+        raise RuntimeError("SUPABASE_ANON_KEY is not configured on the server")
+    if not bearer_token:
+        raise RuntimeError("Authorization bearer token is required for assistant read tools")
 
-You help control the offer generation pipeline through natural language.
-You have access to real provider data and can trigger real pipeline runs.
-
-AVAILABLE PROVIDERS: Almayass, Soho House, Butterfly Spa, Butterfly Gym,
-The Kite Bubble, The Echo Temple, Sharm Dental Clinic, TheLifeCo,
-Bombay Soho, Bus Stop Sports Lounge, Café Chino Soho, Cravings,
-Koutouki Soho, Marlin and Caviar, Motion, Ottoman, Wild West
-
-VERTICALS: Dining, Fun & Activities, Health & Beauty, Hotels & Aqua Park
-
-PARTY SIZES: Solo, Couple, Group, Family
-TIERS: Entry, Core, Premium
-HOOKS: Zero-Price Effect, Anchor Pricing, Loss Aversion, Experience Frame,
-       Decoy Effect, Reciprocity, Per-Person Anchor, Compromise Effect,
-       Sharing Utility, Mental Accounting, Host Pride
-
-AVAILABLE ACTIONS (respond with JSON action blocks when needed):
-
-1. Run pipeline with custom params:
-{"action": "run_pipeline", "provider": "name", "vertical": "Dining",
- "params": {
-   "party_sizes": ["Family"],
-   "tiers": ["Premium"],
-   "group_size": 4,
-   "theme": "luxury",
-   "max_discount": 25,
-   "focus_items": ["Lamb Ribs", "Mixed Grill"],
-   "skip_party_sizes": ["Solo", "Couple"]
- }}
-
-2. Show provider detail:
-{"action": "show_provider", "provider": "name"}
-
-3. Accept specific offers:
-{"action": "accept_offers", "provider": "name", "offer_ids": [1,3,5]}
-
-4. Show stats:
-{"action": "show_stats"}
-
-5. List providers by status:
-{"action": "list_providers", "filter": "pending"}
-
-6. Show offers for provider:
-{"action": "show_offers", "provider": "name"}
-
-7. Create task:
-{"action": "create_task", "title": "Follow up with Almayass",
- "provider": "Almayass", "due_date": "2026-06-25",
- "priority": "high", "task_type": "follow_up", "assigned_to": "Ahmed"}
-
-8. List tasks:
-{"action": "list_tasks", "filter": "today"}
-
-9. Complete task:
-{"action": "complete_task", "task_id": "uuid or title match"}
-
-10. Update provider stage:
-{"action": "update_stage", "provider": "Almayass",
- "stage": "offers_sent", "notes": "Sent 10 offers via portal"}
-
-STAGES (for update_stage): lead, contacted, meeting_done, offers_sent, negotiating, accepted, live, renewal, lost
-TASK TYPES: follow_up, negotiation, visit, call, review_offers, pipeline_run, general
-TASK PRIORITIES: low, medium, high, urgent
-TASK LIST FILTERS: today, overdue, all, this_week
-
-RESPONSE FORMAT:
-- Always respond conversationally first (1-2 sentences explaining what you understood)
-- Then include the JSON action block in a ```json fenced code block on a new line if an action is needed
-- Parse user intent carefully — "luxury" means Premium tier,
-  "4 people" means group_size:4 and party_size Family/Group,
-  "skip solo" means skip_party_sizes:["Solo"],
-  "Ramadan theme" means theme:"Ramadan",
-  "high tickets" means tiers:["Premium"] and focus on expensive items
-- Ask a clarifying question instead of guessing if the intent is unclear.
-
-EXAMPLES:
-User: "build family offers for 4 people luxury"
-Response: "Building luxury family offers for 4 people at Almayass.
-Focusing on Premium tier Family offers with high-ticket items only."
-```json
-{"action": "run_pipeline", "provider": "Almayass", "vertical": "Dining",
- "params": {"party_sizes": ["Family"], "tiers": ["Premium"],
-            "group_size": 4, "theme": "luxury",
-            "skip_party_sizes": ["Solo", "Couple", "Group"]}}
-```
-
-User: "show me pending providers"
-Response: "Here are the providers waiting for pipeline runs:"
-```json
-{"action": "list_providers", "filter": "pending"}
-```
-
-User: "accept offers 1, 3, 5 for Almayass"
-Response: "Marking offers 1, 3, and 5 as accepted for Almayass."
-```json
-{"action": "accept_offers", "provider": "Almayass", "offer_ids": [1,3,5]}
-```
-
-User: "remind me to call Almayass on Thursday"
-Response: "Got it — I'll add a call task for Almayass due Thursday."
-```json
-{"action": "create_task", "title": "Call Almayass", "provider": "Almayass",
- "task_type": "call", "priority": "medium", "due_date": "2026-06-25"}
-```
-
-User: "mark Almayass as offers sent"
-Response: "Updating Almayass's stage to Offers Sent."
-```json
-{"action": "update_stage", "provider": "Almayass", "stage": "offers_sent"}
-```"""
+    resp = requests_lib.get(
+        f"{supabase_url}/rest/v1/{path}",
+        headers={
+            "apikey": supabase_anon,
+            "Authorization": f"Bearer {bearer_token}",
+            "Accept": "application/json",
+        },
+        timeout=20,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
-def _chat_via_anthropic(api_key, messages):
+def _chat_via_anthropic(api_key, messages, system_prompt):
     resp = requests_lib.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -347,7 +258,7 @@ def _chat_via_anthropic(api_key, messages):
         json={
             "model": "claude-sonnet-4-6",
             "max_tokens": 1000,
-            "system": CHAT_SYSTEM_PROMPT,
+            "system": system_prompt,
             "messages": messages,
         },
         timeout=30,
@@ -357,7 +268,7 @@ def _chat_via_anthropic(api_key, messages):
     return "".join(block.get("text", "") for block in data.get("content", []))
 
 
-def _chat_via_mistral(api_key, messages):
+def _chat_via_mistral(api_key, messages, system_prompt):
     resp = requests_lib.post(
         "https://api.mistral.ai/v1/chat/completions",
         headers={
@@ -366,7 +277,7 @@ def _chat_via_mistral(api_key, messages):
         },
         json={
             "model": "mistral-small-latest",
-            "messages": [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + messages,
+            "messages": [{"role": "system", "content": system_prompt}] + messages,
             "max_tokens": 1000,
         },
         timeout=30,
@@ -386,9 +297,25 @@ def chat():
     it will be picked up automatically and take priority again.
     """
     payload = request.get_json(force=True, silent=True) or {}
-    messages = payload.get("messages", [])
+    messages = normalize_chat_messages(payload.get("messages", []))
     if not messages:
         return jsonify({"error": "messages required"}), 400
+    pack = resolve_capability_pack(payload.get("section_id"))
+    requested_tools = payload.get("requested_read_tools", [])
+    runtime_tool_errors = {}
+    if requested_tools and not payload.get("tool_results"):
+        auth_header = request.headers.get("Authorization", "")
+        bearer = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else ""
+        tool_results, runtime_tool_errors = execute_requested_read_tools(
+            section_id=pack.section_id,
+            payload=payload,
+            requested_tools=requested_tools,
+            supabase_get=lambda path: _supabase_read_with_user_jwt(path, bearer),
+        )
+        payload = {**payload, "tool_results": tool_results, "tool_errors": runtime_tool_errors}
+    system_prompt, runtime_meta = build_system_prompt(payload)
+    if runtime_tool_errors:
+        runtime_meta = {**runtime_meta, "tool_errors": runtime_tool_errors}
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     mistral_key = os.environ.get("MISTRAL_API_KEY")
@@ -398,10 +325,10 @@ def chat():
 
     try:
         if anthropic_key:
-            reply = _chat_via_anthropic(anthropic_key, messages)
+            reply = _chat_via_anthropic(anthropic_key, messages, system_prompt)
         else:
-            reply = _chat_via_mistral(mistral_key, messages)
-        return jsonify({"reply": reply})
+            reply = _chat_via_mistral(mistral_key, messages, system_prompt)
+        return jsonify({"reply": reply, "runtime": runtime_meta})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 

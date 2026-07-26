@@ -651,7 +651,7 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
       <div class="chat-bot-avatar"><i class="ti ti-sparkles"></i></div>
       <div class="chat-header-text">
         <span class="chat-header-title">WeIN Assistant</span>
-        <span class="chat-header-status"><span class="chat-status-dot"></span>Online</span>
+        <span class="chat-header-status"><span class="chat-status-dot"></span>Limited</span>
       </div>
     </div>
     <button type="button" onclick="toggleChatDrawer()" class="chat-drawer-close"><i class="ti ti-x"></i></button>
@@ -659,13 +659,13 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
   <div class="rp-chat-log" id="rpChatLog">
     <div class="chat-empty" id="chatEmptyState">
       <div class="chat-bot-avatar chat-bot-avatar-lg"><i class="ti ti-sparkles"></i></div>
-      <div class="chat-empty-title">Ask me anything</div>
-      <div class="chat-empty-sub">I can check pipeline status, pull up providers, or answer questions about your data.</div>
+      <div class="chat-empty-title">Assistant limited</div>
+      <div class="chat-empty-sub">I can help draft and reason, but I do not have live portal data or action access yet.</div>
     </div>
   </div>
   <div class="rp-chat-quick" id="rpChatQuick">
-    <button onclick="sendRpChat('Show pending providers')"><i class="ti ti-building-store"></i>Show pending</button>
-    <button onclick="sendRpChat('Check pipeline status')"><i class="ti ti-git-branch"></i>Check status</button>
+    <button onclick="sendRpChat('What can you help with?')"><i class="ti ti-info-circle"></i>Capabilities</button>
+    <button onclick="sendRpChat('Draft a follow-up message for a provider')"><i class="ti ti-message"></i>Draft reply</button>
   </div>
   <div class="rp-chat-inputbar">
     <input type="text" id="rpChatInput" class="rp-chat-input" placeholder="Message WeIN Assistant..." onkeydown="if(event.key==='Enter')sendRpChat()">
@@ -1566,13 +1566,13 @@ async function sendRpChat(prefill) {
   const typingEl = rpChatTyping();
   try {
     const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: rpChatHistory }) });
-    if (!res.ok) throw new Error(`Chat backend error: ${res.status}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Chat backend error: ${res.status}`);
     const reply = data.reply || '(no response)';
     typingEl.remove();
-    rpChatLog(reply.replace(/```json[\s\S]*?```/g, '').trim() || reply, 'bot');
+    rpChatLog(reply, 'bot');
     rpChatHistory.push({ role: 'assistant', content: reply });
-  } catch (e) { typingEl.remove(); rpChatLog('Error: ' + e.message, 'bot'); }
+  } catch (e) { typingEl.remove(); rpChatLog('Assistant unavailable: ' + e.message, 'bot'); }
 }
 function rpChatTyping() {
   const log = document.getElementById('rpChatLog');

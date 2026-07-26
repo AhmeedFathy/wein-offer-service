@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WeIN Work Inbox Mock</title>
+    <link rel="stylesheet" href="./work-inbox-styles.css">
+    <style>
+      body { margin: 0; background: #081017; padding: 24px; }
+      #app { max-width: 900px; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module">
+      import { createMockWorkInboxService } from "./mock-work-inbox-service.mjs";
+      import { createWorkInboxViewModule } from "./work-inbox-view.mjs";
+
+      const service = createMockWorkInboxService({
+        options: { currentUserId: "u1", now: new Date("2026-07-26T12:00:00Z") },
+        source: {
+          tasks: [
+            { id: "t1", title: "Call Soho Square", due_date: "2026-07-25T10:00:00Z", assigned_to_user_id: "u1" },
+            { id: "t2", title: "Review accepted offer copy", due_date: "2026-07-29T10:00:00Z", assigned_to_user_id: "u1" },
+          ],
+          mentions: [{ comment_id: "c1", mentioned_user_id: "u1", created_at: "2026-07-26T10:00:00Z" }],
+          commentsById: { c1: { id: "c1", body: "Need your approval on this provider note.", resolved_at: null } },
+        },
+      });
+
+      createWorkInboxViewModule().mount(document.getElementById("app"), {
+        service,
+        onSelectItem(item) {
+          console.log("selected", item);
+        },
+      });
+    </script>
+  </body>
+</html>

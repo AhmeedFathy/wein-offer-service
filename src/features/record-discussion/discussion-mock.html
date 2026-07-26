@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WeIN Record Discussion Mock</title>
+    <link rel="stylesheet" href="./discussion-styles.css">
+    <style>
+      body { margin: 0; background: #081017; padding: 24px; }
+      #app { max-width: 860px; margin: 0 auto; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module">
+      import { createDiscussionViewModule } from "./discussion-view.mjs";
+      import { createMockDiscussionService } from "./mock-discussion-service.mjs";
+
+      const currentUser = { id: "u1", full_name: "Ahmed", role: "admin" };
+      const people = [
+        currentUser,
+        { id: "u2", full_name: "Fady", role: "admin" },
+        { id: "u3", full_name: "Team Member", role: "team" },
+      ];
+      const service = createMockDiscussionService({
+        currentUser,
+        people,
+        seedComments: [
+          {
+            id: "c1",
+            task_id: "task-demo",
+            author_id: "u2",
+            author_name: "Fady",
+            author_role: "admin",
+            body: "Need to confirm whether this provider should get a follow-up task.",
+            resolved_at: null,
+            resolved_by: null,
+            resolved_note: null,
+            created_at: "2026-07-26T10:00:00Z",
+          },
+        ],
+      });
+
+      createDiscussionViewModule().mount(document.getElementById("app"), {
+        currentUser,
+        people,
+        scope: { taskId: "task-demo" },
+        service,
+      });
+    </script>
+  </body>
+</html>

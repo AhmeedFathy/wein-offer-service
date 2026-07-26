@@ -1,0 +1,223 @@
+import { unreadCount } from "./chat-domain.mjs";
+
+function requireRows(result, label) {
+  if (result.error) throw new Error(`${label}: ${result.error.message || result.error}`);
+  return result.data || [];
+}
+
+function requireRpc(result, label) {
+  if (result.error) throw new Error(`${label}: ${result.error.message || result.error}`);
+  return result.data;
+}
+
+function profileFromRow(row) {
+  return row
+    ? {
+        id: row.id,
+        full_name: row.full_name,
+        role: row.role,
+        email: row.email ?? null,
+      }
+    : null;
+}
+
+function memberFromRow(row) {
+  return {
+    conversation_id: row.conversation_id,
+    user_id: row.user_id,
+    membership_role: row.membership_role,
+    joined_at: row.joined_at,
+    left_at: row.left_at,
+    last_read_seq: Number(row.last_read_seq || 0),
+    notification_level: row.notification_level,
+    profile: profileFromRow(row.profile || row.profiles),
+  };
+}
+
+function messageFromRow(row) {
+  return {
+    id: row.id,
+    conversation_id: row.conversation_id,
+    message_seq: Number(row.message_seq || 0),
+    sender_id: row.sender_id,
+    body: row.body,
+    reply_to_id: row.reply_to_id,
+    client_nonce: row.client_nonce,
+    created_at: row.created_at,
+    edited_at: row.edited_at,
+    deleted_at: row.deleted_at,
+    sender: profileFromRow(row.sender || row.profiles),
+  };
+}
+
+function conversationFromRow(row, currentUserId) {
+  const members = (row.members || row.wein_chat_members || []).map(memberFromRow);
+  const lastMessageRows = row.last_message || row.wein_chat_messages || [];
+  const lastMessage = Array.isArray(lastMessageRows) && lastMessageRows.length
+    ? messageFromRow(lastMessageRows[0])
+    : null;
+  const conversation = {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    created_by: row.created_by,
+    created_at: row.created_at,
+    archived_at: row.archived_at,
+    members,
+    last_message: lastMessage,
+    unread_count: 0,
+  };
+  conversation.unread_count = unreadCount(conversation, currentUserId);
+  return conversation;
+}
+
+export function createSupabaseChatService({ supabase, currentUserId }) {
+  if (!supabase) throw new Error("supabase client is required");
+  if (!currentUserId) throw new Error("currentUserId is required");
+
+  async function fetchConversation(conversationId) {
+    const result = await supabase
+      .from("wein_chat_conversations")
+      .select(`
+        id, kind, title, created_by, created_at, archived_at,
+        members:wein_chat_members(
+          conversation_id, user_id, membership_role, joined_at, left_at, last_read_seq, notification_level,
+          profile:profiles(id, full_name, role, email)
+        ),
+        last_message:wein_chat_messages(
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          sender:profiles(id, full_name, role, email)
+        )
+      `)
+      .eq("id", conversationId)
+      .order("message_seq", { referencedTable: "wein_chat_messages", ascending: false })
+      .limit(1, { referencedTable: "wein_chat_messages" })
+      .single();
+    if (result.error) throw new Error(`fetch conversation: ${result.error.message || result.error}`);
+    return conversationFromRow(result.data, currentUserId);
+  }
+
+  return {
+    async listProfiles() {
+      const result = await supabase
+        .from("profiles")
+        .select("id, full_name, role, email")
+        .order("full_name", { ascending: true });
+      return requireRows(result, "list profiles").map(profileFromRow);
+    },
+
+    async listConversations() {
+      const result = await supabase
+        .from("wein_chat_conversations")
+        .select(`
+          id, kind, title, created_by, created_at, archived_at,
+          members:wein_chat_members(
+            conversation_id, user_id, membership_role, joined_at, left_at, last_read_seq, notification_level,
+            profile:profiles(id, full_name, role, email)
+          ),
+          last_message:wein_chat_messages(
+            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+            sender:profiles(id, full_name, role, email)
+          )
+        `)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false })
+        .order("message_seq", { referencedTable: "wein_chat_messages", ascending: false })
+        .limit(1, { referencedTable: "wein_chat_messages" });
+      return requireRows(result, "list conversations").map((row) => conversationFromRow(row, currentUserId));
+    },
+
+    async listMessages(conversationId) {
+      const result = await supabase
+        .from("wein_chat_messages")
+        .select(`
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          sender:profiles(id, full_name, role, email)
+        `)
+        .eq("conversation_id", conversationId)
+        .is("deleted_at", null)
+        .order("message_seq", { ascending: true });
+      return requireRows(result, "list messages").map(messageFromRow);
+    },
+
+    async createGroup(title, memberIds = []) {
+      const conversationId = requireRpc(
+        await supabase.rpc("wein_chat_create_group", { p_title: title }),
+        "create group",
+      );
+      for (const memberId of memberIds) {
+        await this.addMember(conversationId, memberId);
+      }
+      return conversationId;
+    },
+
+    async getOrCreateDm(otherUserId) {
+      return requireRpc(
+        await supabase.rpc("wein_chat_get_or_create_dm", { p_other_user_id: otherUserId }),
+        "get or create DM",
+      );
+    },
+
+    async addMember(conversationId, userId) {
+      const result = await supabase
+        .from("wein_chat_members")
+        .insert({
+          conversation_id: conversationId,
+          user_id: userId,
+          membership_role: "member",
+        })
+        .select("conversation_id, user_id");
+      const rows = requireRows(result, "add member");
+      if (!rows.length) throw new Error("add member affected zero rows");
+    },
+
+    async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
+      const result = await supabase
+        .from("wein_chat_messages")
+        .insert({
+          conversation_id: conversationId,
+          sender_id: currentUserId,
+          body,
+          client_nonce: clientNonce,
+          reply_to_id: replyToId,
+        })
+        .select(`
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          sender:profiles(id, full_name, role, email)
+        `)
+        .single();
+      if (result.error) throw new Error(`send message: ${result.error.message || result.error}`);
+      return messageFromRow(result.data);
+    },
+
+    async markRead(conversationId, lastReadSeq) {
+      const result = await supabase
+        .from("wein_chat_members")
+        .update({ last_read_seq: lastReadSeq })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", currentUserId)
+        .select("conversation_id, user_id, last_read_seq");
+      const rows = requireRows(result, "mark read");
+      if (!rows.length) throw new Error("mark read affected zero rows");
+    },
+
+    subscribeToConversationEvents(onEvent) {
+      if (typeof supabase.channel !== "function") return () => {};
+      const channel = supabase
+        .channel(`wein-chat:${currentUserId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "wein_chat_conversations" }, onEvent)
+        .on("postgres_changes", { event: "*", schema: "public", table: "wein_chat_members" }, onEvent)
+        .on("postgres_changes", { event: "*", schema: "public", table: "wein_chat_messages" }, onEvent)
+        .subscribe();
+      return () => {
+        if (typeof supabase.removeChannel === "function") {
+          supabase.removeChannel(channel);
+        } else if (typeof channel.unsubscribe === "function") {
+          channel.unsubscribe();
+        }
+      };
+    },
+
+    fetchConversation,
+  };
+}
