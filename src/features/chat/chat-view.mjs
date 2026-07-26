@@ -56,7 +56,15 @@ export function createChatViewModule() {
           if (state.selectedConversationId && keepMessages) {
             state.messages = await context.service.listMessages(state.selectedConversationId);
             const lastSeq = state.messages.at(-1)?.message_seq || 0;
-            if (lastSeq) await context.service.markRead(state.selectedConversationId, lastSeq);
+            // Read-receipt bookkeeping is best-effort: it must never surface as a
+            // chat-wide error when the actual message list just loaded successfully.
+            if (lastSeq) {
+              try {
+                await context.service.markRead(state.selectedConversationId, lastSeq);
+              } catch (error) {
+                console.error("Failed to mark chat messages as read", error);
+              }
+            }
           }
         } catch (error) {
           state.error = error.message || String(error);
@@ -70,8 +78,15 @@ export function createChatViewModule() {
         state.selectedConversationId = conversationId;
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
+        if (!disposed) render();
         const lastSeq = state.messages.at(-1)?.message_seq || 0;
-        if (lastSeq) await context.service.markRead(conversationId, lastSeq);
+        if (lastSeq) {
+          try {
+            await context.service.markRead(conversationId, lastSeq);
+          } catch (error) {
+            console.error("Failed to mark chat messages as read", error);
+          }
+        }
         await refresh();
       }
 
@@ -177,7 +192,7 @@ export function createChatViewModule() {
                 <select data-chat-group-members multiple size="3">
                   ${selectableProfiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.full_name)}</option>`).join("")}
                 </select>
-                <button type="submit">Create group</button>
+                <button type="submit"><i class="ti ti-users-plus"></i><span>Create group</span></button>
               </form>
               <div class="chat-conversation-list">
                 ${state.loading ? `<div class="chat-muted">Loading...</div>` : ""}
@@ -186,10 +201,10 @@ export function createChatViewModule() {
               </div>
             </aside>
             <main class="chat-thread">
-              ${state.error ? `<div class="chat-error">${escapeHtml(state.error)}</div>` : ""}
+              ${state.error ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.error)}</span></div>` : ""}
               ${selected ? `
                 <header class="chat-thread-head">
-                  <button type="button" class="chat-back-btn" data-chat-back aria-label="Back to conversations">Back</button>
+                  <button type="button" class="chat-back-btn" data-chat-back aria-label="Back to conversations"><i class="ti ti-arrow-left"></i></button>
                   <div>
                     <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : "Group"}</div>
                     <h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>
@@ -204,10 +219,11 @@ export function createChatViewModule() {
                 </div>
                 <form class="chat-composer" data-chat-send-form>
                   <input data-chat-composer type="text" placeholder="Write a message...">
-                  <button type="submit">Send</button>
+                  <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
               ` : `
                 <div class="chat-empty-panel">
+                  <i class="ti ti-messages"></i>
                   <h2>No conversation selected</h2>
                   <p>Start a DM or create a group to begin.</p>
                 </div>

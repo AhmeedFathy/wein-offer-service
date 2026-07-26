@@ -1,8 +1,14 @@
+/* Team chat uses the portal's own theme tokens (--bg-surface, --text-primary,
+   --blue, etc. -- defined in portal_new.html's :root / [data-theme="light"])
+   instead of a bespoke hardcoded palette, so it matches whichever theme
+   (light or dark) the rest of the app is currently in, the same way every
+   other view already does. */
+
 .wein-chat-root {
   height: 100%;
-  background: #0b1118;
-  color: #e5edf5;
-  font-family: "Instrument Sans", Inter, system-ui, sans-serif;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: 'Instrument Sans', sans-serif;
 }
 
 .chat-shell {
@@ -12,8 +18,8 @@
 }
 
 .chat-sidebar {
-  border-right: 1px solid rgba(148, 163, 184, 0.18);
-  background: #081017;
+  border-right: .5px solid var(--border);
+  background: var(--bg-deep);
   padding: 16px;
   overflow: auto;
 }
@@ -32,11 +38,12 @@
 .chat-empty-panel h2 {
   margin: 0;
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .chat-eyebrow {
-  color: #8ba2b7;
+  color: var(--text-tertiary);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -53,9 +60,10 @@
 }
 
 .chat-user-pill {
-  border: 1px solid rgba(0, 129, 253, 0.38);
-  color: #62b6ff;
+  border: .5px solid var(--border-blue-strong);
+  color: var(--blue);
   font-size: 11px;
+  font-weight: 600;
   padding: 4px 8px;
   white-space: nowrap;
 }
@@ -68,9 +76,11 @@
 }
 
 .chat-field span {
-  color: #8ba2b7;
+  color: var(--text-tertiary);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .chat-field select,
@@ -79,10 +89,10 @@
 .chat-composer input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: .5px solid var(--border);
   border-radius: 6px;
-  background: #111b24;
-  color: #e5edf5;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   font: inherit;
   font-size: 13px;
   padding: 9px 10px;
@@ -93,21 +103,30 @@
 .chat-group-form input:focus,
 .chat-group-form select:focus,
 .chat-composer input:focus {
-  border-color: rgba(0, 129, 253, 0.7);
+  border-color: var(--border-blue-strong);
 }
 
 .chat-group-form button,
 .chat-composer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 0;
   border-radius: 6px;
-  background: #0081fd;
+  background: var(--blue);
   color: #fff;
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   min-height: 40px;
-  padding: 9px 12px;
+  padding: 9px 14px;
+}
+
+.chat-group-form button:hover,
+.chat-composer button:hover {
+  background: var(--blue-dark);
 }
 
 .chat-conversation-list {
@@ -120,26 +139,27 @@
   grid-template-columns: 1fr auto;
   gap: 3px 8px;
   width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 7px;
+  border: .5px solid var(--border);
+  border-radius: 8px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   min-height: 58px;
-  padding: 10px;
+  padding: 10px 12px;
   text-align: left;
 }
 
 .chat-conversation:hover,
 .chat-conversation.selected {
-  border-color: rgba(0, 129, 253, 0.48);
-  background: rgba(0, 129, 253, 0.1);
+  border-color: var(--border-blue-strong);
+  background: var(--blue-tint);
 }
 
 .chat-conversation-title {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -147,7 +167,7 @@
 .chat-conversation-preview {
   grid-column: 1 / -1;
   overflow: hidden;
-  color: #8ba2b7;
+  color: var(--text-secondary);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -156,10 +176,11 @@
 .chat-count {
   min-width: 20px;
   height: 20px;
-  background: #0081fd;
+  background: var(--blue);
   color: #fff;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
+  padding: 0 5px;
 }
 
 .chat-thread {
@@ -173,16 +194,22 @@
 
 .chat-back-btn {
   display: none;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  align-items: center;
+  justify-content: center;
+  border: .5px solid var(--border);
   border-radius: 6px;
-  background: #111b24;
-  color: #e5edf5;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   min-height: 40px;
   padding: 8px 11px;
+}
+
+.chat-back-btn:hover {
+  background: var(--bg-surface);
 }
 
 .chat-member-stack {
@@ -193,12 +220,12 @@
 .chat-member-stack span {
   width: 28px;
   height: 28px;
-  border: 1px solid #0b1118;
-  background: #1f2a35;
-  color: #c7d7e5;
+  border: 2px solid var(--bg-surface);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 800;
-  margin-left: -6px;
+  font-weight: 700;
+  margin-left: -8px;
 }
 
 .chat-message-list {
@@ -211,29 +238,29 @@
 
 .chat-message {
   max-width: min(620px, 82%);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 8px;
-  background: #111b24;
+  border: .5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
   padding: 10px 12px;
 }
 
 .chat-message.mine {
   align-self: flex-end;
-  border-color: rgba(0, 129, 253, 0.42);
-  background: rgba(0, 129, 253, 0.16);
+  border-color: var(--border-blue-strong);
+  background: var(--blue-tint);
 }
 
 .chat-message-meta {
   display: flex;
   gap: 10px;
   justify-content: space-between;
-  color: #8ba2b7;
+  color: var(--text-tertiary);
   font-size: 11px;
   margin-bottom: 5px;
 }
 
 .chat-message-body {
-  color: #f4f8fb;
+  color: var(--text-primary);
   font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -244,15 +271,15 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
-  background: #0b1118;
+  border-top: .5px solid var(--border);
+  background: var(--bg-surface);
   padding-top: 12px;
 }
 
 .chat-muted,
 .chat-empty-panel,
 .chat-error {
-  color: #8ba2b7;
+  color: var(--text-secondary);
   font-size: 13px;
   padding: 14px;
 }
@@ -263,10 +290,20 @@
   text-align: center;
 }
 
+.chat-empty-panel .ti {
+  font-size: 28px;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+
 .chat-error {
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  border-radius: 7px;
-  color: #fecaca;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: .5px solid var(--red);
+  border-radius: 8px;
+  background: var(--red-tint);
+  color: var(--red);
   margin-bottom: 10px;
 }
 
@@ -306,8 +343,6 @@
 
   .chat-back-btn {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .chat-message {
