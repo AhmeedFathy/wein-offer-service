@@ -171,6 +171,11 @@ a { color: var(--blue); text-decoration: none; }
 
 /* ── Main / layout ── */
 #mainArea { margin-left: 200px; margin-top: 52px; min-height: calc(100vh - 52px); background: var(--bg-base); padding: 20px; overflow-y: auto; }
+/* Full-bleed views (currently: team-chat) size themselves to the actual space below
+   the 52px top bar instead of the page's min-height, and own their own internal
+   scrolling -- height (not min-height) is required so their 100%-based children
+   resolve to a real pixel value instead of growing unbounded. */
+#mainArea.wein-chat-root { height: calc(100vh - 52px); padding: 0; overflow: hidden; }
 #appShell { display: none; }
 
 /* ── KPI row ── */

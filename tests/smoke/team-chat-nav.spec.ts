@@ -68,24 +68,59 @@ async function installPortalMocks(page: Page) {
         window.supabase = {
           createClient() {
             const session = { access_token: 'mock-token', user: ${JSON.stringify(mockUser)} };
+            const dmConversation = {
+              id: 'dm-1',
+              kind: 'dm',
+              title: null,
+              created_by: ${JSON.stringify(mockUser.id)},
+              created_at: '2026-07-20T10:00:00.000Z',
+              archived_at: null,
+              members: [
+                { conversation_id: 'dm-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(profile)} },
+                { conversation_id: 'dm-1', user_id: ${JSON.stringify(otherProfile.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(otherProfile)} }
+              ],
+              last_message: []
+            };
+            let dmCreated = false;
+            let nextMessageSeq = 1;
+            const sentMessages = [];
             function query(table) {
               const builder = {
                 table,
+                _insertPayload: null,
                 select() { return this; },
                 eq() { return this; },
                 is() { return this; },
                 order() { return this; },
                 limit() { return this; },
-                insert() { return this; },
+                insert(payload) { this._insertPayload = payload; return this; },
                 update() { return this; },
                 async single() {
                   if (table === 'profiles') return { data: ${JSON.stringify(profile)}, error: null };
+                  if (table === 'wein_chat_messages' && this._insertPayload) {
+                    const row = {
+                      id: 'msg-' + nextMessageSeq,
+                      conversation_id: this._insertPayload.conversation_id,
+                      message_seq: nextMessageSeq++,
+                      sender_id: this._insertPayload.sender_id,
+                      body: this._insertPayload.body,
+                      reply_to_id: null,
+                      client_nonce: this._insertPayload.client_nonce,
+                      created_at: new Date().toISOString(),
+                      edited_at: null,
+                      deleted_at: null,
+                      sender: ${JSON.stringify(profile)}
+                    };
+                    sentMessages.push(row);
+                    return { data: row, error: null };
+                  }
                   return { data: null, error: null };
                 },
                 then(resolve) {
-                  const rows = table === 'profiles'
-                    ? ${JSON.stringify([profile, otherProfile])}
-                    : [];
+                  let rows = [];
+                  if (table === 'profiles') rows = ${JSON.stringify([profile, otherProfile])};
+                  else if (table === 'wein_chat_conversations' && dmCreated) rows = [dmConversation];
+                  else if (table === 'wein_chat_messages') rows = sentMessages;
                   return Promise.resolve({ data: rows, error: null }).then(resolve);
                 }
               };
@@ -101,7 +136,13 @@ async function installPortalMocks(page: Page) {
                 async updateUser() { return { error: null }; }
               },
               from: query,
-              rpc() { return Promise.resolve({ data: 'mock-id', error: null }); },
+              rpc(fnName) {
+                if (fnName === 'wein_chat_get_or_create_dm') {
+                  dmCreated = true;
+                  return Promise.resolve({ data: 'dm-1', error: null });
+                }
+                return Promise.resolve({ data: 'mock-id', error: null });
+              },
               channel() {
                 return {
                   on() { return this; },
@@ -159,6 +200,41 @@ test('team chat mounts through a real nav click and cleans up on navigation away
   await expect(page.locator('#mainArea')).toContainText('Today');
   await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(baselineIntervals);
   await expect.poll(() => page.evaluate(() => window.__WEIN_REMOVED_CHAT_CHANNELS__ ?? 0)).toBe(1);
+  expect(pageErrors).toEqual([]);
+});
+
+test('opening a DM shows a composer that actually fits on screen and can send a message', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await login(page);
+  await page.locator('.nav-parent[data-group-toggle="system"]').click();
+  await page.locator('.nav-item[data-view="team-chat"]').click();
+
+  await page.locator('select[data-chat-dm]').selectOption({ label: otherProfile.full_name });
+  await expect(page.locator('.chat-thread-head')).toContainText(otherProfile.full_name);
+
+  // The regression this guards: chat-styles.css previously sized .chat-thread to
+  // 100vh, which is taller than the space actually available under the portal's
+  // 52px top bar once mounted in #mainArea -- pushing the composer below the
+  // visible area even though it was present in the DOM. toBeVisible() alone can
+  // pass on an element with zero effective viewport overlap in some layouts, so
+  // this also asserts the composer's bounding box sits within the viewport.
+  const composer = page.locator('[data-chat-composer]');
+  await expect(composer).toBeVisible();
+  const box = await composer.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box, 'composer should have a real bounding box').not.toBeNull();
+  expect(viewport, 'viewport size should be available').not.toBeNull();
+  if (box && viewport) {
+    expect(box.y, 'composer top should be within the viewport').toBeLessThan(viewport.height);
+    expect(box.y + box.height, 'composer bottom should be within the viewport').toBeLessThanOrEqual(viewport.height);
+  }
+
+  await composer.fill('Hello from the smoke test');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('Hello from the smoke test');
+
   expect(pageErrors).toEqual([]);
 });
 

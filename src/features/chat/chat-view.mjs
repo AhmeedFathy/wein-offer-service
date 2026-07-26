@@ -89,8 +89,16 @@ export function createChatViewModule() {
           body,
           clientNonce: makeClientNonce("portal-chat"),
         });
+        // Render the sent message immediately -- it already exists in the database at
+        // this point, so a subsequent failure (e.g. markRead) must not hide it from
+        // the sender's own view until the next refresh.
         state.messages = [...state.messages, message];
-        await context.service.markRead(state.selectedConversationId, message.message_seq);
+        if (!disposed) render();
+        try {
+          await context.service.markRead(state.selectedConversationId, message.message_seq);
+        } catch (error) {
+          console.error("Failed to mark chat message as read", error);
+        }
         await refresh();
       }
 

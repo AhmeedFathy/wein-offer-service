@@ -1,6 +1,5 @@
 .wein-chat-root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
   background: #0b1118;
   color: #e5edf5;
   font-family: "Instrument Sans", Inter, system-ui, sans-serif;
@@ -9,8 +8,7 @@
 .chat-shell {
   display: grid;
   grid-template-columns: minmax(260px, 320px) 1fr;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
 }
 
 .chat-sidebar {
@@ -167,9 +165,9 @@
 .chat-thread {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
   padding: 18px;
 }
 
@@ -275,20 +273,20 @@
 @media (max-width: 760px) {
   .chat-shell {
     display: block;
-    min-height: 100dvh;
+    height: 100%;
+    overflow: auto;
   }
 
   .chat-sidebar {
     border-right: 0;
     border-bottom: 0;
-    min-height: 100dvh;
+    height: 100%;
     padding: 14px;
   }
 
   .chat-thread {
     display: none;
-    height: 100dvh;
-    min-height: 55vh;
+    height: 100%;
     padding: 14px;
   }
 
