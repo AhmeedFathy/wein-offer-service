@@ -91,6 +91,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
             let nextMessageSeq = 1;
             const sentMessages = [];
             window.__WEIN_CHAT_NOTIFICATION_CALLS__ = [];
+            window.__WEIN_CHAT_DELETE_CALLS__ = [];
             function query(table) {
               const builder = {
                 table,
@@ -128,6 +129,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                     const row = sentMessages.find((message) => message.id === idFilter?.[2]);
                     if (!row) return { data: null, error: { message: 'message not found' } };
                     Object.assign(row, this._updatePayload);
+                    if (this._updatePayload.deleted_at) window.__WEIN_CHAT_DELETE_CALLS__.push(row.id);
                     return { data: row, error: null };
                   }
                   return { data: null, error: null };
@@ -212,6 +214,19 @@ async function login(page: Page, options: PortalMockOptions = {}) {
   await expect(page.locator('#page-title')).toHaveText('Pipeline');
 }
 
+async function openTeamChat(page: Page) {
+  await page.locator('.nav-parent[data-group-toggle="system"]').click();
+  await page.locator('.nav-item[data-view="team-chat"]').click();
+}
+
+async function startDmFromCompose(page: Page, fullName: string) {
+  await page.getByLabel('New conversation').click();
+  await page.locator('[data-chat-compose-search]').fill(fullName);
+  const personRow = page.locator('.chat-compose-person').filter({ hasText: fullName });
+  await personRow.locator('input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Start DM' }).click();
+}
+
 test('team chat mounts through a real nav click and cleans up on navigation away', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -219,8 +234,7 @@ test('team chat mounts through a real nav click and cleans up on navigation away
   await login(page);
 
   const baselineIntervals = await page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0);
-  await page.locator('.nav-parent[data-group-toggle="system"]').click();
-  await page.locator('.nav-item[data-view="team-chat"]').click();
+  await openTeamChat(page);
   await expect(page.locator('#mainArea .chat-shell')).toBeVisible();
   await expect(page.locator('#mainArea')).toContainText('Portal chat');
   await expect(page.locator('#mainArea')).toContainText('No conversations yet.');
@@ -238,10 +252,9 @@ test('opening a DM shows a composer that actually fits on screen and can send a 
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await login(page);
-  await page.locator('.nav-parent[data-group-toggle="system"]').click();
-  await page.locator('.nav-item[data-view="team-chat"]').click();
+  await openTeamChat(page);
 
-  await page.locator('select[data-chat-dm]').selectOption({ label: otherProfile.full_name });
+  await startDmFromCompose(page, otherProfile.full_name);
   await expect(page.locator('.chat-thread-head')).toContainText(otherProfile.full_name);
 
   // The regression this guards: chat-styles.css previously sized .chat-thread to
@@ -273,23 +286,24 @@ test('team chat supports edit, delete, quoted reply, and mute actions', async ({
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   await login(page);
-  await page.locator('.nav-parent[data-group-toggle="system"]').click();
-  await page.locator('.nav-item[data-view="team-chat"]').click();
+  await openTeamChat(page);
 
-  await page.locator('select[data-chat-dm]').selectOption({ label: otherProfile.full_name });
+  await startDmFromCompose(page, otherProfile.full_name);
 
   const composer = page.locator('[data-chat-composer]');
   await composer.fill('Original message');
   await page.locator('[data-chat-send-form] button[type="submit"]').click();
   await expect(page.locator('.chat-message-body')).toHaveText('Original message');
 
-  await page.getByLabel('Edit message').click();
+  await page.locator('.chat-message').first().hover();
+  await page.locator('.chat-message').first().getByLabel('Edit message').click();
   await page.locator('[data-chat-edit-input]').fill('Edited message');
   await page.getByLabel('Save edit').click();
   await expect(page.locator('.chat-message-body')).toHaveText('Edited message');
   await expect(page.locator('.chat-message-meta')).toContainText('(edited)');
 
-  await page.getByLabel('Reply').click();
+  await page.locator('.chat-message').first().hover();
+  await page.locator('.chat-message').first().getByLabel('Reply').click();
   await expect(page.locator('.chat-reply-strip')).toContainText('Edited message');
   await composer.fill('Reply body');
   await page.locator('[data-chat-send-form] button[type="submit"]').click();
@@ -303,10 +317,52 @@ test('team chat supports edit, delete, quoted reply, and mute actions', async ({
     level: 'muted',
   });
 
+  await page.locator('.chat-message').first().hover();
   await page.locator('.chat-message').first().getByLabel('Delete message').click();
+  await page.locator('.chat-message').first().getByRole('button', { name: 'Confirm' }).click();
   await expect(page.locator('.chat-message-body')).not.toContainText('Edited message');
 
   expect(pageErrors).toEqual([]);
+});
+
+test('message action toolbar is hidden until a message is hovered', async ({ page }) => {
+  await login(page);
+  await openTeamChat(page);
+  await startDmFromCompose(page, otherProfile.full_name);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('Toolbar visibility check');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+
+  const message = page.locator('.chat-message').first();
+  const toolbar = message.locator('.chat-message-actions');
+  await expect(toolbar).toBeHidden();
+  await message.hover();
+  await expect(toolbar).toBeVisible();
+  await expect(message.getByLabel('Reply')).toBeVisible();
+});
+
+test('message delete requires an inline confirmation step', async ({ page }) => {
+  await login(page);
+  await openTeamChat(page);
+  await startDmFromCompose(page, otherProfile.full_name);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('Delete confirmation check');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body')).toHaveText('Delete confirmation check');
+
+  const message = page.locator('.chat-message').first();
+  await message.hover();
+  await message.getByLabel('Delete message').click();
+  await expect(message.locator('.chat-delete-confirm')).toContainText('Delete message?');
+  await expect(page.locator('.chat-message-body')).toHaveText('Delete confirmation check');
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_DELETE_CALLS__?.length ?? 0)).toBe(0);
+
+  await message.getByRole('button', { name: 'Confirm' }).click();
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_DELETE_CALLS__?.length ?? 0)).toBe(1);
+  await expect(page.locator('.chat-message-body')).toHaveCount(0);
+  await expect(page.locator('.chat-message-list')).toContainText('No messages yet.');
 });
 
 test('clicking a chat notification opens team chat on the notified conversation', async ({ page }) => {
@@ -347,5 +403,6 @@ declare global {
     __WEIN_ACTIVE_INTERVAL_COUNT__?: () => number;
     __WEIN_REMOVED_CHAT_CHANNELS__?: number;
     __WEIN_CHAT_NOTIFICATION_CALLS__?: Array<{ conversationId: string; userId: string; level: string }>;
+    __WEIN_CHAT_DELETE_CALLS__?: string[];
   }
 }

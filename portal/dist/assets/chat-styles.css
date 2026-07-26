@@ -18,6 +18,7 @@
 }
 
 .chat-sidebar {
+  position: relative;
   border-right: .5px solid var(--border);
   background: var(--bg-deep);
   padding: 16px;
@@ -68,6 +69,140 @@
   white-space: nowrap;
 }
 
+.chat-sidebar-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-compose-popover {
+  position: absolute;
+  z-index: 20;
+  top: 66px;
+  left: 16px;
+  /* Anchor both edges to the sidebar's own padded width (it's minmax(260px,
+     320px), not the viewport) instead of a fixed width computed from 100vw --
+     a fixed width wider than the sidebar's actual column overflowed it and
+     caused an unwanted horizontal auto-scroll (and header-text clipping) the
+     moment the search input received focus. */
+  right: 16px;
+  max-width: 340px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  border: .5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  padding: 12px;
+}
+
+.chat-compose-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-compose-popover-head strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.chat-compose-popover input,
+.chat-compose-group input {
+  width: 100%;
+  box-sizing: border-box;
+  border: .5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 10px;
+  outline: none;
+}
+
+.chat-compose-popover input:focus,
+.chat-compose-group input:focus {
+  border-color: var(--border-blue-strong);
+}
+
+.chat-compose-summary {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chat-compose-list {
+  display: grid;
+  gap: 4px;
+  max-height: 230px;
+  overflow: auto;
+}
+
+.chat-compose-person {
+  display: grid;
+  grid-template-columns: auto 32px 1fr;
+  align-items: center;
+  gap: 9px;
+  border-radius: 7px;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.chat-compose-person:hover,
+.chat-compose-person:focus-within {
+  background: var(--blue-tint);
+}
+
+.chat-compose-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chat-compose-person-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-compose-person-copy strong,
+.chat-compose-person-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-compose-person-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.chat-compose-person-copy span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.chat-compose-actions,
+.chat-compose-group {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-compose-actions button:disabled,
+.chat-compose-group button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .chat-field,
 .chat-group-form {
   display: grid;
@@ -107,6 +242,8 @@
 }
 
 .chat-group-form button,
+.chat-compose-actions button,
+.chat-compose-group button,
 .chat-composer button {
   display: inline-flex;
   align-items: center;
@@ -125,6 +262,8 @@
 }
 
 .chat-group-form button:hover,
+.chat-compose-actions button:hover,
+.chat-compose-group button:hover,
 .chat-composer button:hover {
   background: var(--blue-dark);
 }
@@ -269,11 +408,13 @@
 }
 
 .chat-message {
+  position: relative;
   max-width: min(620px, 82%);
   border: .5px solid var(--border);
   border-radius: 10px;
   background: var(--bg-elevated);
   padding: 10px 12px;
+  outline: none;
 }
 
 .chat-message.mine {
@@ -338,10 +479,29 @@
 }
 
 .chat-message-actions {
+  position: absolute;
+  top: -14px;
+  right: 8px;
   display: flex;
   gap: 5px;
-  justify-content: flex-end;
-  margin-top: 8px;
+  border: .5px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  opacity: 0;
+  padding: 3px;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  visibility: hidden;
+}
+
+.chat-message:hover .chat-message-actions,
+.chat-message:focus-within .chat-message-actions,
+.chat-message:focus .chat-message-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
 }
 
 .chat-message-actions button,
@@ -349,6 +509,40 @@
 .chat-edit-form button {
   width: 28px;
   height: 28px;
+}
+
+.chat-message-menu-btn {
+  display: none;
+}
+
+.chat-message-menu {
+  display: none;
+}
+
+.chat-delete-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chat-delete-confirm button {
+  border: .5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.chat-delete-confirm button[data-chat-confirm-delete] {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .chat-edit-form {
@@ -467,6 +661,80 @@
 
   .chat-message {
     max-width: 92%;
+  }
+
+  .chat-compose-popover {
+    position: fixed;
+    inset: auto 10px calc(10px + env(safe-area-inset-bottom));
+    top: auto;
+    left: 10px;
+    width: auto;
+    max-height: min(560px, calc(100vh - 24px));
+    overflow: auto;
+  }
+
+  .chat-compose-list {
+    max-height: 42vh;
+  }
+
+  .chat-message {
+    padding-right: 42px;
+  }
+
+  .chat-message-actions {
+    display: none;
+  }
+
+  .chat-message-menu-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: .5px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .chat-message-menu {
+    position: absolute;
+    z-index: 10;
+    top: 38px;
+    right: 8px;
+    display: grid;
+    gap: 4px;
+    border: .5px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-surface);
+    padding: 5px;
+  }
+
+  .chat-message-menu button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-width: 116px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    padding: 8px;
+    text-align: left;
+  }
+
+  .chat-message-menu button:hover {
+    background: var(--blue-tint);
+    color: var(--blue);
   }
 
   .chat-message-list {
