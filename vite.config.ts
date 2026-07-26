@@ -13,6 +13,11 @@ export default defineConfig({
           fileName: 'assets/portal.js',
           source: readFileSync(resolve(__dirname, 'src/legacy/portal.js'), 'utf8'),
         });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'assets/chat-styles.css',
+          source: readFileSync(resolve(__dirname, 'src/features/chat/chat-styles.css'), 'utf8'),
+        });
       },
     },
   ],

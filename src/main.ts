@@ -1,6 +1,7 @@
 import { canDelete, canEditProviderProfile, canManageDeals, defaultViewForRole, navHiddenForRole } from './auth/permissions';
 import { createPortalContext } from './core/portal-context';
 import { getView, mountView, registeredViewIds, registerDummyCleanupProbeView, registerView } from './core/view-registry';
+import { registerFeatureViews } from './features/register-feature-views';
 import { LEGACY_VIEW_IDS, registerLegacyViews } from './legacy/register-legacy-views';
 import { portalApi } from './platform/portal-api';
 import { getAccessToken, getSessionContext, getSupabaseClient } from './platform/supabase-client';
@@ -19,6 +20,7 @@ declare global {
 }
 
 registerDummyCleanupProbeView();
+registerFeatureViews();
 
 const portalModules = {
   api: portalApi,
