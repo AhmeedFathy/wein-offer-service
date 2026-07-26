@@ -59,7 +59,10 @@ export interface ChatService {
     clientNonce: string;
     replyToId?: string | null;
   }): Promise<ChatMessage>;
+  updateMessage(messageId: string, body: string): Promise<ChatMessage>;
+  deleteMessage(messageId: string): Promise<ChatMessage>;
   markRead(conversationId: string, lastReadSeq: number): Promise<void>;
+  setNotificationLevel(conversationId: string, level: ChatNotificationLevel): Promise<void>;
   subscribeToConversationEvents?(onEvent: () => void): () => void;
 }
 

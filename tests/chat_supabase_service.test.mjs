@@ -214,16 +214,43 @@ async function testSupabaseAdapterContract() {
     conversationId: "group-1",
     body: "hello",
     clientNonce: "nonce",
+    replyToId: "m-0",
   });
   assert.equal(sent.message_seq, 1);
   const sendCall = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.client_nonce === "nonce");
   assert.equal(sendCall.payload.sender_id, "u-1");
   assert.equal(sendCall.payload.client_nonce, "nonce");
+  assert.equal(sendCall.payload.reply_to_id, "m-0");
+
+  const updated = await service.updateMessage("m-1", "edited");
+  assert.equal(updated.id, "m-1");
+  const updateCall = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.body === "edited");
+  assert.equal(updateCall.action, "update");
+  assert.equal(typeof updateCall.payload.edited_at, "string");
+  assert.deepEqual(updateCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
+    ["id", "m-1"],
+  ]);
+
+  const deleted = await service.deleteMessage("m-1");
+  assert.equal(deleted.id, "m-1");
+  const deleteCall = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.deleted_at);
+  assert.equal(deleteCall.action, "update");
+  assert.deepEqual(deleteCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
+    ["id", "m-1"],
+  ]);
 
   await service.markRead("group-1", 1);
-  const markReadCall = fake.calls.find((call) => call.table === "wein_chat_members" && call.action === "update");
+  const markReadCall = fake.calls.find((call) => call.table === "wein_chat_members" && call.payload?.last_read_seq === 1);
   assert.equal(markReadCall.payload.last_read_seq, 1);
   assert.deepEqual(markReadCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
+    ["conversation_id", "group-1"],
+    ["user_id", "u-1"],
+  ]);
+
+  await service.setNotificationLevel("group-1", "muted");
+  const notificationCall = fake.calls.find((call) => call.table === "wein_chat_members" && call.payload?.notification_level === "muted");
+  assert.equal(notificationCall.action, "update");
+  assert.deepEqual(notificationCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
     ["conversation_id", "group-1"],
     ["user_id", "u-1"],
   ]);

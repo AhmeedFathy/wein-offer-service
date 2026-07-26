@@ -190,6 +190,34 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       return messageFromRow(result.data);
     },
 
+    async updateMessage(messageId, body) {
+      const result = await supabase
+        .from("wein_chat_messages")
+        .update({ body, edited_at: new Date().toISOString() })
+        .eq("id", messageId)
+        .select(`
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          sender:profiles(id, full_name, role, email)
+        `)
+        .single();
+      if (result.error) throw new Error(`update message: ${result.error.message || result.error}`);
+      return messageFromRow(result.data);
+    },
+
+    async deleteMessage(messageId) {
+      const result = await supabase
+        .from("wein_chat_messages")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", messageId)
+        .select(`
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          sender:profiles(id, full_name, role, email)
+        `)
+        .single();
+      if (result.error) throw new Error(`delete message: ${result.error.message || result.error}`);
+      return messageFromRow(result.data);
+    },
+
     async markRead(conversationId, lastReadSeq) {
       const result = await supabase
         .from("wein_chat_members")
@@ -199,6 +227,17 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .select("conversation_id, user_id, last_read_seq");
       const rows = requireRows(result, "mark read");
       if (!rows.length) throw new Error("mark read affected zero rows");
+    },
+
+    async setNotificationLevel(conversationId, level) {
+      const result = await supabase
+        .from("wein_chat_members")
+        .update({ notification_level: level })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", currentUserId)
+        .select("conversation_id, user_id, notification_level");
+      const rows = requireRows(result, "set notification level");
+      if (!rows.length) throw new Error("set notification level affected zero rows");
     },
 
     subscribeToConversationEvents(onEvent) {

@@ -32,6 +32,9 @@ export function createChatViewModule() {
         conversations: [],
         messages: [],
         selectedConversationId: null,
+        editingMessageId: null,
+        editDraft: "",
+        replyToMessageId: null,
         loading: true,
         error: null,
       };
@@ -105,11 +108,14 @@ export function createChatViewModule() {
         const input = form.querySelector("[data-chat-composer]");
         const body = input.value.trim();
         if (!body || !state.selectedConversationId) return;
+        const replyToId = state.replyToMessageId;
         input.value = "";
+        state.replyToMessageId = null;
         const message = await context.service.sendMessage({
           conversationId: state.selectedConversationId,
           body,
           clientNonce: makeClientNonce("portal-chat"),
+          replyToId,
         });
         // Render the sent message immediately -- it already exists in the database at
         // this point, so a subsequent failure (e.g. markRead) must not hide it from
@@ -121,6 +127,80 @@ export function createChatViewModule() {
         } catch (error) {
           console.error("Failed to mark chat message as read", error);
         }
+        await refresh();
+      }
+
+      function startReply(messageId) {
+        if (!messageId) return;
+        state.replyToMessageId = messageId;
+        render();
+        root.querySelector("[data-chat-composer]")?.focus();
+      }
+
+      function clearReply() {
+        state.replyToMessageId = null;
+        render();
+      }
+
+      function startEdit(messageId) {
+        const message = state.messages.find((row) => row.id === messageId);
+        if (!message) return;
+        state.editingMessageId = messageId;
+        state.editDraft = message.body || "";
+        render();
+        const input = root.querySelector(`[data-chat-edit-input="${CSS.escape(messageId)}"]`);
+        input?.focus();
+        input?.select?.();
+      }
+
+      function cancelEdit() {
+        state.editingMessageId = null;
+        state.editDraft = "";
+        render();
+      }
+
+      async function submitEdit(form) {
+        const messageId = form.dataset.chatEditForm;
+        const input = form.querySelector("[data-chat-edit-input]");
+        const body = input.value.trim();
+        if (!messageId || !body) return;
+        const updated = await context.service.updateMessage(messageId, body);
+        state.messages = state.messages.map((message) => (message.id === updated.id ? updated : message));
+        state.editingMessageId = null;
+        state.editDraft = "";
+        if (!disposed) render();
+        await refresh();
+      }
+
+      async function deleteMessage(messageId) {
+        if (!messageId) return;
+        const deleted = await context.service.deleteMessage(messageId);
+        state.messages = state.messages.map((message) => (
+          message.id === messageId
+            ? { ...message, ...deleted, body: "Message deleted", deleted_at: deleted.deleted_at || new Date().toISOString() }
+            : message
+        ));
+        if (state.replyToMessageId === messageId) state.replyToMessageId = null;
+        if (!disposed) render();
+        await refresh();
+      }
+
+      async function toggleMute(conversation) {
+        const self = conversation.members.find((member) => member.user_id === context.currentUser.id);
+        const nextLevel = self?.notification_level === "muted" ? "all" : "muted";
+        await context.service.setNotificationLevel(conversation.id, nextLevel);
+        state.conversations = state.conversations.map((row) => {
+          if (row.id !== conversation.id) return row;
+          return {
+            ...row,
+            members: row.members.map((member) => (
+              member.user_id === context.currentUser.id
+                ? { ...member, notification_level: nextLevel }
+                : member
+            )),
+          };
+        });
+        if (!disposed) render();
         await refresh();
       }
 
@@ -161,15 +241,75 @@ export function createChatViewModule() {
         `;
       }
 
+      function canModerateDelete() {
+        return ["admin", "manager"].includes(context.currentUser.role);
+      }
+
+      function messageSnippet(message) {
+        const body = message.deleted_at ? "Message deleted" : message.body || "";
+        return body.length > 90 ? `${body.slice(0, 87)}...` : body;
+      }
+
+      function quotedReference(message) {
+        if (!message?.reply_to_id) return "";
+        const referenced = state.messages.find((row) => row.id === message.reply_to_id);
+        if (!referenced) {
+          return `<div class="chat-quote"><span>Replying to a message</span></div>`;
+        }
+        return `
+          <div class="chat-quote">
+            <strong>${escapeHtml(referenced.sender?.full_name || "Unknown")}</strong>
+            <span>${escapeHtml(messageSnippet(referenced))}</span>
+          </div>
+        `;
+      }
+
+      function replyStrip() {
+        const message = state.messages.find((row) => row.id === state.replyToMessageId);
+        if (!message) return "";
+        return `
+          <div class="chat-reply-strip">
+            <div>
+              <strong>Replying to ${escapeHtml(message.sender?.full_name || "Unknown")}</strong>
+              <span>${escapeHtml(messageSnippet(message))}</span>
+            </div>
+            <button type="button" data-chat-clear-reply aria-label="Cancel reply"><i class="ti ti-x"></i></button>
+          </div>
+        `;
+      }
+
+      function editForm(message) {
+        return `
+          <form class="chat-edit-form" data-chat-edit-form="${escapeHtml(message.id)}">
+            <input data-chat-edit-input="${escapeHtml(message.id)}" type="text" value="${escapeHtml(state.editDraft)}">
+            <button type="submit" aria-label="Save edit"><i class="ti ti-check"></i></button>
+            <button type="button" data-chat-cancel-edit aria-label="Cancel edit"><i class="ti ti-x"></i></button>
+          </form>
+        `;
+      }
+
       function messageRow(message) {
         const mine = message.sender_id === context.currentUser.id ? " mine" : "";
+        const isDeleted = Boolean(message.deleted_at);
+        const canEdit = mine && !isDeleted;
+        const canDelete = !isDeleted && (mine || canModerateDelete());
+        const edited = message.edited_at && !isDeleted ? `<span class="chat-edited">(edited)</span>` : "";
+        const actions = !isDeleted ? `
+          <div class="chat-message-actions">
+            <button type="button" data-chat-reply="${escapeHtml(message.id)}" aria-label="Reply"><i class="ti ti-corner-up-left"></i></button>
+            ${canEdit ? `<button type="button" data-chat-edit="${escapeHtml(message.id)}" aria-label="Edit message"><i class="ti ti-pencil"></i></button>` : ""}
+            ${canDelete ? `<button type="button" data-chat-delete="${escapeHtml(message.id)}" aria-label="Delete message"><i class="ti ti-trash"></i></button>` : ""}
+          </div>
+        ` : "";
         return `
-          <div class="chat-message${mine}">
+          <div class="chat-message${mine}${isDeleted ? " deleted" : ""}">
             <div class="chat-message-meta">
               <span>${escapeHtml(message.sender?.full_name || "Unknown")}</span>
-              <span>#${message.message_seq}</span>
+              <span>#${message.message_seq} ${edited}</span>
             </div>
-            <div class="chat-message-body">${escapeHtml(message.body)}</div>
+            ${quotedReference(message)}
+            ${state.editingMessageId === message.id ? editForm(message) : `<div class="chat-message-body">${escapeHtml(isDeleted ? "Message deleted" : message.body)}</div>`}
+            ${actions}
           </div>
         `;
       }
@@ -177,6 +317,8 @@ export function createChatViewModule() {
       function render() {
         const selected = state.conversations.find((conversation) => conversation.id === state.selectedConversationId) || null;
         const selectableProfiles = state.profiles.filter((profile) => profile.id !== context.currentUser.id);
+        const selfMember = selected?.members.find((member) => member.user_id === context.currentUser.id);
+        const muted = selfMember?.notification_level === "muted";
         root.innerHTML = `
           <section class="chat-shell" aria-label="Team chat">
             <aside class="chat-sidebar">
@@ -216,8 +358,13 @@ export function createChatViewModule() {
                     <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : "Group"}</div>
                     <h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>
                   </div>
-                  <div class="chat-member-stack">
-                    ${selected.members.map((member) => `<span title="${escapeHtml(member.profile?.full_name || member.user_id)}">${escapeHtml((member.profile?.full_name || "?").slice(0, 1))}</span>`).join("")}
+                  <div class="chat-thread-tools">
+                    <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
+                      <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
+                    </button>
+                    <div class="chat-member-stack">
+                      ${selected.members.map((member) => `<span title="${escapeHtml(member.profile?.full_name || member.user_id)}">${escapeHtml((member.profile?.full_name || "?").slice(0, 1))}</span>`).join("")}
+                    </div>
                   </div>
                 </header>
                 <div class="chat-message-list">
@@ -225,6 +372,7 @@ export function createChatViewModule() {
                   ${!state.messages.length ? `<div class="chat-muted">No messages yet.</div>` : ""}
                 </div>
                 <form class="chat-composer" data-chat-send-form>
+                  ${replyStrip()}
                   <input data-chat-composer type="text" placeholder="Write a message...">
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
@@ -242,6 +390,9 @@ export function createChatViewModule() {
           button.addEventListener("click", () => selectConversation(button.dataset.chatSelect));
         });
         root.querySelector("[data-chat-back]")?.addEventListener("click", () => clearMobileSelection());
+        root.querySelector("[data-chat-toggle-mute]")?.addEventListener("click", () => {
+          if (selected) toggleMute(selected);
+        });
         root.querySelector("[data-chat-dm]")?.addEventListener("change", (event) => startDm(event.currentTarget));
         root.querySelector("[data-chat-group-form]")?.addEventListener("submit", (event) => {
           event.preventDefault();
@@ -250,6 +401,25 @@ export function createChatViewModule() {
         root.querySelector("[data-chat-send-form]")?.addEventListener("submit", (event) => {
           event.preventDefault();
           sendMessage(event.currentTarget);
+        });
+        root.querySelector("[data-chat-clear-reply]")?.addEventListener("click", () => clearReply());
+        root.querySelectorAll("[data-chat-reply]").forEach((button) => {
+          button.addEventListener("click", () => startReply(button.dataset.chatReply));
+        });
+        root.querySelectorAll("[data-chat-edit]").forEach((button) => {
+          button.addEventListener("click", () => startEdit(button.dataset.chatEdit));
+        });
+        root.querySelectorAll("[data-chat-delete]").forEach((button) => {
+          button.addEventListener("click", () => deleteMessage(button.dataset.chatDelete));
+        });
+        root.querySelectorAll("[data-chat-edit-form]").forEach((form) => {
+          form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            submitEdit(event.currentTarget);
+          });
+        });
+        root.querySelectorAll("[data-chat-cancel-edit]").forEach((button) => {
+          button.addEventListener("click", () => cancelEdit());
         });
       }
 

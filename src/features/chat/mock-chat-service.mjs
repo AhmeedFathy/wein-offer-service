@@ -162,10 +162,43 @@ export function createMockChatService(currentUserId) {
       return clone({ ...message, sender: profileById.get(actorId) || null });
     },
 
+    async updateMessage(messageId, body) {
+      const trimmed = (body || "").trim();
+      if (!trimmed) throw new Error("Message body is required");
+      for (const [conversationId, list] of messages.entries()) {
+        const message = list.find((row) => row.id === messageId);
+        if (!message) continue;
+        if (message.sender_id !== actorId || message.deleted_at) throw new Error("Cannot edit message");
+        message.body = trimmed;
+        message.edited_at = iso();
+        return clone({ ...message, sender: profileById.get(actorId) || null });
+      }
+      throw new Error(`Message not found: ${messageId}`);
+    },
+
+    async deleteMessage(messageId) {
+      const actor = profileById.get(actorId);
+      for (const [conversationId, list] of messages.entries()) {
+        const message = list.find((row) => row.id === messageId);
+        if (!message) continue;
+        if (message.sender_id !== actorId && !["admin", "manager"].includes(actor?.role)) throw new Error("Cannot delete message");
+        message.deleted_at = iso();
+        return clone({ ...message, sender: profileById.get(message.sender_id) || null });
+      }
+      throw new Error(`Message not found: ${messageId}`);
+    },
+
     async markRead(conversationId, lastReadSeq) {
       const conversation = requireConversation(conversationId);
       const member = requireActiveMember(conversation);
       member.last_read_seq = Math.max(member.last_read_seq, Number(lastReadSeq) || 0);
+    },
+
+    async setNotificationLevel(conversationId, level) {
+      const conversation = requireConversation(conversationId);
+      const member = requireActiveMember(conversation);
+      if (!["all", "mentions", "muted"].includes(level)) throw new Error("Invalid notification level");
+      member.notification_level = level;
     },
 
     subscribeToConversationEvents() {
