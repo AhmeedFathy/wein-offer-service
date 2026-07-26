@@ -66,6 +66,7 @@ export interface ChatService {
 export interface ChatPortalContext {
   currentUser: ChatProfile;
   service: ChatService;
+  initialConversationId?: string | null;
   now?(): Date;
 }
 

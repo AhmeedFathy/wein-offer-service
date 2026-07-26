@@ -21,7 +21,12 @@ const otherProfile = {
   email: 'teammate@example.com',
 };
 
-function restRows(url: URL): unknown[] {
+type PortalMockOptions = {
+  initialConversations?: boolean;
+  notifications?: unknown[];
+};
+
+function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   const path = url.pathname.split('/rest/v1/')[1] || '';
   if (path.startsWith('profiles')) return [profile, otherProfile];
   if (path.startsWith('wein_providers')) return [];
@@ -35,7 +40,7 @@ function restRows(url: URL): unknown[] {
   if (path.startsWith('wein_campaigns')) return [];
   if (path.startsWith('wein_calendar_notes')) return [];
   if (path.startsWith('wein_comments')) return [];
-  if (path.startsWith('wein_notifications')) return [];
+  if (path.startsWith('wein_notifications')) return options.notifications ?? [];
   if (path.startsWith('provider_profiles')) return [];
   if (path.startsWith('wein_accepted_offers')) return [];
   return [];
@@ -60,7 +65,7 @@ async function installIntervalProbe(page: Page) {
   });
 }
 
-async function installPortalMocks(page: Page) {
+async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
   await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', async (route) => {
     await route.fulfill({
       contentType: 'application/javascript',
@@ -81,6 +86,7 @@ async function installPortalMocks(page: Page) {
               ],
               last_message: []
             };
+            const initialConversations = ${JSON.stringify(Boolean(options.initialConversations))};
             let dmCreated = false;
             let nextMessageSeq = 1;
             const sentMessages = [];
@@ -119,7 +125,7 @@ async function installPortalMocks(page: Page) {
                 then(resolve) {
                   let rows = [];
                   if (table === 'profiles') rows = ${JSON.stringify([profile, otherProfile])};
-                  else if (table === 'wein_chat_conversations' && dmCreated) rows = [dmConversation];
+                  else if (table === 'wein_chat_conversations' && (dmCreated || initialConversations)) rows = [dmConversation];
                   else if (table === 'wein_chat_messages') rows = sentMessages;
                   return Promise.resolve({ data: rows, error: null }).then(resolve);
                 }
@@ -162,7 +168,7 @@ async function installPortalMocks(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(restRows(new URL(route.request().url()))),
+      body: JSON.stringify(restRows(new URL(route.request().url()), options)),
     });
   });
 
@@ -171,9 +177,9 @@ async function installPortalMocks(page: Page) {
   });
 }
 
-async function login(page: Page) {
+async function login(page: Page, options: PortalMockOptions = {}) {
   await installIntervalProbe(page);
-  await installPortalMocks(page);
+  await installPortalMocks(page, options);
   await page.goto('/portal-new');
   await page.fill('#loginEmail', mockUser.email);
   await page.fill('#loginPassword', 'password');
@@ -234,6 +240,39 @@ test('opening a DM shows a composer that actually fits on screen and can send a 
   await composer.fill('Hello from the smoke test');
   await page.locator('[data-chat-send-form] button[type="submit"]').click();
   await expect(page.locator('.chat-message-body').last()).toHaveText('Hello from the smoke test');
+
+  expect(pageErrors).toEqual([]);
+});
+
+test('clicking a chat notification opens team chat on the notified conversation', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await login(page, {
+    initialConversations: true,
+    notifications: [
+      {
+        id: 'notif-chat-1',
+        type: 'chat_message',
+        title: otherProfile.full_name,
+        body: 'Smoke notification preview',
+        actor_name: otherProfile.full_name,
+        entity_type: 'chat_conversation',
+        entity_id: 'dm-1',
+        recipient_user_id: mockUser.id,
+        is_read: false,
+        created_at: '2026-07-26T10:00:00.000Z',
+      },
+    ],
+  });
+
+  await page.locator('#notif-btn').click();
+  await expect(page.locator('#notif-list')).toContainText('Smoke notification preview');
+  await page.locator('#notif-list .notif-item.clickable').click();
+
+  await expect(page.locator('#page-title')).toHaveText('team-chat');
+  await expect(page.locator('#mainArea .chat-thread-head')).toContainText(otherProfile.full_name);
+  await expect(page.locator('#mainArea .chat-conversation.selected')).toContainText(otherProfile.full_name);
 
   expect(pageErrors).toEqual([]);
 });

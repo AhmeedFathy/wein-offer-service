@@ -36,6 +36,7 @@ export function createChatViewModule() {
         error: null,
       };
       let disposed = false;
+      let initialConversationPending = context.initialConversationId || null;
       let refreshTimer = null;
       let unsubscribeRealtime = null;
 
@@ -50,6 +51,12 @@ export function createChatViewModule() {
           ]);
           state.profiles = profiles;
           state.conversations = sortConversations(conversations);
+          if (initialConversationPending) {
+            if (state.conversations.some((conversation) => conversation.id === initialConversationPending)) {
+              state.selectedConversationId = initialConversationPending;
+            }
+            initialConversationPending = null;
+          }
           if (!state.selectedConversationId && state.conversations.length) {
             state.selectedConversationId = state.conversations[0].id;
           }

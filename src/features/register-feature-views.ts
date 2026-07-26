@@ -27,19 +27,27 @@ function currentUserForChat(context: PortalContext) {
   };
 }
 
+let pendingChatConversationId: string | null = null;
+
+export function requestOpenChatConversation(id: string | null | undefined): void {
+  pendingChatConversationId = id || null;
+}
+
 export function registerFeatureViews(): void {
   const chatModule = createChatViewModule();
 
   registerView({
     id: 'team-chat',
     mount(root, portalContext) {
+      const initialConversationId = pendingChatConversationId;
+      pendingChatConversationId = null;
       const currentUser = currentUserForChat(portalContext);
       const service = createSupabaseChatService({
         supabase: portalContext.session.client,
         currentUserId: currentUser.id,
       });
 
-      return chatModule.mount(root, { currentUser, service });
+      return chatModule.mount(root, { currentUser, service, initialConversationId });
     },
   });
 }

@@ -1,7 +1,7 @@
 import { canDelete, canEditProviderProfile, canManageDeals, defaultViewForRole, navHiddenForRole } from './auth/permissions';
 import { createPortalContext } from './core/portal-context';
 import { getView, mountView, registeredViewIds, registerDummyCleanupProbeView, registerView } from './core/view-registry';
-import { registerFeatureViews } from './features/register-feature-views';
+import { registerFeatureViews, requestOpenChatConversation } from './features/register-feature-views';
 import { LEGACY_VIEW_IDS, registerLegacyViews } from './legacy/register-legacy-views';
 import { portalApi } from './platform/portal-api';
 import { getAccessToken, getSessionContext, getSupabaseClient } from './platform/supabase-client';
@@ -58,6 +58,9 @@ const portalModules = {
   legacy: {
     LEGACY_VIEW_IDS,
     registerLegacyViews,
+  },
+  features: {
+    requestOpenChatConversation,
   },
   store: portalStore,
   selectors,

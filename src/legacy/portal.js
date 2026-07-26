@@ -34,6 +34,13 @@ function portalModulesReady() {
   return new Promise((resolve) => withPortalModules(resolve));
 }
 
+function requestOpenChatConversation(id) {
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (modules?.features?.requestOpenChatConversation) {
+    modules.features.requestOpenChatConversation(id);
+  }
+}
+
 // All REST calls carry the signed-in user's JWT — RLS (031) denies the bare
 // anon key everything, so an expired/missing session means empty reads and
 // 403 writes, never silent anon fallback. supabase-js auto-refreshes the
@@ -4912,6 +4919,9 @@ function notifTarget(n) {
   if (n.entity_type === 'task') {
     return cachedTasks.find(x => x.id === n.entity_id) ? { taskId: n.entity_id } : null;
   }
+  if (n.entity_type === 'chat_conversation') {
+    return { chatConversationId: n.entity_id };
+  }
   return null;
 }
 function openNotifTarget(idx) {
@@ -4942,6 +4952,9 @@ function openNotifTarget(idx) {
       const sel = document.getElementById('offerProviderFilter');
       if (sel) { sel.value = o.provider_id; renderOffersGrid(); }
     }
+  } else if (t.chatConversationId) {
+    requestOpenChatConversation(t.chatConversationId);
+    showView('team-chat');
   } else if (t.view) { showView(t.view); }
 }
 // Scroll a board card into view and pulse a blue ring on it briefly.
