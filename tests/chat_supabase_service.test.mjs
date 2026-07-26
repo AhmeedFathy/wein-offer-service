@@ -111,6 +111,8 @@ class FakeSupabase {
     this.calls.push({ kind: "rpc", name, args });
     if (name === "wein_chat_create_group") return makeResult("group-1");
     if (name === "wein_chat_get_or_create_dm") return makeResult("dm-1");
+    if (name === "wein_chat_add_member") return makeResult(null);
+    if (name === "wein_chat_remove_member") return makeResult(null);
     return makeResult(null);
   }
 
@@ -194,8 +196,12 @@ async function testSupabaseAdapterContract() {
     name: "wein_chat_create_group",
     args: { p_title: "Launch" },
   });
-  const addMemberCall = fake.calls.find((call) => call.table === "wein_chat_members" && call.payload?.user_id === "u-2");
-  assert.equal(addMemberCall.action, "insert");
+  const addMemberCall = fake.calls.find((call) => call.name === "wein_chat_add_member" && call.args?.p_user_id === "u-2");
+  assert.deepEqual(addMemberCall.args, { p_conversation_id: "group-1", p_user_id: "u-2" });
+
+  await service.removeMember("group-1", "u-2");
+  const removeMemberCall = fake.calls.find((call) => call.name === "wein_chat_remove_member");
+  assert.deepEqual(removeMemberCall.args, { p_conversation_id: "group-1", p_user_id: "u-2" });
 
   assert.equal(await service.getOrCreateDm("u-2"), "dm-1");
   assert.deepEqual(fake.calls.find((call) => call.name === "wein_chat_get_or_create_dm").args, {

@@ -21,6 +21,16 @@ async function testGroupConversationContract() {
   conversations = await service.listConversations();
   const updated = conversations.find((conversation) => conversation.id === groupId);
   assert.deepEqual(updated.members.map((member) => member.user_id).sort(), ["u-ahmed", "u-fady", "u-team"]);
+
+  await service.removeMember(groupId, "u-team");
+  conversations = await service.listConversations();
+  const removed = conversations.find((conversation) => conversation.id === groupId);
+  assert.equal(removed.members.find((member) => member.user_id === "u-team").left_at !== null, true);
+
+  await service.addMember(groupId, "u-team");
+  conversations = await service.listConversations();
+  const reactivated = conversations.find((conversation) => conversation.id === groupId);
+  assert.equal(reactivated.members.find((member) => member.user_id === "u-team").left_at, null);
 }
 
 async function testMessageSeqAndNonceIdempotency() {

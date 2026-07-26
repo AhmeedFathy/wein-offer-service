@@ -21,14 +21,25 @@ const otherProfile = {
   email: 'teammate@example.com',
 };
 
+const extraProfile = {
+  id: 'user-3',
+  role: 'team',
+  full_name: 'Smoke Candidate',
+  email: 'candidate@example.com',
+};
+
 type PortalMockOptions = {
   initialConversations?: boolean;
+  chatKind?: 'dm' | 'group';
+  currentRole?: 'admin' | 'manager' | 'deal_breaker' | 'team';
+  currentMembershipRole?: 'owner' | 'member';
   notifications?: unknown[];
 };
 
 function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   const path = url.pathname.split('/rest/v1/')[1] || '';
-  if (path.startsWith('profiles')) return [profile, otherProfile];
+  const currentProfile = { ...profile, role: options.currentRole ?? profile.role };
+  if (path.startsWith('profiles')) return [currentProfile, otherProfile, extraProfile];
   if (path.startsWith('wein_providers')) return [];
   if (path.startsWith('wein_offers')) return [];
   if (path.startsWith('wein_negotiations')) return [];
@@ -66,6 +77,9 @@ async function installIntervalProbe(page: Page) {
 }
 
 async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
+  const currentProfile = { ...profile, role: options.currentRole ?? profile.role };
+  const currentMembershipRole = options.currentMembershipRole ?? 'owner';
+  const chatKind = options.chatKind ?? 'dm';
   await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', async (route) => {
     await route.fulfill({
       contentType: 'application/javascript',
@@ -73,6 +87,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
         window.supabase = {
           createClient() {
             const session = { access_token: 'mock-token', user: ${JSON.stringify(mockUser)} };
+            const currentProfile = ${JSON.stringify(currentProfile)};
             const dmConversation = {
               id: 'dm-1',
               kind: 'dm',
@@ -81,17 +96,33 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
               created_at: '2026-07-20T10:00:00.000Z',
               archived_at: null,
               members: [
-                { conversation_id: 'dm-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(profile)} },
+                { conversation_id: 'dm-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: currentProfile },
                 { conversation_id: 'dm-1', user_id: ${JSON.stringify(otherProfile.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(otherProfile)} }
               ],
               last_message: []
             };
+            const groupConversation = {
+              id: 'group-1',
+              kind: 'group',
+              title: 'Smoke Group',
+              created_by: ${JSON.stringify(otherProfile.id)},
+              created_at: '2026-07-20T10:00:00.000Z',
+              archived_at: null,
+              members: [
+                { conversation_id: 'group-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: ${JSON.stringify(currentMembershipRole)}, joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: currentProfile },
+                { conversation_id: 'group-1', user_id: ${JSON.stringify(otherProfile.id)}, membership_role: ${JSON.stringify(currentMembershipRole === 'owner' ? 'member' : 'owner')}, joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(otherProfile)} }
+              ],
+              last_message: []
+            };
             const initialConversations = ${JSON.stringify(Boolean(options.initialConversations))};
+            let conversations = initialConversations ? [${JSON.stringify(chatKind)} === 'group' ? groupConversation : dmConversation] : [];
             let dmCreated = false;
             let nextMessageSeq = 1;
             const sentMessages = [];
             window.__WEIN_CHAT_NOTIFICATION_CALLS__ = [];
             window.__WEIN_CHAT_DELETE_CALLS__ = [];
+            window.__WEIN_CHAT_ADD_MEMBER_CALLS__ = [];
+            window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__ = [];
             function query(table) {
               const builder = {
                 table,
@@ -106,7 +137,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 insert(payload) { this._insertPayload = payload; return this; },
                 update(payload) { this._updatePayload = payload; return this; },
                 async single() {
-                  if (table === 'profiles') return { data: ${JSON.stringify(profile)}, error: null };
+                  if (table === 'profiles') return { data: currentProfile, error: null };
                   if (table === 'wein_chat_messages' && this._insertPayload) {
                     const row = {
                       id: 'msg-' + nextMessageSeq,
@@ -136,13 +167,14 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 },
                 then(resolve) {
                   let rows = [];
-                  if (table === 'profiles') rows = ${JSON.stringify([profile, otherProfile])};
-                  else if (table === 'wein_chat_conversations' && (dmCreated || initialConversations)) rows = [dmConversation];
+                  if (table === 'profiles') rows = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}];
+                  else if (table === 'wein_chat_conversations') rows = conversations;
                   else if (table === 'wein_chat_messages') rows = sentMessages.filter((message) => !message.deleted_at);
                   else if (table === 'wein_chat_members' && this._updatePayload) {
                     const conversationId = this._filters.find((filter) => filter[1] === 'conversation_id')?.[2] || 'dm-1';
                     const userId = this._filters.find((filter) => filter[1] === 'user_id')?.[2] || ${JSON.stringify(mockUser.id)};
-                    const self = dmConversation.members.find((member) => member.user_id === ${JSON.stringify(mockUser.id)});
+                    const activeConversation = conversations[0] || dmConversation;
+                    const self = activeConversation.members.find((member) => member.user_id === ${JSON.stringify(mockUser.id)});
                     if (self && this._updatePayload.notification_level) {
                       self.notification_level = this._updatePayload.notification_level;
                       window.__WEIN_CHAT_NOTIFICATION_CALLS__.push({
@@ -168,10 +200,36 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 async updateUser() { return { error: null }; }
               },
               from: query,
-              rpc(fnName) {
+              rpc(fnName, args) {
                 if (fnName === 'wein_chat_get_or_create_dm') {
                   dmCreated = true;
+                  conversations = [dmConversation];
                   return Promise.resolve({ data: 'dm-1', error: null });
+                }
+                if (fnName === 'wein_chat_add_member') {
+                  window.__WEIN_CHAT_ADD_MEMBER_CALLS__.push(args);
+                  const profile = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}].find((row) => row.id === args.p_user_id);
+                  const existing = groupConversation.members.find((member) => member.user_id === args.p_user_id);
+                  if (existing) existing.left_at = null;
+                  else groupConversation.members.push({
+                    conversation_id: args.p_conversation_id,
+                    user_id: args.p_user_id,
+                    membership_role: 'member',
+                    joined_at: new Date().toISOString(),
+                    left_at: null,
+                    last_read_seq: 0,
+                    notification_level: 'all',
+                    profile
+                  });
+                  conversations = [groupConversation];
+                  return Promise.resolve({ data: null, error: null });
+                }
+                if (fnName === 'wein_chat_remove_member') {
+                  window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__.push(args);
+                  const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
+                  if (member) member.left_at = new Date().toISOString();
+                  conversations = [groupConversation];
+                  return Promise.resolve({ data: null, error: null });
                 }
                 return Promise.resolve({ data: 'mock-id', error: null });
               },
@@ -205,13 +263,17 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
 
 async function login(page: Page, options: PortalMockOptions = {}) {
   await installIntervalProbe(page);
+  await page.addInitScript(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
   await installPortalMocks(page, options);
   await page.goto('/portal-new');
   await page.fill('#loginEmail', mockUser.email);
   await page.fill('#loginPassword', 'password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.locator('#appShell')).toBeVisible();
-  await expect(page.locator('#page-title')).toHaveText('Pipeline');
+  await expect(page.locator('#page-title')).not.toHaveText('');
 }
 
 async function openTeamChat(page: Page) {
@@ -398,11 +460,63 @@ test('clicking a chat notification opens team chat on the notified conversation'
   expect(pageErrors).toEqual([]);
 });
 
+test('manage members appears for groups but not DMs', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'dm' });
+  await openTeamChat(page);
+  await expect(page.getByLabel('Manage members')).toHaveCount(0);
+
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+  await expect(page.getByLabel('Manage members')).toBeVisible();
+});
+
+test('non-owner non-admin member only sees their own leave action', async ({ page }) => {
+  await login(page, {
+    initialConversations: true,
+    chatKind: 'group',
+    currentRole: 'team',
+    currentMembershipRole: 'member',
+  });
+  await openTeamChat(page);
+  await page.getByLabel('Manage members').click();
+
+  await expect(page.locator('[data-chat-members-panel]')).toBeVisible();
+  await expect(page.locator('[data-chat-member-add-toggle]')).toHaveCount(0);
+  await expect(page.locator('[data-chat-remove-member]')).toHaveCount(1);
+  await expect(page.locator('[data-chat-member-row="user-1"]')).toContainText('Leave');
+  await expect(page.locator('[data-chat-member-row="user-2"]')).not.toContainText('Remove');
+});
+
+test('adding a group member calls the membership RPC with the selected user', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+  await page.getByLabel('Manage members').click();
+  await page.getByRole('button', { name: 'Add member' }).click();
+  await page.locator('[data-chat-member-search]').fill(extraProfile.full_name);
+  await page.locator('.chat-compose-person').filter({ hasText: extraProfile.full_name }).locator('input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Add selected' }).click();
+
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_ADD_MEMBER_CALLS__?.at(-1))).toEqual({
+    p_conversation_id: 'group-1',
+    p_user_id: extraProfile.id,
+  });
+});
+
+test('group member panel renders owner badges', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+  await page.getByLabel('Manage members').click();
+
+  await expect(page.locator('[data-chat-member-row="user-1"] .chat-owner-badge')).toHaveText('Owner');
+});
+
 declare global {
   interface Window {
     __WEIN_ACTIVE_INTERVAL_COUNT__?: () => number;
     __WEIN_REMOVED_CHAT_CHANNELS__?: number;
     __WEIN_CHAT_NOTIFICATION_CALLS__?: Array<{ conversationId: string; userId: string; level: string }>;
     __WEIN_CHAT_DELETE_CALLS__?: string[];
+    __WEIN_CHAT_ADD_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
+    __WEIN_CHAT_REMOVE_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
   }
 }

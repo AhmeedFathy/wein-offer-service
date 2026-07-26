@@ -57,6 +57,7 @@ export function createMockChatService(currentUserId) {
     const existing = conversation.members.find((member) => member.user_id === userId);
     if (existing) {
       existing.left_at = null;
+      existing.membership_role = membershipRole;
       return;
     }
     conversation.members.push({
@@ -68,6 +69,15 @@ export function createMockChatService(currentUserId) {
       last_read_seq: 0,
       notification_level: "all",
     });
+  }
+
+  function canManageMembers(conversation) {
+    const actor = profileById.get(actorId);
+    return conversation.members.some((member) => (
+      member.user_id === actorId
+      && member.membership_role === "owner"
+      && !member.left_at
+    )) || ["admin", "manager"].includes(actor?.role);
   }
 
   async function createGroup(title, memberIds = []) {
@@ -133,8 +143,15 @@ export function createMockChatService(currentUserId) {
 
     async addMember(conversationId, userId) {
       const conversation = requireConversation(conversationId);
-      if (conversation.created_by !== actorId) throw new Error("Only the creator can add members");
+      if (!canManageMembers(conversation)) throw new Error("Cannot add members");
       addMemberRow(conversation, userId, "member");
+    },
+
+    async removeMember(conversationId, userId) {
+      const conversation = requireConversation(conversationId);
+      if (userId !== actorId && !canManageMembers(conversation)) throw new Error("Cannot remove members");
+      const member = conversation.members.find((row) => row.user_id === userId && !row.left_at);
+      if (member) member.left_at = iso();
     },
 
     async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {

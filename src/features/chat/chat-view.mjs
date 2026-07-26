@@ -39,6 +39,10 @@ export function createChatViewModule() {
         composeSearch: "",
         composeGroupTitle: "",
         composeSelectedMemberIds: new Set(),
+        membersOpen: false,
+        memberAddOpen: false,
+        memberSearch: "",
+        memberSelectedIds: new Set(),
         openMessageMenuId: null,
         confirmingDeleteMessageId: null,
         loading: true,
@@ -63,6 +67,14 @@ export function createChatViewModule() {
           return;
         }
         if (
+          state.membersOpen
+          && !target.closest("[data-chat-members-panel]")
+          && !target.closest("[data-chat-members-toggle]")
+        ) {
+          closeMembers();
+          return;
+        }
+        if (
           state.openMessageMenuId
           && !target.closest("[data-chat-message-menu-panel]")
           && !target.closest("[data-chat-message-menu]")
@@ -76,6 +88,10 @@ export function createChatViewModule() {
         if (event.key !== "Escape") return;
         if (state.composeOpen) {
           closeCompose();
+          return;
+        }
+        if (state.membersOpen) {
+          closeMembers();
           return;
         }
         if (state.openMessageMenuId || state.confirmingDeleteMessageId) {
@@ -131,6 +147,10 @@ export function createChatViewModule() {
 
       async function selectConversation(conversationId) {
         state.selectedConversationId = conversationId;
+        state.membersOpen = false;
+        state.memberAddOpen = false;
+        state.memberSearch = "";
+        state.memberSelectedIds = new Set();
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
         if (!disposed) render();
@@ -209,6 +229,76 @@ export function createChatViewModule() {
         else next.delete(userId);
         state.composeSelectedMemberIds = next;
         render();
+      }
+
+      function canManageMembers(conversation) {
+        if (!conversation || conversation.kind !== "group") return false;
+        const self = conversation.members.find((member) => member.user_id === context.currentUser.id && !member.left_at);
+        return self?.membership_role === "owner" || ["admin", "manager"].includes(context.currentUser.role);
+      }
+
+      function openMembers() {
+        state.membersOpen = true;
+        render();
+      }
+
+      function closeMembers({ reset = false } = {}) {
+        state.membersOpen = false;
+        state.memberAddOpen = false;
+        if (reset) {
+          state.memberSearch = "";
+          state.memberSelectedIds = new Set();
+        }
+        render();
+      }
+
+      function toggleMemberAdd() {
+        state.memberAddOpen = !state.memberAddOpen;
+        render();
+        if (state.memberAddOpen) root.querySelector("[data-chat-member-search]")?.focus();
+      }
+
+      function toggleMemberPicker(userId, checked) {
+        const next = new Set(state.memberSelectedIds);
+        if (checked) next.add(userId);
+        else next.delete(userId);
+        state.memberSelectedIds = next;
+        render();
+      }
+
+      async function addSelectedMembers(conversationId) {
+        const memberIds = [...state.memberSelectedIds];
+        if (!conversationId || !memberIds.length) return;
+        for (const userId of memberIds) {
+          await context.service.addMember(conversationId, userId);
+        }
+        state.memberSearch = "";
+        state.memberSelectedIds = new Set();
+        state.memberAddOpen = false;
+        if (!disposed) render();
+        await refresh();
+      }
+
+      async function removeMember(conversationId, userId) {
+        if (!conversationId || !userId) return;
+        await context.service.removeMember(conversationId, userId);
+        state.conversations = state.conversations.map((conversation) => {
+          if (conversation.id !== conversationId) return conversation;
+          return {
+            ...conversation,
+            members: conversation.members.map((member) => (
+              member.user_id === userId
+                ? { ...member, left_at: member.left_at || new Date().toISOString() }
+                : member
+            )),
+          };
+        });
+        if (userId === context.currentUser.id) {
+          state.membersOpen = false;
+          state.memberAddOpen = false;
+        }
+        if (!disposed) render();
+        await refresh();
       }
 
       function startEdit(messageId) {
@@ -360,6 +450,80 @@ export function createChatViewModule() {
         `;
       }
 
+      function membersPanel(conversation) {
+        if (!state.membersOpen || !conversation || conversation.kind !== "group") return "";
+        const activeMembers = conversation.members.filter((member) => !member.left_at);
+        const manager = canManageMembers(conversation);
+        const activeMemberIds = new Set(activeMembers.map((member) => member.user_id));
+        const query = state.memberSearch.trim().toLowerCase();
+        const selectableProfiles = state.profiles.filter((profile) => (
+          profile.id !== context.currentUser.id
+          && !activeMemberIds.has(profile.id)
+          && (!query || (profile.full_name || "").toLowerCase().includes(query))
+        ));
+        const selectedCount = state.memberSelectedIds.size;
+        return `
+          <div class="chat-compose-popover chat-members-panel" data-chat-members-panel role="dialog" aria-label="Manage members">
+            <div class="chat-compose-popover-head">
+              <strong>Manage members</strong>
+              <button type="button" class="chat-icon-btn" data-chat-members-close aria-label="Close member management"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="chat-member-panel-list">
+              ${activeMembers.map((member) => {
+                const profile = member.profile || {};
+                const isSelf = member.user_id === context.currentUser.id;
+                const canRemove = manager || isSelf;
+                return `
+                  <div class="chat-member-row" data-chat-member-row="${escapeHtml(member.user_id)}">
+                    <span class="chat-compose-avatar">${escapeHtml((profile.full_name || "?").slice(0, 1))}</span>
+                    <span class="chat-compose-person-copy">
+                      <strong>${escapeHtml(profile.full_name || member.user_id)}</strong>
+                      <span>${escapeHtml(profile.role ? roleLabel(profile.role) : "Member")}</span>
+                    </span>
+                    ${member.membership_role === "owner" ? `<span class="chat-owner-badge">Owner</span>` : ""}
+                    ${canRemove ? `
+                      <button type="button" class="chat-member-remove" data-chat-remove-member="${escapeHtml(member.user_id)}">
+                        <i class="ti ${isSelf ? "ti-logout" : "ti-user-minus"}"></i><span>${isSelf ? "Leave" : "Remove"}</span>
+                      </button>
+                    ` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+            ${manager ? `
+              <div class="chat-member-add">
+                <button type="button" class="chat-member-add-toggle" data-chat-member-add-toggle>
+                  <i class="ti ti-user-plus"></i><span>Add member</span>
+                </button>
+                ${state.memberAddOpen ? `
+                  <input data-chat-member-search type="search" placeholder="Search people..." value="${escapeHtml(state.memberSearch)}" autocomplete="off">
+                  <div class="chat-compose-summary">${selectedCount} selected</div>
+                  <div class="chat-compose-list">
+                    ${selectableProfiles.map((profile) => {
+                      const checked = state.memberSelectedIds.has(profile.id) ? " checked" : "";
+                      return `
+                        <label class="chat-compose-person">
+                          <input type="checkbox" data-chat-member-pick="${escapeHtml(profile.id)}"${checked}>
+                          <span class="chat-compose-avatar">${escapeHtml((profile.full_name || "?").slice(0, 1))}</span>
+                          <span class="chat-compose-person-copy">
+                            <strong>${escapeHtml(profile.full_name || "Unknown")}</strong>
+                            <span>${escapeHtml(roleLabel(profile.role))}</span>
+                          </span>
+                        </label>
+                      `;
+                    }).join("")}
+                    ${!selectableProfiles.length ? `<div class="chat-muted">No matching people.</div>` : ""}
+                  </div>
+                  <div class="chat-compose-actions">
+                    <button type="button" data-chat-add-members="${escapeHtml(conversation.id)}"${selectedCount ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Add selected</span></button>
+                  </div>
+                ` : ""}
+              </div>
+            ` : ""}
+          </div>
+        `;
+      }
+
       function messageSnippet(message) {
         const body = message.deleted_at ? "Message deleted" : message.body || "";
         return body.length > 90 ? `${body.slice(0, 87)}...` : body;
@@ -450,6 +614,7 @@ export function createChatViewModule() {
         const selectableProfiles = state.profiles.filter((profile) => profile.id !== context.currentUser.id);
         const selfMember = selected?.members.find((member) => member.user_id === context.currentUser.id);
         const muted = selfMember?.notification_level === "muted";
+        const activeMembers = selected?.members.filter((member) => !member.left_at) || [];
         root.innerHTML = `
           <section class="chat-shell" aria-label="Team chat">
             <aside class="chat-sidebar">
@@ -480,13 +645,19 @@ export function createChatViewModule() {
                     <h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>
                   </div>
                   <div class="chat-thread-tools">
+                    ${selected.kind === "group" ? `
+                      <button type="button" class="chat-icon-btn${state.membersOpen ? " active" : ""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
+                        <i class="ti ti-users"></i>
+                      </button>
+                    ` : ""}
                     <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
                       <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
                     </button>
                     <div class="chat-member-stack">
-                      ${selected.members.map((member) => `<span title="${escapeHtml(member.profile?.full_name || member.user_id)}">${escapeHtml((member.profile?.full_name || "?").slice(0, 1))}</span>`).join("")}
+                      ${activeMembers.map((member) => `<span title="${escapeHtml(member.profile?.full_name || member.user_id)}">${escapeHtml((member.profile?.full_name || "?").slice(0, 1))}</span>`).join("")}
                     </div>
                   </div>
+                  ${membersPanel(selected)}
                 </header>
                 <div class="chat-message-list">
                   ${state.messages.map(messageRow).join("")}
@@ -513,6 +684,31 @@ export function createChatViewModule() {
         root.querySelector("[data-chat-back]")?.addEventListener("click", () => clearMobileSelection());
         root.querySelector("[data-chat-toggle-mute]")?.addEventListener("click", () => {
           if (selected) toggleMute(selected);
+        });
+        root.querySelector("[data-chat-members-toggle]")?.addEventListener("click", () => {
+          if (!selected) return;
+          if (state.membersOpen) closeMembers();
+          else openMembers();
+        });
+        root.querySelector("[data-chat-members-close]")?.addEventListener("click", () => closeMembers({ reset: true }));
+        root.querySelector("[data-chat-member-add-toggle]")?.addEventListener("click", () => toggleMemberAdd());
+        root.querySelector("[data-chat-member-search]")?.addEventListener("input", (event) => {
+          state.memberSearch = event.currentTarget.value;
+          render();
+          const input = root.querySelector("[data-chat-member-search]");
+          input?.focus();
+          input?.setSelectionRange?.(input.value.length, input.value.length);
+        });
+        root.querySelectorAll("[data-chat-member-pick]").forEach((checkbox) => {
+          checkbox.addEventListener("change", () => toggleMemberPicker(checkbox.dataset.chatMemberPick, checkbox.checked));
+        });
+        root.querySelector("[data-chat-add-members]")?.addEventListener("click", (event) => {
+          addSelectedMembers(event.currentTarget.dataset.chatAddMembers);
+        });
+        root.querySelectorAll("[data-chat-remove-member]").forEach((button) => {
+          button.addEventListener("click", () => {
+            if (selected) removeMember(selected.id, button.dataset.chatRemoveMember);
+          });
         });
         root.querySelector("[data-chat-compose-toggle]")?.addEventListener("click", () => {
           if (state.composeOpen) closeCompose();

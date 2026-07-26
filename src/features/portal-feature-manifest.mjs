@@ -16,6 +16,8 @@ export const PORTAL_FEATURE_MANIFEST = [
       "listMessages",
       "createGroup",
       "getOrCreateDm",
+      "addMember",
+      "removeMember",
       "sendMessage",
       "updateMessage",
       "deleteMessage",

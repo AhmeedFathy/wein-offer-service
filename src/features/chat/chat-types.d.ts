@@ -53,6 +53,7 @@ export interface ChatService {
   createGroup(title: string, memberIds: string[]): Promise<string>;
   getOrCreateDm(otherUserId: string): Promise<string>;
   addMember(conversationId: string, userId: string): Promise<void>;
+  removeMember(conversationId: string, userId: string): Promise<void>;
   sendMessage(input: {
     conversationId: string;
     body: string;

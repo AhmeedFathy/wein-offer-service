@@ -159,16 +159,17 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
     },
 
     async addMember(conversationId, userId) {
-      const result = await supabase
-        .from("wein_chat_members")
-        .insert({
-          conversation_id: conversationId,
-          user_id: userId,
-          membership_role: "member",
-        })
-        .select("conversation_id, user_id");
-      const rows = requireRows(result, "add member");
-      if (!rows.length) throw new Error("add member affected zero rows");
+      requireRpc(
+        await supabase.rpc("wein_chat_add_member", { p_conversation_id: conversationId, p_user_id: userId }),
+        "add member",
+      );
+    },
+
+    async removeMember(conversationId, userId) {
+      requireRpc(
+        await supabase.rpc("wein_chat_remove_member", { p_conversation_id: conversationId, p_user_id: userId }),
+        "remove member",
+      );
     },
 
     async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
