@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["@playwright/test"],
+    "allowJs": true,
+    "checkJs": false,
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.mjs", "tests/**/*.ts", "tests/**/*.mjs", "vite.config.ts", "playwright.config.ts"],
+  "exclude": ["node_modules", "portal/dist"]
+}

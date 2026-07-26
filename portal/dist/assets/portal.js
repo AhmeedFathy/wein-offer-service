@@ -1,0 +1,4950 @@
+/* === PRESERVED LOGIC — copied from the production portal/index.html === */
+/* Supabase config, REST helpers, auth (email + PIN), pipeline trigger/poll, */
+/* and the chat backend call all behave identically to the production portal. */
+
+const SB_URL  = 'https://iwyufqeqtjbbojunomgq.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3eXVmcWVxdGpiYm9qdW5vbWdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjQ2MjYsImV4cCI6MjA5NjI0MDYyNn0.IDlnJLYEWcbRX2uQU5VhgG1qSigrqGzsgIhL2N_szDs';
+const N8N = 'https://weinflow.app.n8n.cloud/webhook';
+
+const sbAuth = supabase.createClient(SB_URL, SB_ANON);
+window.WEIN = window.WEIN || { user: null, role: null, fullName: null };
+
+// All REST calls carry the signed-in user's JWT — RLS (031) denies the bare
+// anon key everything, so an expired/missing session means empty reads and
+// 403 writes, never silent anon fallback. supabase-js auto-refreshes the
+// token; SB_TOKEN tracks it via onAuthStateChange below.
+let SB_TOKEN = null;
+function sbHeaders() {
+  return { apikey: SB_ANON, Authorization: 'Bearer ' + (SB_TOKEN || SB_ANON), 'Content-Type': 'application/json' };
+}
+
+async function sbGet(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: sbHeaders() });
+  if (!r.ok) throw new Error(`Supabase GET failed: ${r.status}`);
+  return r.json();
+}
+async function sbPost(table, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...sbHeaders(), Prefer: 'return=representation' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`Supabase POST failed: ${r.status} ${await r.text()}`);
+  return r.json();
+}
+async function sbPatch(path, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(body) });
+  return r.ok;
+}
+async function sbDelete(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { method: 'DELETE', headers: sbHeaders() });
+  if (!r.ok) throw new Error(`Supabase DELETE failed: ${r.status} ${await r.text()}`);
+  return true;
+}
+function canDelete() {
+  const role = sessionStorage.getItem('weinRole');
+  return role === 'admin' || role === 'manager';
+}
+const canManageDeals = canDelete;
+// Provider identity fields (name/vertical/location) -- a wider tier than
+// canManageDeals() (contract fields stay admin/manager only per migration
+// 039/041): deal_breaker can also edit these, team cannot.
+function canEditProviderProfile() {
+  const role = sessionStorage.getItem('weinRole');
+  return role === 'admin' || role === 'manager' || role === 'deal_breaker';
+}
+const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', deal_breaker: 'Deal Breaker', team: 'Team' };
+// Human-friendly display for the "who created/owns this" field — never show
+// raw internal source strings (migration slugs, bare session-role values).
+const SOURCE_LABELS = { 'clickup-migration': 'Imported', 'portal': 'Portal' };
+function ownerLabel(createdBy) {
+  if (!createdBy) return '—';
+  return SOURCE_LABELS[createdBy] || ROLE_LABELS[createdBy] || createdBy;
+}
+
+// ── Auth: email + password (Supabase Auth) ──
+// PIN login removed 2026-07-02 (RLS migration 031): shared codes shipped to
+// the browser, gave no per-person identity, and could not carry a JWT — so
+// nothing they "authorized" would pass RLS anyway.
+async function attemptEmailLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Enter your email and password'; return; }
+  let data, error;
+  try {
+    ({ data, error } = await sbAuth.auth.signInWithPassword({ email, password }));
+  } catch (e) {
+    errEl.textContent = 'Sign in failed — check your connection and try again (' + (e.message || e) + ')';
+    return;
+  }
+  if (error) { errEl.textContent = error.message || 'Invalid email or password'; return; }
+  try { await loadPortalForSession(data.session); }
+  catch (e) { errEl.textContent = 'Signed in, but loading the portal failed: ' + (e.message || e); }
+}
+async function attemptForgotPassword() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const errEl = document.getElementById('loginError');
+  if (!email) { errEl.textContent = 'Enter your email above first'; return; }
+  try {
+    const { error } = await sbAuth.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/portal-new' });
+    if (error) { errEl.textContent = error.message; return; }
+    errEl.style.color = 'var(--green)';
+    errEl.textContent = 'Password reset email sent. Check your inbox.';
+  } catch (e) { errEl.textContent = 'Could not send reset email (' + (e.message || e) + ')'; }
+}
+function showSetNewPasswordForm() {
+  document.getElementById('emailLoginForm').style.display = 'none';
+  document.getElementById('setPasswordForm').style.display = 'block';
+}
+async function attemptSetNewPassword() {
+  const pw = document.getElementById('newPassword').value;
+  const pw2 = document.getElementById('newPasswordConfirm').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!pw || pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match'; return; }
+  try {
+    const { error } = await sbAuth.auth.updateUser({ password: pw });
+    if (error) { errEl.textContent = error.message; return; }
+    const { data: { session } } = await sbAuth.auth.getSession();
+    history.replaceState(null, '', window.location.pathname);
+    if (session) await loadPortalForSession(session);
+  } catch (e) { errEl.textContent = 'Could not set password (' + (e.message || e) + ')'; }
+}
+async function loadPortalForSession(session) {
+  SB_TOKEN = session.access_token;
+  window.WEIN.user = session.user;
+  await Promise.all([probeCollabReady(), probeDealValueReady(), probeMarketingReady(), probeMktNotesReady()]);
+  let role = 'deal_breaker', fullName = session.user.email;
+  try {
+    const { data: profile } = await sbAuth.from('profiles').select('role, full_name').eq('id', session.user.id).single();
+    if (profile) { role = profile.role || role; fullName = profile.full_name || fullName; }
+  } catch (e) { /* no profile row yet — default to deal_breaker */ }
+  window.WEIN.role = role;
+  window.WEIN.fullName = fullName;
+  sessionStorage.setItem('weinRole', role);
+  showApp(role);
+}
+sbAuth.auth.onAuthStateChange((event, session) => {
+  SB_TOKEN = session ? session.access_token : null;
+  if (event === 'PASSWORD_RECOVERY') {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('topbar').style.display = 'none';
+    document.getElementById('appShell').style.display = 'none';
+    document.getElementById('chatFab').classList.remove('visible');
+    document.getElementById('chatDrawer').classList.remove('open');
+    showSetNewPasswordForm();
+  }
+});
+async function logout() {
+  try { await sbAuth.auth.signOut(); } catch (e) {}
+  SB_TOKEN = null;
+  sessionStorage.removeItem('weinRole');
+  window.WEIN = { user: null, role: null, fullName: null };
+  if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+  if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('chatFab').classList.remove('visible');
+  document.getElementById('chatDrawer').classList.remove('open');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginEmail').value = ''; document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.documentElement.setAttribute('data-theme', 'dark'); // login is always dark
+}
+
+let autoRefreshInterval = null;
+
+// Role split (2026-07-03, supersedes "team = same as deal_breaker"):
+// deal_breaker = full deal flow; team = general work only (Today's tasks,
+// Tasks, Team, Files) — the entire deal world is hidden for them.
+// NOTE: client-side scope only; DB-level enforcement is tracked as task #7.
+const NAV_HIDDEN_FOR_ROLE = {
+  deal_breaker: ['analytics', 'settings'],
+  team: ['analytics', 'settings', 'leads', 'pipeline', 'deals', 'launch', 'providers', 'offers', 'map', 'marketing'],
+};
+// Where each role lands when their requested view is hidden (or on login).
+function defaultViewForRole(role) {
+  return (NAV_HIDDEN_FOR_ROLE[role] || []).includes('pipeline') ? 'tasks' : 'pipeline';
+}
+
+function applyNavPermissions(role) {
+  const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
+  document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    item.style.display = hidden.includes(item.dataset.view) ? 'none' : '';
+  });
+  document.getElementById('avatarMenuSettings').style.display = hidden.includes('settings') ? 'none' : '';
+}
+
+function toggleAvatarMenu() {
+  document.getElementById('avatarMenu').style.display =
+    document.getElementById('avatarMenu').style.display === 'block' ? 'none' : 'block';
+}
+function closeAvatarMenu() {
+  document.getElementById('avatarMenu').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('tbAvatarWrap');
+  if (wrap && !wrap.contains(e.target)) closeAvatarMenu();
+});
+
+function showApp(role) {
+  // Restore the user's saved theme once inside (login screen is always dark)
+  const savedTheme = localStorage.getItem('wein-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  const themeIcon = document.getElementById('theme-icon');
+  if (themeIcon) themeIcon.className = savedTheme === 'light' ? 'ti ti-moon' : 'ti ti-sun';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'block';
+  document.getElementById('chatFab').classList.add('visible');
+  applyNavPermissions(role);
+  // Land each role on a view it can actually see (team can't see pipeline)
+  if ((NAV_HIDDEN_FOR_ROLE[role] || []).includes(currentView)) {
+    currentView = defaultViewForRole(role);
+    document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === currentView));
+    document.getElementById('page-title').textContent = PAGE_TITLES[currentView] || currentView;
+  }
+  setTimeout(() => setNavGroupOpen(VIEW_GROUP[currentView], true), 0);
+  const nameSrc = window.WEIN.fullName || role || 'W';
+  const initials = nameSrc.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  document.getElementById('tbAvatarInitials').textContent = initials || 'W';
+  document.getElementById('tbAvatar').title = nameSrc;
+  document.getElementById('avatarMenuName').textContent = nameSrc;
+  initNotifications();
+  loadDashboard();
+  if (!autoRefreshInterval) autoRefreshInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 30000);
+}
+
+// ── Pipeline run + progress bar (unchanged behavior from production) ──
+let runningPipelines = {};
+let progressTimer = null;
+const PIPELINE_STEPS = [
+  { name: 'Extracting menu items from PDF', cumulative: 15 },
+  { name: 'Running WeIN + Waffarha recall', cumulative: 25 },
+  { name: 'Generating 20 offer concepts', cumulative: 45 },
+  { name: 'Scoring and ranking concepts', cumulative: 60 },
+  { name: 'Building 20 complete offers', cumulative: 95 },
+  { name: 'Reviewing offer quality', cumulative: 115 },
+  { name: 'Generating location-aware titles', cumulative: 125 },
+  { name: 'Creating Excel + PDF files', cumulative: 140 },
+  { name: 'Uploading to Google Drive', cumulative: 145 },
+  { name: 'Done! Check Drive for files', cumulative: 150 },
+];
+function startProgressBar(providerName) {
+  const el = document.getElementById('pipelineProgress'), fill = document.getElementById('progressBarFill'),
+        step = document.getElementById('progressStep'), eta = document.getElementById('progressEta'), prov = document.getElementById('progressProvider');
+  el.style.display = 'block'; prov.textContent = `Running ${providerName}...`; fill.style.width = '0%';
+  if (progressTimer) clearInterval(progressTimer);
+  let elapsed = 0; const totalTime = 150;
+  progressTimer = setInterval(() => {
+    elapsed++;
+    fill.style.width = Math.min((elapsed / totalTime) * 100, 98) + '%';
+    const s = PIPELINE_STEPS.find(s => elapsed <= s.cumulative) || PIPELINE_STEPS[PIPELINE_STEPS.length - 1];
+    step.textContent = s.name;
+    const remaining = Math.max(totalTime - elapsed, 0);
+    eta.textContent = remaining > 60 ? `~${Math.ceil(remaining / 60)} min` : remaining > 0 ? `~${remaining}s` : 'Almost done...';
+  }, 1000);
+}
+function completeProgressBar() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  document.getElementById('progressBarFill').style.width = '100%';
+  document.getElementById('progressStep').textContent = 'Done! Files uploaded to Drive.';
+  document.getElementById('progressEta').textContent = '';
+  setTimeout(() => { document.getElementById('pipelineProgress').style.display = 'none'; document.getElementById('progressBarFill').style.width = '0%'; }, 4000);
+}
+function failProgressBar(error) {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+  document.getElementById('progressStep').textContent = error || 'Pipeline failed';
+  document.getElementById('progressEta').textContent = 'Check Telegram for details';
+  setTimeout(() => { document.getElementById('pipelineProgress').style.display = 'none'; }, 5000);
+}
+async function pollPipelineCompletion(providerName, providerId) {
+  let initialCount = 0;
+  if (providerId) { try { initialCount = (await sbGet(`wein_offers?provider_id=eq.${providerId}&select=id`)).length; } catch (e) {} }
+  let attempts = 0;
+  const poll = setInterval(async () => {
+    attempts++;
+    try {
+      await loadDashboard();
+      const p = cachedProviders.find(p => p.provider_name.toLowerCase() === providerName.toLowerCase());
+      const newCount = p ? cachedOffers.filter(o => o.provider_id === p.id).length : 0;
+      if (newCount > initialCount || attempts > 24) {
+        clearInterval(poll);
+        if (newCount > initialCount) {
+          delete runningPipelines[providerName];
+          completeProgressBar();
+          renderKanban();
+        } else {
+          delete runningPipelines[providerName];
+          failProgressBar('Timeout — check Telegram');
+          renderKanban();
+        }
+      }
+    } catch (e) { /* keep polling */ }
+  }, 15000);
+}
+// Re-queue a provider for offer generation. The old direct webhook call
+// targeted the abandoned cloud n8n and failed for everyone; generation now
+// runs through the local Intake Poller, which picks up any provider whose
+// menu_processed_at is NULL (migration 035) within ~5 minutes.
+async function runPipelineFromCard(name, vertical) {
+  if (!canManageDeals()) return;
+  const p = cachedProviders.find(x => x.provider_name.toLowerCase() === name.toLowerCase());
+  if (!p) return;
+  const hasMenuSource = !!(p.menu_link || p.menu_text || (Array.isArray(p.menu_file_paths) && p.menu_file_paths.length));
+  if (!hasMenuSource) {
+    alert(`${name} has no menu source on its record (it predates portal intake) — resubmit its menu via Add Provider, or run it from the n8n canvas directly.`);
+    return;
+  }
+  if (!confirm(`Queue offer generation for ${name}? The pipeline picks it up within ~5 minutes and sends a Telegram summary when done.`)) return;
+  try {
+    await sbPatch(`wein_providers?id=eq.${p.id}`, { menu_processed_at: null });
+    const check = await sbGet(`wein_providers?id=eq.${p.id}&select=menu_processed_at`);
+    if (!check.length || check[0].menu_processed_at !== null) {
+      alert('Could not queue the run (permissions?) — nothing changed.');
+      return;
+    }
+    alert(`${name} queued. Generation starts within ~5 minutes (local n8n must be running).`);
+  } catch (e) {
+    alert('Could not queue the run: ' + (e.message || e));
+  }
+}
+
+// ── AI chat (same /api/chat backend as production) ──
+let rpChatHistory = [];
+function toggleChatDrawer() {
+  document.getElementById('chatDrawer').classList.toggle('open');
+}
+async function sendRpChat(prefill) {
+  const input = document.getElementById('rpChatInput');
+  const text = (prefill || input.value).trim();
+  if (!text) return;
+  input.value = '';
+  rpChatLog(text, 'user');
+  rpChatHistory.push({ role: 'user', content: text });
+  const typingEl = rpChatTyping();
+  try {
+    const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: rpChatHistory }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Chat backend error: ${res.status}`);
+    const reply = data.reply || '(no response)';
+    typingEl.remove();
+    rpChatLog(reply, 'bot');
+    rpChatHistory.push({ role: 'assistant', content: reply });
+  } catch (e) { typingEl.remove(); rpChatLog('Assistant unavailable: ' + e.message, 'bot'); }
+}
+function rpChatTyping() {
+  const log = document.getElementById('rpChatLog');
+  const row = document.createElement('div');
+  row.className = 'chat-msg-row bot';
+  row.innerHTML = `<div class="chat-msg-avatar"><i class="ti ti-sparkles"></i></div><div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return row;
+}
+function rpChatLog(text, who) {
+  const log = document.getElementById('rpChatLog');
+  const empty = document.getElementById('chatEmptyState');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'chat-msg-row ' + who;
+  const avatarIcon = who === 'user' ? 'ti-user' : 'ti-sparkles';
+  row.innerHTML = `<div class="chat-msg-avatar"><i class="ti ${avatarIcon}"></i></div><div class="chat-bubble"></div>`;
+  row.querySelector('.chat-bubble').textContent = text;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* === END PRESERVED LOGIC === */
+
+// ════════════════════════════════════════════════════════════════════
+// LIGHT / DARK THEME TOGGLE
+// ════════════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('wein-theme', newTheme);
+  document.getElementById('theme-icon').className = newTheme === 'light'
+    ? 'ti ti-moon'
+    : 'ti ti-sun';
+}
+
+function initTheme() {
+  // Login screen is always dark (looks better + consistent first impression);
+  // the user's saved preference is applied by showApp() once they're inside.
+  const loggedOut = document.getElementById('appShell')?.style.display !== 'block';
+  const saved = loggedOut ? 'dark' : (localStorage.getItem('wein-theme') || 'dark');
+  document.documentElement.setAttribute('data-theme', saved);
+  const icon = document.getElementById('theme-icon');
+  if (icon) {
+    icon.className = saved === 'light' ? 'ti ti-moon' : 'ti ti-sun';
+  }
+}
+
+initTheme();
+
+// ════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════════════════
+const PAGE_TITLES = { today: 'Today', tasks: 'Tasks', pipeline: 'Pipeline', leads: 'Leads', providers: 'Providers', deals: 'Deals', launch: 'Launch', analytics: 'Analytics', map: 'Map', offers: 'Offers', marketing: 'Marketing', files: 'Files', team: 'Team', settings: 'Settings' };
+const VIEW_GROUP = { today: 'sales', tasks: 'sales', leads: 'sales', pipeline: 'sales', deals: 'sales', launch: 'partners', providers: 'partners', analytics: 'insights', map: 'insights', offers: 'insights', marketing: 'insights', files: 'system', team: 'system', settings: 'system' };
+let currentView = 'pipeline';
+
+function setNavGroupOpen(groupId, open) {
+  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
+  const parent = document.querySelector(`.nav-parent[data-group-toggle="${groupId}"]`);
+  if (!items || !parent) return;
+  items.classList.toggle('expanded', open);
+  items.style.height = open ? items.scrollHeight + 'px' : '0px';
+  parent.classList.toggle('group-active', open);
+}
+
+function isNavGroupOpen(groupId) {
+  const items = document.querySelector(`.nav-subitems[data-group-items="${groupId}"]`);
+  return !!items && items.classList.contains('expanded');
+}
+
+function toggleMobileSidebar(force) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const open = force !== undefined ? force : !sidebar.classList.contains('mobile-open');
+  sidebar.classList.toggle('mobile-open', open);
+  backdrop.classList.toggle('mobile-open', open);
+}
+
+function showView(name) {
+  const role = sessionStorage.getItem('weinRole');
+  const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
+  if (hidden.includes(name)) name = defaultViewForRole(role);
+  currentView = name;
+  document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
+  if (!isNavGroupOpen(VIEW_GROUP[name])) setNavGroupOpen(VIEW_GROUP[name], true);
+  toggleMobileSidebar(false);
+  refreshNavCounts();
+  renderCurrentView();
+}
+document.querySelectorAll('.nav-item[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click', () => {
+  const groupId = b.dataset.groupToggle;
+  setNavGroupOpen(groupId, !isNavGroupOpen(groupId));
+}));
+
+// ════════════════════════════════════════════════════════════════════
+// DASHBOARD DATA + KANBAN
+// ════════════════════════════════════════════════════════════════════
+let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [], cachedOutcomes = [];
+let cachedTasks = [], cachedProfiles = [];
+// True once migration 038 is applied (multi-target comments, assignee uuids,
+// profiles directory). Probed once per session — a 400 on the lead_id column
+// means 038 isn't pasted yet, and all 038-dependent UI stays hidden.
+let COLLAB_READY = false;
+async function probeCollabReady() {
+  try { await sbGet('wein_comments?select=lead_id&limit=1'); COLLAB_READY = true; }
+  catch (e) { COLLAB_READY = false; }
+}
+// True once migration 039 is applied (wein_redemptions table + commission
+// snapshot trigger). Same probe pattern as COLLAB_READY.
+let DEAL_VALUE_READY = false;
+async function probeDealValueReady() {
+  try { await sbGet('wein_redemptions?select=id&limit=1'); DEAL_VALUE_READY = true; }
+  catch (e) { DEAL_VALUE_READY = false; }
+}
+// True once migration 040 is applied (wein_campaigns table). Same probe
+// pattern as COLLAB_READY/DEAL_VALUE_READY.
+let MARKETING_READY = false;
+async function probeMarketingReady() {
+  try { await sbGet('wein_campaigns?select=id&limit=1'); MARKETING_READY = true; }
+  catch (e) { MARKETING_READY = false; }
+}
+// True once migration 043 is applied (campaign comment threads + calendar
+// day notes). Probes both halves -- the flag only turns on when the whole
+// migration ran.
+let MKT_NOTES_READY = false;
+async function probeMktNotesReady() {
+  try {
+    await Promise.all([
+      sbGet('wein_comments?select=campaign_id&limit=1'),
+      sbGet('wein_calendar_notes?select=id&limit=1'),
+    ]);
+    MKT_NOTES_READY = true;
+  } catch (e) { MKT_NOTES_READY = false; }
+}
+let cachedCampaigns = [];
+let cachedCalendarNotes = [];
+let cachedRedemptions = [];
+function providerRedemptionTotals(providerId) {
+  const rows = cachedRedemptions.filter(r => r.provider_id === providerId);
+  const sales = rows.reduce((sum, r) => sum + Number(r.sale_amount_egp || 0), 0);
+  const commission = rows.reduce((sum, r) => sum + Number(r.sale_amount_egp || 0) * (Number(r.commission_pct_snapshot || 0) / 100), 0);
+  return { count: rows.length, sales, commission, payout: sales - commission };
+}
+
+const STAGE_COLUMNS = {
+  'menu_collected': 'contacted',
+  'paused':         'contacted',
+  'contacted':      'contacted',
+  'negotiating':    'negotiating',
+  // offer_sent was missing here, which silently DROPPED those rows from the
+  // board entirely (renderKanban skips unmapped stages) -- the "Offer Sent"
+  // column has been unreachable since it was added.
+  'offer_sent':     'offer_sent',
+  'accepted':       'accepted'
+};
+// Canonical raw stage per visible column, in board order -- what the
+// advance/retreat buttons set. (Non-canonical stages like 'paused' still
+// display via STAGE_COLUMNS; moving a paused card writes the canonical
+// stage of the target column.)
+const PIPELINE_STAGE_ORDER = ['menu_collected', 'negotiating', 'offer_sent', 'accepted'];
+// Column ids stay ('contacted' etc.) since STAGE_COLUMNS/other code keys off
+// them -- only the visible label changed. "Onboarding" replaces "Contacted"
+// because it collided with Leads' "Contacting" stage (a real provider here
+// has already committed; this stage is menu collection, not outreach).
+const COLUMNS = [
+  { id: 'contacted',   label: 'Onboarding',  color: 'var(--amber)' },
+  { id: 'negotiating', label: 'Negotiating', color: 'var(--amber)' },
+  { id: 'offer_sent',  label: 'Offer Sent',  color: 'var(--amber)' },
+  { id: 'accepted',    label: 'Accepted',    color: 'var(--green)' },
+];
+const STAGE_PROGRESS = {
+  'menu_collected': 25,
+  'paused':         15,
+  'contacted':      10,
+  'negotiating':    55,
+  'offer_sent':     80,
+  'accepted':       100
+};
+const STALE_DAYS = 14;
+function daysSince(ts) { if (!ts) return 0; return Math.floor((Date.now() - new Date(ts)) / 86400000); }
+function isStale(provider) {
+  const neg = negotiationFor(provider);
+  const last = neg?.updated_at || provider.created_at;
+  const stage = neg?.stage;
+  return stage && stage !== 'accepted' && daysSince(last) >= STALE_DAYS;
+}
+const LEAD_STALE_DAYS = 7;
+function isLeadStale(lead) {
+  if (!lead || lead.status === 'dropped' || lead.status === 'promoted') return false;
+  return daysSince(lead.updated_at || lead.created_at) >= LEAD_STALE_DAYS;
+}
+let providerStaleOnly = false;
+
+async function loadDashboard() {
+  try {
+    const [providers, offers, negotiations, files, leads, outcomes, tasks, profiles, redemptions, campaigns, calNotes] = await Promise.all([
+      sbGet('wein_providers?select=*&order=created_at.desc'),
+      sbGet('wein_offers?select=*'),
+      sbGet('wein_negotiations?select=*&order=updated_at.desc'),
+      sbGet('wein_files?select=*&order=created_at.desc').catch(() => []),
+      sbGet('wein_leads?select=*&order=created_at.desc').catch(() => []),
+      sbGet('offer_outcomes?select=*&order=created_at.desc').catch(() => []),
+      sbGet('wein_tasks?select=*&order=created_at.desc').catch(() => []),
+      // email column arrives with 038; fall back to the pre-038 shape
+      sbGet('profiles?select=id,role,full_name,email&order=full_name.asc')
+        .catch(() => sbGet('profiles?select=id,role,full_name').catch(() => [])),
+      sbGet('wein_redemptions?select=*').catch(() => []),
+      sbGet('wein_campaigns?select=*&order=scheduled_date.desc').catch(() => []),
+      sbGet('wein_calendar_notes?select=*&order=note_date.asc').catch(() => []),
+    ]);
+    cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
+    cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions; cachedCampaigns = campaigns; cachedCalendarNotes = calNotes;
+    refreshNavCounts();
+    // The Add Lead form renders inline inside the Leads view's own HTML, so
+    // a full re-render (background refresh, another tab's action, etc.)
+    // would wipe out anything typed but not yet saved. Skip the rebuild
+    // while it's open — data is still refreshed underneath, just not
+    // painted over the form until it closes.
+    if (currentView === 'leads' && leadFormVisible) return;
+    if (currentView === 'tasks' && taskFormVisible) return;
+    if (currentView === 'marketing' && campaignFormVisible) return;
+    renderCurrentView();
+  } catch (e) {
+    document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function refreshNavCounts() {
+  const set = (key, value) => {
+    document.querySelectorAll(`.nav-count[data-count="${key}"]`).forEach(el => { el.textContent = value; });
+  };
+  set('leads', cachedLeads.filter(l => l.status !== 'dropped').length);
+  set('pipeline', cachedProviders.length);
+  set('providers', cachedProviders.length);
+  set('deals', cachedProviders.length);
+  set('launch', cachedProviders.filter(p => launchStageOf(p)).length);
+  set('offers', cachedOffers.length);
+  const due = todayActionItems();
+  set('today', due.length);
+  document.querySelectorAll('.nav-count[data-count="today"]').forEach(el => {
+    el.style.color = due.some(x => x.overdue > 0) ? 'var(--red)' : '';
+  });
+  const myOpenTasks = cachedTasks.filter(t => taskIsOpen(t) && t.assigned_to_user_id === window.WEIN.user?.id);
+  set('tasks', myOpenTasks.length);
+  document.querySelectorAll('.nav-count[data-count="tasks"]').forEach(el => {
+    el.style.color = myOpenTasks.some(t => (taskOverdueDays(t) ?? -1) > 0) ? 'var(--red)' : '';
+  });
+}
+
+function renderCurrentView() {
+  // Board color identity: Leads (prospecting, pre-commitment) reads cool/blue,
+  // Pipeline (active deals, real providers) reads warm/amber -- so the two
+  // near-identical-looking kanban boards are distinguishable at a glance.
+  const mainEl = document.getElementById('mainArea');
+  if (mainEl) mainEl.dataset.board = (currentView === 'leads' || currentView === 'pipeline') ? currentView : '';
+  if (currentView === 'today') { renderTodayView(); return; }
+  if (currentView === 'tasks') { renderTasksView(); return; }
+  if (currentView === 'team') { renderTeamView(); return; }
+  if (currentView === 'map') { renderMapView(); return; }
+  if (currentView === 'providers') { renderProvidersView(); return; }
+  if (currentView === 'files') { renderFilesView(); return; }
+  if (currentView === 'leads') { renderLeadsView(); return; }
+  if (currentView === 'offers') { renderOffersView(); return; }
+  if (currentView === 'marketing') { renderMarketingView(); return; }
+  if (currentView === 'deals') { renderDealsView(); return; }
+  if (currentView === 'launch') { renderLaunchView(); return; }
+  if (currentView === 'analytics') { renderAnalyticsView(); return; }
+  if (currentView === 'settings') { renderSettingsView(); return; }
+  renderPipelineView();
+}
+
+function renderSettingsView() {
+  const role = sessionStorage.getItem('weinRole') || '—';
+  const fullName = window.WEIN?.fullName || role;
+  const authMode = 'Email account';
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Settings</div>
+        <div class="view-count">Account &amp; permissions</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Workspace</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet saved</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><div class="field-label-sm">Workspace name</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. WeIN — Sharm El Sheikh" disabled></div>
+        <div><div class="field-label-sm">Region</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. South Sinai, Egypt" disabled></div>
+        <div><div class="field-label-sm">Default currency</div><input class="view-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. EGP — Egyptian Pound" disabled></div>
+        <div><div class="field-label-sm">Lead stale threshold</div><input class="view-input" style="width:100%;box-sizing:border-box;" value="${LEAD_STALE_DAYS} days" disabled></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:10px;">These fields aren't connected to a real settings table yet — this is a layout preview. The stale threshold shown is the actual value enforced elsewhere in the app.</div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="kpi-label" style="margin-bottom:0;">Team members</div>
+        <button class="mini-btn" type="button" onclick="showView('team')"><i class="ti ti-users"></i><span>Open Team directory</span></button>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">Invites, roles, and everyone's open tasks now live in the Team tab.</div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="kpi-label" style="margin-bottom:0;">Integrations</div>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border:.5px solid var(--border);border-radius:20px;padding:2px 9px;">Preview — not yet wired</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">WhatsApp Business</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Message leads &amp; log replies</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Email (SMTP)</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Send offer decks &amp; contracts</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Payment Gateway</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Collect deposits from venues</div></div>
+        <div style="padding:12px;border:.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);"><div style="font-size:12px;font-weight:600;color:var(--text-primary);">Google Sheets</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Export pipeline snapshots</div></div>
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Signed in as</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-family:'Instrument Sans';font-size:13px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Name</span><span style="color:var(--text-primary);font-weight:600;">${escapeHtml(fullName)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Role</span><span style="color:var(--text-primary);font-weight:600;">${ROLE_LABELS[role] || role}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text-tertiary);">Signed in via</span><span style="color:var(--text-primary);">${authMode}</span></div>
+      </div>
+      <button class="mini-btn" type="button" onclick="logout()" style="margin-top:14px;color:var(--red);"><i class="ti ti-logout"></i><span>Log out</span></button>
+    </div>
+    <div class="kpi-card" style="padding:16px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Role permissions</div>
+      <div class="providers-table-wrap">
+        <table class="providers-table">
+          <thead><tr><th>Role</th><th>Deals (contracts, deal value)</th><th>Delete records</th></tr></thead>
+          <tbody>
+            <tr><td>Admin</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Manager</td><td style="color:var(--green);">Edit</td><td style="color:var(--green);">Yes</td></tr>
+            <tr><td>Deal Breaker</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+            <tr><td>Team</td><td style="color:var(--text-tertiary);">View only</td><td style="color:var(--text-tertiary);">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ${canManageDeals() ? `
+    <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Security status</div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;line-height:1.5;">
+        The role table above is enforced in this browser's UI only. Every role shares one Supabase key — these are the actions that bypass it if someone edits the page's JavaScript directly.
+      </div>
+      <div class="providers-table-wrap">
+        <table class="providers-table">
+          <thead><tr><th>Action</th><th>Protected server-side?</th></tr></thead>
+          <tbody>
+            <tr><td>Contract status / commission / dates</td><td style="color:var(--green);">Yes &mdash; /api/update-contract</td></tr>
+            <tr><td>Delete provider</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete file</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete / promote / drop lead</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Feature / unfeature (Hot Deals)</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Edit deal value</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+            <tr><td>Delete comment</td><td style="color:var(--red);">No &mdash; anon key</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Full writeup: see SECURITY_NOTE_role_enforcement.md in the workflow repo.</div>
+    </div>` : ''}
+    <div class="kpi-card" style="padding:16px;margin-top:14px;max-width:480px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Pipeline alerts</div>
+      <div class="rp-alerts" id="rpAlerts"><div class="rp-alert"><div class="rp-alert-title">Loading...</div></div></div>
+    </div>`;
+  loadPipelineHealth();
+}
+
+function toggleInviteForm() {
+  const wrap = document.getElementById('inviteFormWrap');
+  if (!wrap) return;
+  wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+  if (wrap.style.display === 'block') document.getElementById('inviteEmail')?.focus();
+}
+
+async function sendInvite() {
+  const email = document.getElementById('inviteEmail').value.trim();
+  const fullName = document.getElementById('inviteFullName').value.trim();
+  const role = document.getElementById('inviteRole').value;
+  const statusEl = document.getElementById('inviteStatus');
+  const btn = document.getElementById('inviteBtn');
+  if (!email || !email.includes('@')) { statusEl.textContent = 'Enter a valid email.'; statusEl.style.color = 'var(--red)'; return; }
+  btn.disabled = true;
+  statusEl.textContent = 'Sending invite...';
+  statusEl.style.color = 'var(--text-tertiary)';
+  try {
+    const res = await fetch('/api/invite-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role, fullName, callerRole: sessionStorage.getItem('weinRole') }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Invite failed');
+    statusEl.textContent = `Invite sent to ${email}.`;
+    statusEl.style.color = 'var(--green)';
+    document.getElementById('inviteEmail').value = '';
+    document.getElementById('inviteFullName').value = '';
+  } catch (e) {
+    statusEl.textContent = e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Team directory ────────────────────────────────────────────────────
+function renderTeamView() {
+  const meId = window.WEIN.user?.id;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Team</div>
+        <div class="view-count">${cachedProfiles.length} member${cachedProfiles.length === 1 ? '' : 's'}</div>
+      </div>
+      ${canManageDeals() ? `<button class="view-action" type="button" onclick="toggleInviteForm()"><i class="ti ti-plus"></i><span>Invite</span></button>` : ''}
+    </div>
+    ${!COLLAB_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>038_collaboration.sql</b> hasn't been run yet — you can currently only see your own row.</div>` : ''}
+    ${canManageDeals() ? `
+    <div id="inviteFormWrap" style="display:none;background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;max-width:420px;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="email" id="inviteEmail" placeholder="teammate@email.com" class="view-input" style="width:100%;box-sizing:border-box;">
+        <input type="text" id="inviteFullName" placeholder="Full name (optional)" class="view-input" style="width:100%;box-sizing:border-box;">
+        <select id="inviteRole" class="view-input" style="width:100%;box-sizing:border-box;">
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="deal_breaker">Deal Breaker</option>
+          <option value="team" selected>Team</option>
+        </select>
+        <button class="view-action" type="button" onclick="sendInvite()" id="inviteBtn"><i class="ti ti-mail"></i><span>Send invite</span></button>
+        <div id="inviteStatus" style="font-size:12px;"></div>
+      </div>
+    </div>` : ''}
+    <div class="files-grid">
+      ${cachedProfiles.map(p => {
+        const openTasks = cachedTasks.filter(t => taskIsOpen(t) && t.assigned_to_user_id === p.id).length;
+        const ownedDeals = cachedNegotiations.filter(n => (n.deal_breaker || '').trim().toLowerCase() === (p.full_name || '').trim().toLowerCase()).length;
+        return `
+        <article class="file-card">
+          <div class="file-card-head">
+            <div class="task-avatar" style="width:32px;height:32px;font-size:12px;">${initialsOf(p.full_name || p.email)}</div>
+            <div style="min-width:0;flex:1;">
+              <div class="file-name">${escapeHtml(p.full_name || 'Unnamed')}${p.id === meId ? ' <span style="color:var(--text-tertiary);font-weight:400;">(you)</span>' : ''}</div>
+              <div class="file-provider">${p.email ? escapeHtml(p.email) : ''}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+            <span class="cat-badge ${p.role === 'admin' || p.role === 'manager' ? 'dining' : 'health'}">${ROLE_LABELS[p.role] || p.role || '—'}</span>
+            <span class="pc-meta-date mono">${openTasks} open task${openTasks === 1 ? '' : 's'}</span>
+            ${ownedDeals ? `<span class="pc-meta-date mono">${ownedDeals} deal${ownedDeals === 1 ? '' : 's'}</span>` : ''}
+          </div>
+        </article>`;
+      }).join('')}
+    </div>`;
+}
+
+const CATEGORY_CHIP_OPTIONS = ['all', 'Dining', 'Health & Beauty', 'Fun & Activities', 'Hotels & Aqua Park'];
+function categoryChipsHtml(activeValue, onClickFn) {
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">${CATEGORY_CHIP_OPTIONS.map(c =>
+    `<button class="chip ${activeValue === c ? 'active' : ''}" type="button" onclick="${onClickFn}('${c.replace(/'/g, "\\'")}')">${c === 'all' ? 'All' : escapeHtml(c)}</button>`
+  ).join('')}</div>`;
+}
+function matchesCategoryFilter(itemCategory, filterValue) {
+  return filterValue === 'all' || (itemCategory || '') === filterValue;
+}
+
+let pipelineCatFilter = 'all';
+function setPipelineCatFilter(value) {
+  pipelineCatFilter = value;
+  renderPipelineView();
+}
+
+function renderPipelineView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Pipeline</div>
+        <div class="view-count">${cachedProviders.length} providers — active deals</div>
+      </div>
+    </div>
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
+      <div class="kpi-card">
+        <div class="kpi-label">Providers</div>
+        <div class="kpi-value mono" id="kpiProviders">—</div>
+        <div class="kpi-delta" id="kpiProvidersDelta"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Negotiating</div>
+        <div class="kpi-value mono" id="kpiNegotiating">—</div>
+        <div class="kpi-delta" id="kpiNegotiatingDelta"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Offers Built</div>
+        <div class="kpi-value mono" id="kpiOffers">—</div>
+        <div class="kpi-delta" id="kpiOffersDelta"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Awaiting offers</div>
+        <div class="kpi-value mono" id="kpiPending">—</div>
+        <div class="kpi-delta" id="kpiPendingDelta"></div>
+      </div>
+      <div class="kpi-card" id="kpiStaleCard" style="cursor:pointer;" onclick="providerStaleOnly=true;showView('providers');" title="View stale providers">
+        <div class="kpi-label">Stale</div>
+        <div class="kpi-value mono" id="kpiStale" style="color:var(--amber);">—</div>
+        <div class="kpi-delta" style="color:var(--text-tertiary);">idle ${STALE_DAYS}+ days</div>
+      </div>
+    </div>
+    ${categoryChipsHtml(pipelineCatFilter, 'setPipelineCatFilter')}
+    <div style="display:flex;gap:5px;align-items:center;margin-bottom:12px;">
+      <span style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;margin-right:4px;">Deal breaker:</span>
+      <button class="db-filter active" data-role="all">All</button>
+      <button class="db-filter" data-role="deal_breaker">Deal Breaker</button>
+      <button class="db-filter" data-role="admin">Admin</button>
+    </div>
+    <div class="kanban-board" id="kanbanBoard"></div>`;
+  renderKpis();
+  renderKanban();
+  bindDealBreakerFilters();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// ── Task/team helpers ────────────────────────────────────────────────
+function profileById(id) { return cachedProfiles.find(p => p.id === id) || null; }
+function assigneeLabel(task) {
+  return profileById(task.assigned_to_user_id)?.full_name || task.assigned_to || 'Unassigned';
+}
+function initialsOf(name) {
+  return String(name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+function taskIsOpen(t) { return t.status === 'pending' || t.status === 'in_progress'; }
+function taskOverdueDays(t) {
+  if (!t.due_date) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(t.due_date); due.setHours(0, 0, 0, 0);
+  return Math.round((today - due) / 86400000); // >0 overdue, 0 today, <0 future
+}
+const TASK_PRIORITY_COLORS = { urgent: 'var(--red)', high: 'var(--amber)', medium: 'var(--blue)', low: 'var(--text-tertiary)' };
+function taskLinkedName(t) {
+  if (t.provider_id) return cachedProviders.find(p => p.id === t.provider_id)?.provider_name || t.provider_name || null;
+  if (t.lead_id) return cachedLeads.find(l => l.id === t.lead_id)?.business_name || null;
+  return null;
+}
+
+function negotiationFor(provider) {
+  return cachedNegotiations.find(n => n.provider_id === provider.id
+    || (n.provider_name || '').toLowerCase() === provider.provider_name.toLowerCase());
+}
+
+function renderKpis() {
+  const totalProviders = cachedProviders.length;
+  const negotiatingCount = cachedProviders.filter(p => {
+    const neg = negotiationFor(p);
+    return neg && STAGE_COLUMNS[neg.stage] === 'negotiating';
+  }).length;
+  const offersBuilt = cachedOffers.length;
+  const pendingCount = cachedProviders.filter(p => {
+    const neg = negotiationFor(p);
+    return neg && (neg.stage === 'paused' || neg.stage === 'menu_collected');
+  }).length;
+
+  document.getElementById('kpiProviders').textContent = totalProviders;
+  document.getElementById('kpiNegotiating').textContent = negotiatingCount;
+  document.getElementById('kpiOffers').textContent = offersBuilt;
+  document.getElementById('kpiPending').textContent = pendingCount;
+  const staleEl = document.getElementById('kpiStale');
+  if (staleEl) staleEl.textContent = cachedProviders.filter(isStale).length;
+}
+
+function renderKanban() {
+  const board = document.getElementById('kanbanBoard');
+  const grouped = { contacted: [], negotiating: [], offer_sent: [], accepted: [] };
+  cachedProviders.filter(p => matchesCategoryFilter(categoryLabel(p), pipelineCatFilter)).forEach(p => {
+    const neg = negotiationFor(p);
+    const stage = neg ? neg.stage : 'new';
+    const col = STAGE_COLUMNS[stage];
+    if (!col) return; // rejected/unmapped -- not shown, matches STAGE_COLUMNS.rejected = null intent
+    const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
+    const dealBreaker = (neg && neg.deal_breaker) ? neg.deal_breaker : 'deal_breaker';
+    grouped[col].push({ provider: p, stage, offerCount, updatedAt: neg ? neg.updated_at : p.created_at, dealBreaker, negotiationId: neg ? neg.id : null, stageEnteredAt: neg ? neg.stage_entered_at : null });
+  });
+
+  board.innerHTML = COLUMNS.map(col => {
+    const items = grouped[col.id];
+    const cardsHtml = items.length
+      ? items.map(item => providerCardHtml(item)).join('')
+      : `<div class="empty-col">No providers</div>`;
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${col.label}</span>
+          <span class="kanban-col-count mono" style="color:${col.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${cardsHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+function bindDealBreakerFilters() {
+  document.querySelectorAll('.db-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+    document.querySelectorAll('.db-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const role = btn.dataset.role;
+    document.querySelectorAll('.provider-card').forEach(card => {
+      card.style.display = (role === 'all' || card.dataset.role === role) ? '' : 'none';
+    });
+  });
+  });
+}
+
+function stageLabel(stage) {
+  const labels = {
+    new: 'New',
+    briefed: 'Briefed',
+    menu_collected: 'Menu collected',
+    waiting_founder: 'Waiting for founder',
+    offers_generated: 'Offers generated',
+    sent_back: 'Sent back',
+    negotiating: 'Negotiating',
+    accepted: 'Accepted',
+    paused: 'Paused',
+    closed: 'Closed',
+  };
+  return labels[stage] || 'New';
+}
+
+function categoryLabel(provider) {
+  return provider.category || provider.vertical || '—';
+}
+
+function catBadgeClass(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('dining')) return 'dining';
+  if (c.includes('health')) return 'health';
+  if (c.includes('fun')) return 'fun';
+  if (c.includes('hotel')) return 'hotels';
+  return '';
+}
+
+let providerSortKey = 'date', providerSortDir = 1;
+const SORT_COMPARATORS = {
+  name:     (a, b) => (a.provider.provider_name || '').localeCompare(b.provider.provider_name || ''),
+  category: (a, b) => categoryLabel(a.provider).localeCompare(categoryLabel(b.provider)),
+  stage:    (a, b) => stageLabel(a.stage).localeCompare(stageLabel(b.stage)),
+  offers:   (a, b) => (a.offerCount || 0) - (b.offerCount || 0),
+  date:     (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0),
+};
+function sortProviders(rows, sortBy, dir = 1) {
+  const cmp = SORT_COMPARATORS[sortBy] || SORT_COMPARATORS.date;
+  return [...rows].sort((a, b) => cmp(a, b) * dir);
+}
+
+function providerRows() {
+  return cachedProviders.map(provider => {
+    const neg = negotiationFor(provider);
+    return {
+      provider,
+      neg,
+      stage: neg ? neg.stage : (provider.current_stage || 'new'),
+      offerCount: cachedOffers.filter(o => o.provider_id === provider.id).length,
+      dealBreaker: neg?.deal_breaker || provider.assigned_to || '—',
+      updatedAt: neg?.updated_at || provider.created_at,
+      visitDate: neg?.visit_date || null,
+      negotiationId: neg?.id || '',
+    };
+  });
+}
+
+// ── Add Provider — 3-step intake wizard ──────────────────────────────────
+// Feeds two things the rest of the system now depends on: provider_profiles
+// (read by n8n's "Get Provider T&Cs" + injected as HARD RULES into every
+// offer-generation run) and menu_submitted_at (the queue flag the
+// "WeIN — Provider Intake Poller" workflow watches to auto-trigger
+// generation, since the portal can never reach local n8n directly).
+let addProviderStep = 1;
+function openAddProviderWizard() {
+  addProviderStep = 1;
+  document.getElementById('add-provider-backdrop').style.display = 'flex';
+  renderAddProviderStep();
+}
+function closeAddProviderWizard() {
+  document.getElementById('add-provider-backdrop').style.display = 'none';
+}
+function addProviderGoStep(n) {
+  if (n === 2 && !document.getElementById('apName').value.trim()) {
+    document.getElementById('apAlert1').textContent = 'Provider name is required.';
+    return;
+  }
+  if (n === 2 && !document.getElementById('apVertical').value) {
+    document.getElementById('apAlert1').textContent = 'Please select a category.';
+    return;
+  }
+  addProviderStep = n;
+  renderAddProviderStep();
+}
+function renderAddProviderStep() {
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById(`apDot${i}`);
+    if (dot) { dot.classList.toggle('active', i === addProviderStep); dot.classList.toggle('done', i < addProviderStep); }
+    const pane = document.getElementById(`apPane${i}`);
+    if (pane) pane.style.display = i === addProviderStep ? 'block' : 'none';
+  }
+}
+async function submitAddProvider() {
+  const provider_name = document.getElementById('apName').value.trim();
+  if (!provider_name) { addProviderGoStep(1); return; }
+  const vertical = document.getElementById('apVertical').value;
+  const location = document.getElementById('apLocation').value.trim();
+  const atmosphere = document.getElementById('apAtmosphere').value.trim();
+  const contact_name = document.getElementById('apContactName').value.trim();
+  const contact_phone = document.getElementById('apContactPhone').value.trim();
+  const minimum_spend = document.getElementById('apMinSpend').value.trim();
+  const max_group_size = document.getElementById('apMaxGroup').value.trim();
+  const peak_hours = document.getElementById('apPeakHours').value.trim();
+  const blackout_dates = document.getElementById('apBlackout').value.trim();
+  const excluded_items = document.getElementById('apExcluded').value.trim();
+  const special_terms = document.getElementById('apTerms').value.trim();
+  const menu_link = document.getElementById('apMenuLink').value.trim();
+  const menu_text = document.getElementById('apMenuText').value.trim();
+  const top_selling_items = document.getElementById('apTopSelling').value.trim();
+  const mid_selling_items = document.getElementById('apMidSelling').value.trim();
+  const low_selling_items = document.getElementById('apLowSelling').value.trim();
+
+  const menuFiles = Array.from(document.getElementById('apMenuFiles')?.files || []).slice(0, 5);
+
+  const btn = document.getElementById('apSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const slug = provider_name.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
+
+    // Upload menu files to Supabase Storage FIRST — if any upload fails we
+    // abort before creating the provider, so no half-submitted records.
+    const menu_file_paths = [];
+    for (let i = 0; i < menuFiles.length; i++) {
+      const f = menuFiles[i];
+      btn.textContent = `Uploading menu ${i + 1}/${menuFiles.length}…`;
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const objectPath = `${slug}/${i + 1}-${safeName}`;
+      const resp = await fetch(`${SB_URL}/storage/v1/object/menus/${objectPath}`, {
+        method: 'POST',
+        headers: { apikey: SB_ANON, Authorization: 'Bearer ' + (SB_TOKEN || SB_ANON), 'Content-Type': f.type || 'application/octet-stream' },
+        body: f,
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Menu file upload failed (${f.name}): ${errText.slice(0, 120)}${resp.status === 403 || resp.status === 400 ? ' — has migration 036_menu_storage.sql been run?' : ''}`);
+      }
+      menu_file_paths.push(objectPath);
+    }
+    btn.textContent = 'Saving…';
+
+    const hasMenu = !!(menu_link || menu_text || menu_file_paths.length);
+    const [provider] = await sbPost('wein_providers', {
+      provider_name, provider_slug: slug,
+      vertical: vertical || null, category: vertical || null,
+      location: location || null, view_or_atmosphere: atmosphere || null,
+      peak_moments: peak_hours || null,
+      contact_name: contact_name || null, contact_phone: contact_phone || null,
+      menu_link: menu_link || null, menu_text: menu_text || null,
+      menu_file_paths: menu_file_paths.length ? menu_file_paths : null,
+      top_selling_items: top_selling_items || null,
+      mid_selling_items: mid_selling_items || null,
+      low_selling_items: low_selling_items || null,
+      menu_submitted_at: hasMenu ? new Date().toISOString() : null,
+    });
+
+    // provider_profiles: this is what makes the constraints actually enforced
+    // by the pipeline (HARD RULES injection + deterministic min-spend guard).
+    const profileBody = {};
+    if (vertical) profileBody.vertical = vertical;
+    if (location) profileBody.location = location;
+    if (atmosphere) profileBody.view_or_atmosphere = atmosphere;
+    if (peak_hours) profileBody.peak_hours = peak_hours;
+    if (minimum_spend) profileBody.minimum_spend = minimum_spend;
+    if (max_group_size) profileBody.max_group_size = max_group_size;
+    if (blackout_dates) profileBody.blackout_dates = blackout_dates;
+    if (excluded_items) profileBody.excluded_items = excluded_items;
+    if (special_terms) profileBody.special_terms = special_terms;
+    if (contact_name) profileBody.contact_name = contact_name;
+    if (contact_phone) profileBody.contact_phone = contact_phone;
+    if (Object.keys(profileBody).length) {
+      const existing = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(provider_name)}&select=id`);
+      if (existing.length) await sbPatch(`provider_profiles?id=eq.${existing[0].id}`, profileBody);
+      else await sbPost('provider_profiles', { provider_name, ...profileBody });
+    }
+
+    await sbPost('wein_negotiations', {
+      provider_id: provider.id, provider_name: provider.provider_name,
+      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+      stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
+    });
+
+    closeAddProviderWizard();
+    resetAddProviderForm();
+    await loadDashboard();
+  } catch (e) {
+    console.error('submitAddProvider error:', e);
+    document.getElementById('apAlert3').textContent = 'Could not save: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit Provider';
+  }
+}
+function resetAddProviderForm() {
+  ['apName','apLocation','apAtmosphere','apContactName','apContactPhone','apMinSpend','apMaxGroup',
+   'apPeakHours','apBlackout','apExcluded','apTerms','apMenuLink','apMenuText','apTopSelling','apMidSelling','apLowSelling']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const v = document.getElementById('apVertical'); if (v) v.value = '';
+  const mf = document.getElementById('apMenuFiles'); if (mf) mf.value = '';
+  renderApMenuFilesList();
+  ['apAlert1','apAlert3'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+}
+
+function renderApMenuFilesList() {
+  const input = document.getElementById('apMenuFiles');
+  const list = document.getElementById('apMenuFilesList');
+  if (!input || !list) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) { list.textContent = ''; return; }
+  const tooMany = files.length > 5;
+  const tooBig = files.filter(f => f.size > 25 * 1024 * 1024);
+  list.innerHTML = files.slice(0, 5).map(f =>
+    `<div>📄 ${escapeHtml(f.name)} <span style="color:var(--text-tertiary);">(${(f.size / 1048576).toFixed(1)} MB)</span>${f.size > 25 * 1024 * 1024 ? ' <span style="color:var(--red);">— too big (max 25MB)</span>' : ''}</div>`
+  ).join('') +
+  (tooMany ? `<div style="color:var(--amber);">Only the first 5 files will be uploaded.</div>` : '');
+  if (tooBig.length) { input.value = ''; list.innerHTML += '<div style="color:var(--red);">Selection cleared — remove the oversized file and re-pick.</div>'; }
+}
+
+function renderProvidersView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Providers</div>
+        <div class="view-count">${cachedProviders.length} total</div>
+      </div>
+      <button class="view-action" type="button" onclick="openAddProviderWizard()"><i class="ti ti-plus"></i><span>Add Provider</span></button>
+    </div>
+    <div class="view-filterbar">
+      <input id="providerSearch" class="view-input" type="search" placeholder="Search providers">
+      <select id="providerCategoryFilter" class="view-select">
+        <option value="all">All categories</option>
+        <option value="Dining">Dining</option>
+        <option value="Health & Beauty">Health & Beauty</option>
+        <option value="Fun & Activities">Fun & Activities</option>
+        <option value="Hotels & Aqua Park">Hotels & Aqua Park</option>
+      </select>
+      <select id="providerSort" class="view-select">
+        <option value="date">Sort by date</option>
+        <option value="stage">Sort by stage</option>
+        <option value="name">Sort by name</option>
+      </select>
+      ${providerStaleOnly ? `<button class="db-filter active" type="button" onclick="providerStaleOnly=false;renderProvidersTable();"><i class="ti ti-clock-x" style="font-size:11px;margin-right:3px;"></i>Stale only <i class="ti ti-x" style="font-size:11px;margin-left:3px;"></i></button>` : ''}
+    </div>
+    <div id="providersBulkBar"></div>
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead>
+          <tr>
+            <th class="cb-col"><div class="row-cb" id="providerSelectAllCb" onclick="toggleSelectAllProviders()"></div></th>
+            <th class="th-sort" data-sort="name">Provider Name</th>
+            <th class="th-sort" data-sort="category">Category</th>
+            <th class="th-sort" data-sort="stage">Stage</th>
+            <th class="th-sort" data-sort="offers">Offers</th>
+            <th>Deal Breaker</th>
+            <th class="th-sort" data-sort="date">Visit Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="providersTableBody"></tbody>
+      </table>
+    </div>`;
+  document.getElementById('providerSearch').addEventListener('input', renderProvidersTable);
+  document.getElementById('providerCategoryFilter').addEventListener('change', renderProvidersTable);
+  document.getElementById('providerSort').addEventListener('change', () => {
+    providerSortKey = document.getElementById('providerSort').value;
+    providerSortDir = 1;
+    updateProviderSortHeaders();
+    renderProvidersTable();
+  });
+  document.querySelectorAll('.th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (providerSortKey === key) providerSortDir = -providerSortDir;
+      else { providerSortKey = key; providerSortDir = 1; }
+      const dd = document.getElementById('providerSort');
+      if (dd && ['date', 'stage', 'name'].includes(key)) dd.value = key;
+      updateProviderSortHeaders();
+      renderProvidersTable();
+    });
+  });
+  updateProviderSortHeaders();
+  renderProvidersTable();
+}
+
+function updateProviderSortHeaders() {
+  document.querySelectorAll('.th-sort').forEach(th => {
+    const active = th.dataset.sort === providerSortKey;
+    th.classList.toggle('active', active);
+    const existingIcon = th.querySelector('i');
+    if (existingIcon) existingIcon.remove();
+    if (active) th.insertAdjacentHTML('beforeend', providerSortDir === 1 ? ' <i class="ti ti-arrow-up"></i>' : ' <i class="ti ti-arrow-down"></i>');
+  });
+}
+
+function renderProvidersTable() {
+  const body = document.getElementById('providersTableBody');
+  if (!body) return;
+  const query = document.getElementById('providerSearch').value.trim().toLowerCase();
+  const category = document.getElementById('providerCategoryFilter').value;
+  const rows = sortProviders(providerRows().filter(row => {
+    const name = (row.provider.provider_name || '').toLowerCase();
+    const cat = categoryLabel(row.provider);
+    const matchesQuery = !query || name.includes(query);
+    const matchesCategory = category === 'all' || cat === category || (cat || '').includes(category);
+    const matchesStale = !providerStaleOnly || isStale(row.provider);
+    return matchesQuery && matchesCategory && matchesStale;
+  }), providerSortKey, providerSortDir);
+
+  lastVisibleProviderIds = rows.map(row => row.provider.id);
+
+  body.innerHTML = rows.length ? rows.map(row => {
+    const provider = row.provider;
+    const safeName = (provider.provider_name || '').replace(/'/g, "\\'");
+    const safeVertical = (provider.vertical || provider.category || '').replace(/'/g, "\\'");
+    const date = row.visitDate ? new Date(row.visitDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+    const stale = isStale(provider);
+    const selected = selectedProviders.has(provider.id);
+    return `
+      <tr data-provider-id="${provider.id}" data-negotiation-id="${row.negotiationId}" class="${selected ? 'row-selected' : ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)">
+        <td class="cb-col" onclick="event.stopPropagation();toggleProviderSelection('${provider.id}')"><div class="row-cb ${selected ? 'checked' : ''}">${selected ? '✓' : ''}</div></td>
+        <td style="color:var(--text-primary);font-weight:600;${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">${provider.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-right:4px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(provider.provider_name || 'Unnamed')}</td>
+        <td><span class="cat-badge ${catBadgeClass(categoryLabel(provider))}">${escapeHtml(categoryLabel(provider))}</span></td>
+        <td><span class="stage-pill ${row.stage === 'accepted' || row.stage === 'negotiating' ? 'active' : ''}">${escapeHtml(stageLabel(row.stage))}</span></td>
+        <td><span class="count-pill mono">${row.offerCount}</span></td>
+        <td>${escapeHtml(row.dealBreaker)}</td>
+        <td class="mono">${date}${stale ? `<span class="stale-tag">${daysSince(row.updatedAt)}d</span>` : ''}</td>
+        <td>
+          <div class="table-actions">
+            <button class="act-btn act-view" type="button" onclick="event.stopPropagation();openProviderModal('${provider.id}', '${row.negotiationId}')"><i class="ti ti-eye"></i><span>View</span></button>
+            ${canManageDeals() ? `<button class="act-btn act-run" type="button" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${safeVertical}')"><i class="ti ti-player-play"></i><span>Run</span></button>` : ''}
+            ${canDelete() ? `<button class="act-btn act-del" type="button" onclick="event.stopPropagation();deleteProvider('${provider.id}', '${safeName}')"><i class="ti ti-trash"></i><span>Delete</span></button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers found</td></tr>`;
+
+  const selectAllCb = document.getElementById('providerSelectAllCb');
+  if (selectAllCb) {
+    const allSelected = rows.length > 0 && rows.every(row => selectedProviders.has(row.provider.id));
+    selectAllCb.classList.toggle('checked', allSelected);
+    selectAllCb.textContent = allSelected ? '✓' : '';
+  }
+  renderProvidersBulkBar();
+}
+
+let selectedProviders = new Set();
+let lastVisibleProviderIds = [];
+
+function toggleProviderSelection(providerId) {
+  if (selectedProviders.has(providerId)) selectedProviders.delete(providerId);
+  else selectedProviders.add(providerId);
+  renderProvidersTable();
+}
+
+function toggleSelectAllProviders() {
+  const allSelected = lastVisibleProviderIds.length > 0 && lastVisibleProviderIds.every(id => selectedProviders.has(id));
+  if (allSelected) lastVisibleProviderIds.forEach(id => selectedProviders.delete(id));
+  else lastVisibleProviderIds.forEach(id => selectedProviders.add(id));
+  renderProvidersTable();
+}
+
+function clearProviderSelection() {
+  selectedProviders.clear();
+  renderProvidersTable();
+}
+
+function renderProvidersBulkBar() {
+  const el = document.getElementById('providersBulkBar');
+  if (!el) return;
+  const n = selectedProviders.size;
+  if (!n) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="bulk-bar">
+      <span class="bulk-text">${n} selected</span>
+      <button class="mini-btn" type="button" onclick="alert('Assign owner — coming soon')">Assign owner</button>
+      <button class="mini-btn" type="button" onclick="exportSelectedProvidersCsv()">Export CSV</button>
+      <button class="mini-btn" type="button" style="color:var(--red);" onclick="archiveSelectedProviders()">Archive</button>
+      <button class="mini-btn" type="button" style="margin-left:auto;" onclick="clearProviderSelection()">Clear</button>
+    </div>`;
+}
+
+function exportSelectedProvidersCsv() {
+  const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = providerRows().filter(r => selectedProviders.has(r.provider.id));
+  const header = ['Provider', 'Category', 'Stage', 'Offers', 'Visit Date'];
+  const lines = [header.join(',')];
+  rows.forEach(r => {
+    const date = r.visitDate ? new Date(r.visitDate).toLocaleDateString('en-GB') : '';
+    lines.push([
+      csvEscape(r.provider.provider_name),
+      csvEscape(categoryLabel(r.provider)),
+      csvEscape(stageLabel(r.stage)),
+      r.offerCount,
+      csvEscape(date),
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `wein-providers-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function archiveSelectedProviders() {
+  if (!confirm(`Archive ${selectedProviders.size} provider(s)? This action is not yet wired to a real change — no data will be modified.`)) return;
+  alert('Archive is not yet implemented — no changes were made.');
+}
+
+async function deleteProvider(providerId, providerName) {
+  if (!canDelete()) return;
+  if (!confirm(`Delete "${providerName}" permanently? This removes the provider, its negotiation, offers, files, and notes. This cannot be undone.`)) return;
+  try {
+    const negotiations = await sbGet(`wein_negotiations?provider_id=eq.${providerId}&select=id`);
+    for (const neg of negotiations) {
+      await sbDelete(`wein_comments?negotiation_id=eq.${neg.id}`);
+    }
+    await sbDelete(`wein_offers?provider_id=eq.${providerId}`);
+    await sbDelete(`wein_files?provider_id=eq.${providerId}`);
+    await sbDelete(`wein_negotiations?provider_id=eq.${providerId}`);
+    await sbDelete(`wein_providers?id=eq.${providerId}`);
+    await loadDashboard();
+  } catch (e) { console.error('deleteProvider error:', e); alert('Could not delete provider: ' + e.message); }
+}
+
+function fileProviderName(file) {
+  const provider = cachedProviders.find(p => p.id === file.provider_id);
+  return provider?.provider_name || file.provider_name || 'Unknown provider';
+}
+
+function fileTypeLabel(file) {
+  const name = (file.file_name || '').toLowerCase();
+  const type = (file.file_type || '').toLowerCase();
+  if (name.endsWith('.pdf') || type.includes('pdf')) return 'pdf';
+  if (name.endsWith('.xlsx') || name.endsWith('.xls') || type.includes('xlsx') || type.includes('excel')) return 'excel';
+  return 'other';
+}
+
+function fileIcon(file) {
+  const type = fileTypeLabel(file);
+  if (type === 'pdf') return 'ti-file-type-pdf';
+  if (type === 'excel') return 'ti-file-type-xls';
+  return 'ti-file';
+}
+
+function renderFilesView() {
+  const providerOptions = cachedProviders
+    .map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`)
+    .join('');
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Files</div>
+        <div class="view-count">${cachedFiles.length} total</div>
+      </div>
+    </div>
+    <div class="view-filterbar">
+      <input id="fileSearch" class="view-input" type="search" placeholder="Search files">
+      <select id="fileProviderFilter" class="view-select">
+        <option value="all">All providers</option>
+        ${providerOptions}
+      </select>
+      <select id="fileTypeFilter" class="view-select">
+        <option value="all">All files</option>
+        <option value="pdf">PDF</option>
+        <option value="excel">Excel</option>
+      </select>
+    </div>
+    <div class="files-grid" id="filesGrid"></div>`;
+  document.getElementById('fileSearch').addEventListener('input', renderFilesGrid);
+  document.getElementById('fileProviderFilter').addEventListener('change', renderFilesGrid);
+  document.getElementById('fileTypeFilter').addEventListener('change', renderFilesGrid);
+  renderFilesGrid();
+}
+
+function renderFilesGrid() {
+  const grid = document.getElementById('filesGrid');
+  if (!grid) return;
+  const query = document.getElementById('fileSearch').value.trim().toLowerCase();
+  const providerId = document.getElementById('fileProviderFilter').value;
+  const typeFilter = document.getElementById('fileTypeFilter').value;
+  const files = cachedFiles.filter(file => {
+    const fileName = (file.file_name || '').toLowerCase();
+    const providerName = fileProviderName(file).toLowerCase();
+    const type = fileTypeLabel(file);
+    const matchesQuery = !query || fileName.includes(query) || providerName.includes(query);
+    const matchesProvider = providerId === 'all' || file.provider_id === providerId;
+    const matchesType = typeFilter === 'all' || type === typeFilter;
+    return matchesQuery && matchesProvider && matchesType;
+  });
+
+  grid.innerHTML = files.length ? files.map(file => {
+    const created = file.created_at ? new Date(file.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+    return `
+      <article class="file-card">
+        <div class="file-card-head">
+          <div class="file-icon"><i class="ti ${fileIcon(file)}"></i></div>
+          <div style="min-width:0;flex:1;">
+            <div class="file-name" title="${escapeHtml(file.file_name || '')}">${escapeHtml(file.file_name || 'Untitled file')}</div>
+            <div class="file-provider">${escapeHtml(fileProviderName(file))}</div>
+          </div>
+        </div>
+        <div class="file-meta">${created}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${file.drive_view_url ? `<a class="file-link" href="${file.drive_view_url}" target="_blank" rel="noopener">View file</a>` : `<span class="file-meta">No view link</span>`}
+          ${canDelete() ? `<button class="mini-btn" type="button" onclick="deleteFile('${file.id}')" style="color:var(--red);"><i class="ti ti-trash"></i></button>` : ''}
+        </div>
+      </article>`;
+  }).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No files found</div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// OFFERS (all built offers across providers)
+// ════════════════════════════════════════════════════════════════════
+function discountPctLabel(pct) {
+  if (pct == null) return null;
+  const normalized = pct > 0 && pct <= 1 ? pct * 100 : pct;
+  return Math.round(normalized);
+}
+function discountSeverityColor(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red)' : 'var(--amber)';
+}
+function discountSeverityTint(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red-tint)' : 'var(--amber-tint)';
+}
+function discountSeverityBorder(pct) {
+  const label = discountPctLabel(pct);
+  return label != null && label >= 28 ? 'var(--red)' : 'var(--border-amber)';
+}
+
+function offerProviderName(offer) {
+  const provider = cachedProviders.find(p => p.id === offer.provider_id);
+  return provider?.provider_name || offer.provider_name || 'Unknown provider';
+}
+// wein_offers.category is actually party-size (Solo/Couple/Group/Family/
+// Other), NOT a business vertical -- despite the offer card's badge
+// displaying it as if it were one. The category chips filter needs the
+// linked provider's real vertical/category instead.
+function offerProviderVertical(offer) {
+  const provider = cachedProviders.find(p => p.id === offer.provider_id);
+  return provider ? categoryLabel(provider) : null;
+}
+
+// Offer lifecycle: rows without a status column (pre-migration-032) are
+// treated as archived history so the Pending view stays clean.
+function offerStatus(o) { return o.status || 'archived'; }
+let offerStatusFilter = 'pending';
+
+let offersCatFilter = 'all';
+function setOffersCatFilter(value) {
+  offersCatFilter = value;
+  const wrap = document.getElementById('offersCatChipsWrap');
+  if (wrap) wrap.innerHTML = categoryChipsHtml(offersCatFilter, 'setOffersCatFilter');
+  renderOffersGrid();
+}
+
+function renderOffersView() {
+  const providerOptions = cachedProviders
+    .map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`)
+    .join('');
+  const counts = { pending: 0, accepted: 0, rejected: 0, archived: 0 };
+  cachedOffers.forEach(o => { const st = offerStatus(o); if (counts[st] != null) counts[st]++; });
+  const chip = (key, label) => `
+    <button type="button" class="mini-btn offer-status-chip" data-status="${key}"
+      style="${offerStatusFilter === key ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">
+      ${label} (${counts[key] != null ? counts[key] : cachedOffers.length})
+    </button>`;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Offers</div>
+        <div class="view-count">${counts.pending} pending &middot; ${counts.accepted} accepted</div>
+      </div>
+    </div>
+    <div id="offersCatChipsWrap">${categoryChipsHtml(offersCatFilter, 'setOffersCatFilter')}</div>
+    <div class="view-filterbar" style="flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${chip('pending', 'Pending')}
+        ${chip('accepted', 'Accepted')}
+        ${chip('rejected', 'Rejected')}
+        ${chip('archived', 'Archived')}
+      </div>
+      <input id="offerSearch" class="view-input" type="search" placeholder="Search offers">
+      <select id="offerProviderFilter" class="view-select">
+        <option value="all">All providers</option>
+        ${providerOptions}
+      </select>
+      <select id="offerSort" class="view-select">
+        <option value="featured">Featured first</option>
+        <option value="newest">Newest first</option>
+        <option value="discount">Highest discount</option>
+        <option value="price">Lowest price</option>
+      </select>
+    </div>
+    <div class="files-grid" id="offersGrid"></div>`;
+  document.querySelectorAll('.offer-status-chip').forEach(btn => {
+    btn.addEventListener('click', () => { offerStatusFilter = btn.dataset.status; renderOffersView(); });
+  });
+  document.getElementById('offerSearch').addEventListener('input', renderOffersGrid);
+  document.getElementById('offerProviderFilter').addEventListener('change', renderOffersGrid);
+  document.getElementById('offerSort').addEventListener('change', renderOffersGrid);
+  renderOffersGrid();
+}
+
+// One write path for offer status changes from anywhere (Offers tab,
+// pipeline cards). Accept has no confirm popup — the undo toast covers
+// mistakes instead. Re-renders whatever view is currently on screen.
+async function setOfferStatus(offerId, status) {
+  let offer = cachedOffers.find(o => o.id === offerId);
+  if (!offer) {
+    // Modal fetches offers fresh — a row can exist that predates the last
+    // dashboard load. Pull it rather than silently doing nothing.
+    const rows = await sbGet(`wein_offers?id=eq.${offerId}&select=*`);
+    if (!rows.length) return;
+    offer = rows[0];
+    cachedOffers.push(offer);
+  }
+  const prevStatus = offerStatus(offer);
+  if (status === 'rejected' && !confirm(`Reject "${offer.title || 'this offer'}"?`)) return;
+  const body = { status };
+  if (status === 'accepted') {
+    body.accepted_at = new Date().toISOString();
+    body.accepted_by = window.WEIN?.fullName || window.WEIN?.role || 'portal';
+  } else { body.accepted_at = null; body.accepted_by = null; body.synced_to_accepted = false; }
+  try {
+    await sbPatch(`wein_offers?id=eq.${offerId}`, body);
+    // read-back: never trust the 204 alone
+    const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Update did not apply (permissions or migration 032 missing). Nothing changed.');
+      return;
+    }
+    Object.assign(offer, body);
+    // Moving away from accepted: remove the copy the sync workflow may have
+    // already written into the RAG training table.
+    if (prevStatus === 'accepted' && status !== 'accepted') await cleanupAcceptedSync(offerId);
+    renderCurrentView();
+    if (window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
+    if (status === 'accepted') showUndoToast(offerId, prevStatus, offer.title || 'Offer');
+  } catch (e) {
+    alert('Failed to update offer: ' + (e.message || e));
+  }
+}
+
+// Best-effort removal of an un-accepted offer's copy from the RAG training
+// table (wein_accepted_offers). RLS only lets admin/manager delete — if a
+// copy survives, say so honestly instead of pretending it's gone.
+async function cleanupAcceptedSync(offerId) {
+  try {
+    await sbDelete(`wein_accepted_offers?source_offer_id=eq.${offerId}`);
+    const left = await sbGet(`wein_accepted_offers?source_offer_id=eq.${offerId}&select=id`);
+    if (left.length) alert('Offer reverted, but its copy in the accepted-offers training data could not be removed with your role — ask an admin to clean it, or it will keep influencing future generation.');
+  } catch (e) { /* row may simply not exist yet (sync runs every 5 min) */ }
+}
+
+let undoToastTimer = null;
+function showUndoToast(offerId, prevStatus, title) {
+  let toast = document.getElementById('undo-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'undo-toast';
+    toast.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:700;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:10px 14px;display:flex;align-items:center;gap:12px;font-family:\'Instrument Sans\';font-size:12px;color:var(--text-primary);max-width:92vw;';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `
+    <i class="ti ti-circle-check" style="color:var(--green,#3fb950);font-size:16px;flex-shrink:0;"></i>
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Accepted “${escapeHtml(title)}” — feeds future generation</span>
+    <button class="mini-btn" type="button" style="flex-shrink:0;" onclick="undoOfferAccept('${offerId}','${prevStatus}')"><i class="ti ti-arrow-back-up"></i><span>Undo</span></button>`;
+  toast.style.display = 'flex';
+  clearTimeout(undoToastTimer);
+  undoToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 8000);
+}
+async function undoOfferAccept(offerId, prevStatus) {
+  const toast = document.getElementById('undo-toast');
+  if (toast) toast.style.display = 'none';
+  clearTimeout(undoToastTimer);
+  const offer = cachedOffers.find(o => o.id === offerId);
+  try {
+    const body = { status: prevStatus, accepted_at: null, accepted_by: null, synced_to_accepted: false };
+    await sbPatch(`wein_offers?id=eq.${offerId}`, body);
+    const check = await sbGet(`wein_offers?id=eq.${offerId}&select=status`);
+    if (!check.length || check[0].status !== prevStatus) { alert('Undo did not apply.'); return; }
+    if (offer) Object.assign(offer, body);
+    await cleanupAcceptedSync(offerId);
+    renderCurrentView();
+    if (offer && window.currentProviderId === offer.provider_id) renderModalOffers(offer.provider_id, modalOpenToken);
+  } catch (e) { alert('Undo failed: ' + (e.message || e)); }
+}
+
+// ── OFFER DETAILS (itemized breakdown, shown before editing) ──────────
+function formatOfferItemsHtml(items) {
+  if (!Array.isArray(items) || !items.length) return '<div style="color:var(--text-tertiary);">No item breakdown recorded.</div>';
+  return items.map(it => {
+    if (!it || typeof it !== 'object') return `<div>${escapeHtml(String(it))}</div>`;
+    const qty = it.qty || 1;
+    const price = it.unit_price_egp != null ? `${it.unit_price_egp === 0 ? 'Free' : 'EGP ' + it.unit_price_egp} ea` : '';
+    const role = it.bundle_role ? ` · ${escapeHtml(it.bundle_role)}` : '';
+    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;">
+      <span>${qty}× ${escapeHtml(it.name || '')}${role}</span>
+      <span style="color:var(--text-tertiary);white-space:nowrap;font-family:'JetBrains Mono';">${price}</span>
+    </div>`;
+  }).join('');
+}
+
+function offerDetailsHtml(o) {
+  const termsHtml = (Array.isArray(o.terms) ? o.terms : (o.terms ? [o.terms] : []))
+    .map(t => `<div style="padding:2px 0;">• ${escapeHtml(t)}</div>`).join('') || '<div style="color:var(--text-tertiary);">No terms recorded.</div>';
+  return `
+    <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Items</div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">${formatOfferItemsHtml(o.items)}</div>
+    ${o.upgrade_tier ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Upgrade</div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(o.upgrade_tier)}</div>` : ''}
+    <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Terms</div>
+    <div style="font-size:11px;color:var(--text-secondary);">${termsHtml}</div>`;
+}
+
+function toggleOfferDetails(offerId) {
+  const el = document.getElementById('offer-details-' + offerId);
+  if (!el) return;
+  const opening = el.style.display === 'none';
+  if (opening) {
+    const o = cachedOffers.find(x => x.id === offerId);
+    el.innerHTML = o ? offerDetailsHtml(o) : '<div style="color:var(--text-tertiary);">Offer not found.</div>';
+  }
+  el.style.display = opening ? 'block' : 'none';
+}
+
+// ── OFFER EDIT MODAL ────────────────────────────────────────────────
+// Surgical single-offer edits without re-running the pipeline. Discount %
+// is always derived from the two prices (read-only) so the three numbers
+// can never disagree — same philosophy as the pipeline's math validator.
+let editingOfferId = null;
+let oeItemsState = [];
+
+function oeRenderItemRows() {
+  const el = document.getElementById('oe-items-rows');
+  if (!el) return;
+  el.innerHTML = oeItemsState.length ? oeItemsState.map((it, i) => `
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" value="${escapeHtml(it.name || '')}" placeholder="Item name" style="flex:1;min-width:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].name=this.value">
+      <input type="number" value="${it.qty != null ? it.qty : 1}" min="1" style="width:56px;min-width:0;flex-shrink:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].qty=parseFloat(this.value)||1">
+      <input type="number" value="${it.unit_price_egp != null ? it.unit_price_egp : ''}" min="0" style="width:72px;min-width:0;flex-shrink:0;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text-primary);outline:none;box-sizing:border-box;" oninput="oeItemsState[${i}].unit_price_egp=parseFloat(this.value)||0">
+      <button type="button" onclick="oeRemoveItemRow(${i})" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:15px;padding:2px 4px;flex-shrink:0;line-height:1;">×</button>
+    </div>`).join('') : '<div style="font-size:11px;color:var(--text-tertiary);">No items — click "Add item" to add one.</div>';
+}
+
+function oeAddItemRow() {
+  oeItemsState.push({ name: '', qty: 1, unit_price_egp: 0 });
+  oeRenderItemRows();
+}
+
+function oeRemoveItemRow(i) {
+  oeItemsState.splice(i, 1);
+  oeRenderItemRows();
+}
+
+function oeSumItemsIntoRegular() {
+  const sum = oeItemsState.reduce((s, it) => s + (parseFloat(it.qty) || 1) * (parseFloat(it.unit_price_egp) || 0), 0);
+  document.getElementById('oe-regular').value = Math.round(sum);
+  oeRecalcDiscount();
+}
+
+function openOfferEdit(offerId) {
+  const o = cachedOffers.find(x => x.id === offerId);
+  if (!o) { alert('Offer not found in cache — refresh and try again.'); return; }
+  editingOfferId = offerId;
+  document.getElementById('oe-title').value = o.title || '';
+  document.getElementById('oe-hook').value = o.hook || '';
+  document.getElementById('oe-regular').value = o.regular_egp != null ? o.regular_egp : '';
+  document.getElementById('oe-promo').value = o.promo_egp != null ? o.promo_egp : '';
+  const terms = Array.isArray(o.terms) ? o.terms : (o.terms ? [String(o.terms)] : []);
+  document.getElementById('oe-terms').value = terms.join('\n');
+  // Deep clone so edits (and cancels) never mutate the cached offer in place.
+  oeItemsState = Array.isArray(o.items) ? JSON.parse(JSON.stringify(o.items)) : [];
+  oeRenderItemRows();
+  document.getElementById('oe-error').style.display = 'none';
+  oeRecalcDiscount();
+  document.getElementById('offer-edit-backdrop').style.display = 'flex';
+}
+
+function closeOfferEdit() {
+  editingOfferId = null;
+  oeItemsState = [];
+  document.getElementById('offer-edit-backdrop').style.display = 'none';
+}
+
+function oeRecalcDiscount() {
+  const reg = parseFloat(document.getElementById('oe-regular').value);
+  const promo = parseFloat(document.getElementById('oe-promo').value);
+  const el = document.getElementById('oe-discount');
+  el.value = (reg > 0 && promo >= 0 && promo < reg) ? Math.round((1 - promo / reg) * 100) : '';
+}
+
+// WeIN's mandatory price rule: promo prices end in 9 or 5. Picks the
+// closest such value to the raw calculated price.
+function oeRoundToNearest9or5(n) {
+  const base = Math.round(n);
+  let best = null, bestDiff = Infinity;
+  for (let d = -9; d <= 9; d++) {
+    const candidate = base + d;
+    if (candidate <= 0) continue;
+    const last = ((candidate % 10) + 10) % 10;
+    if (last === 9 || last === 5) {
+      const diff = Math.abs(d);
+      if (diff < bestDiff) { bestDiff = diff; best = candidate; }
+    }
+  }
+  return best != null ? best : base;
+}
+
+// Discount % drives Promo (the reverse of the usual direction): pick a
+// target discount, get the exact price it produces, rounded to WeIN's
+// 9/5 price-ending convention. Discount is then refreshed to the ACHIEVED
+// value (may shift by <1 point from what was typed, due to rounding) so
+// the three fields never disagree.
+function oeApplyDiscount() {
+  const reg = parseFloat(document.getElementById('oe-regular').value);
+  const discPct = parseFloat(document.getElementById('oe-discount').value);
+  if (!(reg > 0) || isNaN(discPct) || discPct < 0 || discPct >= 100) return;
+  const rawPromo = reg * (1 - discPct / 100);
+  document.getElementById('oe-promo').value = oeRoundToNearest9or5(rawPromo);
+  oeRecalcDiscount();
+}
+
+async function saveOfferEdit() {
+  if (!editingOfferId) return;
+  const errEl = document.getElementById('oe-error');
+  errEl.style.display = 'none';
+  const o = cachedOffers.find(x => x.id === editingOfferId);
+  const reg = parseFloat(document.getElementById('oe-regular').value);
+  const promo = parseFloat(document.getElementById('oe-promo').value);
+  if (!(reg > 0) || !(promo > 0) || promo >= reg) {
+    errEl.textContent = 'Prices must be positive numbers with promo below regular.';
+    errEl.style.display = 'block'; return;
+  }
+  const items = oeItemsState.filter(it => (it.name || '').trim() !== '');
+  const termsLines = document.getElementById('oe-terms').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const body = {
+    title: document.getElementById('oe-title').value.trim(),
+    hook: document.getElementById('oe-hook').value.trim(),
+    regular_egp: Math.round(reg),
+    promo_egp: Math.round(promo),
+    discount_pct: Math.round((1 - promo / reg) * 100),
+    terms: termsLines,
+    items: items,
+  };
+  try {
+    await sbPatch(`wein_offers?id=eq.${editingOfferId}`, body);
+    const check = await sbGet(`wein_offers?id=eq.${editingOfferId}&select=title,promo_egp`);
+    if (!check.length || check[0].promo_egp !== body.promo_egp) {
+      errEl.textContent = 'Save did not apply (permissions?).';
+      errEl.style.display = 'block'; return;
+    }
+    if (o) Object.assign(o, body);
+    closeOfferEdit();
+    renderCurrentView();
+    if (o && window.currentProviderId === o.provider_id) renderModalOffers(o.provider_id, modalOpenToken);
+  } catch (e) {
+    errEl.textContent = 'Save failed: ' + (e.message || e);
+    errEl.style.display = 'block';
+  }
+}
+
+function renderOffersGrid() {
+  const grid = document.getElementById('offersGrid');
+  if (!grid) return;
+  const query = document.getElementById('offerSearch').value.trim().toLowerCase();
+  const providerId = document.getElementById('offerProviderFilter').value;
+  const sortBy = document.getElementById('offerSort').value;
+
+  let offers = cachedOffers.filter(o => {
+    const title = (o.title || '').toLowerCase();
+    const providerName = offerProviderName(o).toLowerCase();
+    const matchesQuery = !query || title.includes(query) || providerName.includes(query);
+    const matchesProvider = providerId === 'all' || o.provider_id === providerId;
+    const matchesStatus = offerStatus(o) === offerStatusFilter;
+    const matchesCategory = matchesCategoryFilter(offerProviderVertical(o), offersCatFilter);
+    return matchesQuery && matchesProvider && matchesStatus && matchesCategory;
+  });
+
+  offers = offers.slice().sort((a, b) => {
+    if (sortBy === 'featured') {
+      const af = cachedProviders.find(p => p.id === a.provider_id)?.featured ? 1 : 0;
+      const bf = cachedProviders.find(p => p.id === b.provider_id)?.featured ? 1 : 0;
+      if (af !== bf) return bf - af;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    }
+    if (sortBy === 'discount') return (b.discount_pct || 0) - (a.discount_pct || 0);
+    if (sortBy === 'price') return (a.promo_egp ?? Infinity) - (b.promo_egp ?? Infinity);
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  grid.innerHTML = offers.length ? offers.map(o => `
+    <article class="file-card">
+      <div class="file-card-head">
+        <div class="file-icon"><i class="ti ti-tag"></i></div>
+        <div style="min-width:0;flex:1;">
+          <div class="file-name" title="${escapeHtml(o.title || '')}">${escapeHtml(o.title || 'Untitled offer')}</div>
+          <div class="file-provider">${cachedProviders.find(p => p.id === o.provider_id)?.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-right:3px;" title="Featured / Hot Deal"></i>` : ''}${escapeHtml(offerProviderName(o))}</div>
+        </div>
+        ${discountPctLabel(o.discount_pct) != null ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:${discountSeverityColor(o.discount_pct)};background:${discountSeverityTint(o.discount_pct)};border:0.5px solid ${discountSeverityBorder(o.discount_pct)};border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct)}% off</span>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span class="cat-badge ${catBadgeClass(o.category)}" style="${catBadgeClass(o.category) ? '' : 'background:var(--bg-elevated);border:0.5px solid var(--border);color:var(--text-secondary);'}border-radius:999px;">${escapeHtml(o.category || '—')}</span>
+        <span class="file-meta" style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="file-meta" style="text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
+        <span style="font-family:'JetBrains Mono';font-size:13px;color:var(--amber);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
+      </div>
+      ${offerStatus(o) === 'accepted' ? `
+      <div class="file-meta" style="display:flex;align-items:center;gap:5px;color:var(--green,#3fb950);">
+        <i class="ti ti-circle-check"></i>
+        <span>Accepted${o.accepted_by ? ' by ' + escapeHtml(o.accepted_by) : ''}${o.accepted_at ? ' · ' + new Date(o.accepted_at).toLocaleDateString() : ''}</span>
+      </div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button class="mini-btn" type="button" onclick="openProviderModal('${o.provider_id}', '${(cachedNegotiations.find(n => n.provider_id === o.provider_id) || {}).id || ''}')"><i class="ti ti-eye"></i><span>View provider</span></button>
+        <button class="mini-btn" type="button" onclick="toggleOfferDetails('${o.id}')"><i class="ti ti-list-details"></i><span>Details</span></button>
+        ${offerStatus(o) === 'pending' ? `
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
+          <button class="mini-btn" type="button" onclick="openOfferEdit('${o.id}')"><i class="ti ti-pencil"></i><span>Edit</span></button>
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','rejected')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>
+        ` : ''}
+        ${offerStatus(o) === 'rejected' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>` : ''}
+        ${offerStatus(o) === 'accepted' ? `<button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : ''}
+        ${offerStatus(o) === 'archived' ? `
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','accepted')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Accept</span></button>
+          <button class="mini-btn" type="button" onclick="setOfferStatus('${o.id}','pending')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
+        ` : ''}
+      </div>
+      <div id="offer-details-${o.id}" style="display:none;background:var(--bg-surface);border:0.5px solid var(--border-subtle);border-radius:6px;padding:9px 10px;"></div>
+    </article>`).join('') : `<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No ${offerStatusFilter} offers</div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ANALYTICS (lightweight CSS bar charts -- no external chart lib)
+// ════════════════════════════════════════════════════════════════════
+function barChartHtml(bars, opts = {}) {
+  const max = Math.max(1, ...bars.map(b => b.value));
+  const barColor = opts.color || 'var(--blue)';
+  const unit = opts.unit || '';
+  return `
+    <div style="display:flex;align-items:flex-end;gap:10px;height:160px;padding:0 4px;">
+      ${bars.map(b => `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0;height:100%;justify-content:flex-end;">
+          <div style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">${b.value}${unit}</div>
+          <div style="width:100%;max-width:40px;border-radius:4px 4px 0 0;background:${b.color || barColor};height:${Math.max(3, (b.value / max) * 110)}px;"></div>
+          <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${escapeHtml(b.label)}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// Avg days idle per current lead stage. No per-stage transition log exists for
+// leads (see LEAD DETAIL DRAWER comment above), so this averages daysSince()
+// across leads currently sitting in each stage -- an honest "how long has
+// this stage's backlog been waiting" metric, not a true historical average.
+function avgDaysPerLeadStageBars() {
+  const groups = {};
+  cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').forEach(l => {
+    if (!groups[l.status]) groups[l.status] = [];
+    groups[l.status].push(daysSince(l.updated_at || l.created_at));
+  });
+  return LEAD_STAGES.filter(s => s.id !== 'promoted').map(s => {
+    const arr = groups[s.id] || [];
+    const avg = arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+    return { label: s.label, value: avg, color: avg >= 9 ? 'var(--red)' : avg >= 5 ? 'var(--amber)' : 'var(--green)' };
+  });
+}
+
+// Funnel shape from current lead distribution (counts leads currently at-or-
+// past each stage, including promoted leads at the final stage). This is a
+// snapshot-based proxy for conversion, not a true cohort-over-time rate --
+// there is no per-lead stage-transition history to compute the latter.
+function leadFunnelRows() {
+  const relevant = cachedLeads.filter(l => l.status !== 'dropped');
+  const stageIdxOf = l => l.status === 'promoted' ? LEAD_STAGES.length - 1 : LEAD_STAGES.findIndex(s => s.id === l.status);
+  const counts = LEAD_STAGES.map((s, i) => relevant.filter(l => stageIdxOf(l) >= i).length);
+  const rows = [];
+  for (let i = 0; i < LEAD_STAGES.length - 1; i++) {
+    const from = counts[i], to = counts[i + 1];
+    const pct = from > 0 ? Math.round((to / from) * 100) : 0;
+    rows.push({ label: `${LEAD_STAGES[i].label} → ${LEAD_STAGES[i + 1].label}`, pct, color: pct >= 60 ? 'var(--green)' : pct >= 30 ? 'var(--blue)' : 'var(--amber)' });
+  }
+  return rows;
+}
+
+function renderAnalyticsView() {
+  const stageCounts = {};
+  providerRows().forEach(row => { stageCounts[row.stage] = (stageCounts[row.stage] || 0) + 1; });
+  const stageBars = Object.keys(stageCounts).map(stage => ({ label: stageLabel(stage), value: stageCounts[stage] }));
+  const leadStageDaysBars = avgDaysPerLeadStageBars();
+  const funnelRows = leadFunnelRows();
+
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const offersByDay = days.map(day => ({
+    label: new Date(day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    value: cachedOffers.filter(o => (o.created_at || '').slice(0, 10) === day).length,
+  }));
+
+  const totalViolations = cachedOutcomes.reduce((sum, o) => sum + (o.discount_violations || 0), 0);
+  const violationRuns = cachedOutcomes.filter(o => (o.discount_violations || 0) > 0).length;
+  const recentOutcomes = cachedOutcomes.slice(0, 8);
+
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Analytics</div>
+        <div class="view-count">${cachedProviders.length} providers · ${cachedOffers.length} offers</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Providers by stage</div>
+        ${stageBars.length ? barChartHtml(stageBars) : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No providers yet</div>'}
+      </div>
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Offers built (last 14 days)</div>
+        ${barChartHtml(offersByDay, { color: 'var(--amber)' })}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Avg days idle by lead stage</div>
+        ${leadStageDaysBars.some(b => b.value > 0) ? barChartHtml(leadStageDaysBars, { unit: 'd' }) : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No active leads yet</div>'}
+      </div>
+      <div class="kpi-card" style="padding:16px;">
+        <div class="kpi-label" style="margin-bottom:10px;">Lead Funnel Conversion</div>
+        ${funnelRows.length && cachedLeads.length ? funnelRows.map(f => `
+          <div class="funnel-row">
+            <div class="funnel-head"><span class="funnel-label">${escapeHtml(f.label)}</span><span class="funnel-pct" style="color:${f.color};">${f.pct}%</span></div>
+            <div class="funnel-track"><div class="funnel-fill" style="width:${f.pct}%;background:${f.color};"></div></div>
+          </div>`).join('') : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:32px;">No leads tracked yet</div>'}
+      </div>
+    </div>
+    <div class="kpi-card" style="padding:16px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Discount violations</div>
+      <div style="display:flex;gap:24px;margin-bottom:14px;">
+        <div><div class="kpi-value mono" style="font-size:20px;">${totalViolations}</div><div class="kpi-delta">total violations</div></div>
+        <div><div class="kpi-value mono" style="font-size:20px;">${violationRuns}</div><div class="kpi-delta">runs with violations</div></div>
+      </div>
+      ${recentOutcomes.length ? `
+        <table class="providers-table">
+          <thead><tr><th>Provider</th><th>Grade</th><th>Violations</th><th>Run date</th></tr></thead>
+          <tbody>
+            ${recentOutcomes.map(o => {
+              const provider = cachedProviders.find(p => p.id === o.provider_id);
+              const date = o.created_at ? new Date(o.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+              return `<tr>
+                <td>${escapeHtml(provider?.provider_name || o.provider_name || 'Unknown')}</td>
+                <td>${escapeHtml(o.grade || '—')}</td>
+                <td style="color:${o.discount_violations > 0 ? 'var(--red)' : 'var(--text-secondary)'};">${o.discount_violations ?? 0}</td>
+                <td class="mono">${date}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:16px;">No pipeline runs yet</div>'}
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DEALS (Contracts + Featured/Hot Deals -- closes the monday.com
+// "Deals/Client Projects" gap, every provider needs a contract before
+// their offers can go live on the public site)
+// ════════════════════════════════════════════════════════════════════
+let dealsSubView = 'contracts';
+
+function renderDealsView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Deals</div>
+        <div class="view-count">${cachedProviders.length} providers</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="mini-btn ${dealsSubView === 'contracts' ? 'active' : ''}" type="button" onclick="switchDealsSubView('contracts')"><i class="ti ti-file-text"></i><span>Contracts</span></button>
+      <button class="mini-btn ${dealsSubView === 'hotdeals' ? 'active' : ''}" type="button" onclick="switchDealsSubView('hotdeals')"><i class="ti ti-flame"></i><span>Hot Deals</span></button>
+    </div>
+    <div id="dealsSubViewBody"></div>`;
+  renderDealsSubView();
+}
+
+function switchDealsSubView(name) {
+  dealsSubView = name;
+  renderDealsView();
+}
+
+function renderDealsSubView() {
+  if (dealsSubView === 'hotdeals') { renderHotDealsTable(); return; }
+  renderContractsTable();
+}
+
+let selectedDeals = new Set();
+let lastVisibleDealIds = [];
+let dealSortKey = 'status', dealSortDir = 1;
+const DEAL_SORT_COMPARATORS = {
+  name:       (a, b) => (a.provider_name || '').localeCompare(b.provider_name || ''),
+  category:   (a, b) => categoryLabel(a).localeCompare(categoryLabel(b)),
+  commission: (a, b) => (a.commission_pct ?? -1) - (b.commission_pct ?? -1),
+  value:      (a, b) => (negotiationFor(a)?.estimated_value_egp ?? -1) - (negotiationFor(b)?.estimated_value_egp ?? -1),
+  status:     (a, b) => {
+    const order = { active: 0, draft: 1, none: 2, expired: 3, terminated: 4 };
+    return (order[a.contract_status || 'none'] ?? 5) - (order[b.contract_status || 'none'] ?? 5);
+  },
+};
+
+function updateDealSortHeaders() {
+  document.querySelectorAll('#dealsSubViewBody .th-sort').forEach(th => {
+    const active = th.dataset.sort === dealSortKey;
+    th.classList.toggle('active', active);
+    const existingIcon = th.querySelector('i');
+    if (existingIcon) existingIcon.remove();
+    if (active) th.insertAdjacentHTML('beforeend', dealSortDir === 1 ? ' <i class="ti ti-arrow-up"></i>' : ' <i class="ti ti-arrow-down"></i>');
+  });
+}
+
+function toggleDealSelection(providerId) {
+  if (selectedDeals.has(providerId)) selectedDeals.delete(providerId);
+  else selectedDeals.add(providerId);
+  renderContractsTable();
+}
+
+function toggleSelectAllDeals() {
+  const allSelected = lastVisibleDealIds.length > 0 && lastVisibleDealIds.every(id => selectedDeals.has(id));
+  if (allSelected) lastVisibleDealIds.forEach(id => selectedDeals.delete(id));
+  else lastVisibleDealIds.forEach(id => selectedDeals.add(id));
+  renderContractsTable();
+}
+
+function clearDealSelection() {
+  selectedDeals.clear();
+  renderContractsTable();
+}
+
+function renderDealsBulkBar() {
+  const el = document.getElementById('dealsBulkBar');
+  if (!el) return;
+  const n = selectedDeals.size;
+  if (!n) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="bulk-bar">
+      <span class="bulk-text">${n} selected</span>
+      <button class="mini-btn" type="button" onclick="exportSelectedDealsCsv()">Export CSV</button>
+      <button class="mini-btn" type="button" style="margin-left:auto;" onclick="clearDealSelection()">Clear</button>
+    </div>`;
+}
+
+// ── Record Sale (wein_redemptions, migration 039) ──────────────────────
+function openRecordSaleModal(providerId) {
+  if (!DEAL_VALUE_READY || !canManageDeals()) return;
+  window.currentSaleProviderId = providerId;
+  const p = cachedProviders.find(x => x.id === providerId);
+  document.getElementById('sm-provider-name').textContent = p?.provider_name || 'Unknown provider';
+  document.getElementById('sm-amount').value = '';
+  document.getElementById('sm-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('sm-notes').value = '';
+  document.getElementById('sm-error').style.display = 'none';
+  const offerSel = document.getElementById('sm-offer');
+  const providerOffers = cachedOffers.filter(o => o.provider_id === providerId && o.status === 'accepted');
+  offerSel.innerHTML = '<option value="">— None —</option>' +
+    providerOffers.map(o => `<option value="${o.id}">${escapeHtml(o.title || 'Untitled offer')}</option>`).join('');
+  updateSalePreview();
+  document.getElementById('sm-amount').oninput = updateSalePreview;
+  document.getElementById('sale-modal-backdrop').style.display = 'flex';
+}
+function updateSalePreview() {
+  const amount = Number(document.getElementById('sm-amount').value) || 0;
+  const p = cachedProviders.find(x => x.id === window.currentSaleProviderId);
+  const pct = Number(p?.commission_pct || 0);
+  const commission = amount * (pct / 100);
+  document.getElementById('sm-preview').textContent = amount > 0
+    ? `At ${pct}% commission: EGP ${commission.toFixed(0)} to WeIN, EGP ${(amount - commission).toFixed(0)} to ${p?.provider_name || 'provider'}.`
+    : (pct ? `Commission rate on file: ${pct}%.` : 'This provider has no commission % set yet — record will show 0 commission until one is set.');
+}
+function closeRecordSaleModal() {
+  document.getElementById('sale-modal-backdrop').style.display = 'none';
+  window.currentSaleProviderId = null;
+}
+document.getElementById('sale-modal-backdrop').addEventListener('click', function (e) { if (e.target === this) closeRecordSaleModal(); });
+
+async function saveRedemption() {
+  const errEl = document.getElementById('sm-error');
+  const amount = Number(document.getElementById('sm-amount').value);
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a sale amount greater than 0.'; errEl.style.display = 'block'; return; }
+  const providerId = window.currentSaleProviderId;
+  if (!providerId) return;
+  const body = {
+    provider_id: providerId,
+    offer_id: document.getElementById('sm-offer').value || null,
+    sale_amount_egp: amount,
+    redeemed_at: document.getElementById('sm-date').value || new Date().toISOString().slice(0, 10),
+    notes: document.getElementById('sm-notes').value.trim() || null,
+    recorded_by: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+  };
+  const btn = document.getElementById('sm-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const rows = await sbPost('wein_redemptions', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    // read-back verify: never trust the write status alone
+    const check = await sbGet(`wein_redemptions?id=eq.${created?.id}&select=id,sale_amount_egp`);
+    if (!created?.id || !check.length) {
+      errEl.textContent = 'Save did not verify — nothing recorded. Check permissions.';
+      errEl.style.display = 'block';
+      return;
+    }
+    cachedRedemptions.push(created);
+    closeRecordSaleModal();
+    renderContractsTable();
+  } catch (e) {
+    errEl.textContent = 'Could not save: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save sale';
+  }
+}
+
+function exportSelectedDealsCsv() {
+  const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = cachedProviders.filter(p => selectedDeals.has(p.id));
+  const header = ['Provider', 'Category', 'Status', 'Commission', 'Deal value EGP', 'Our commission EGP', 'Provider payout EGP'];
+  const lines = [header.join(',')];
+  rows.forEach(p => {
+    const neg = negotiationFor(p);
+    const t = DEAL_VALUE_READY ? providerRedemptionTotals(p.id) : null;
+    lines.push([
+      csvEscape(p.provider_name), csvEscape(categoryLabel(p)), csvEscape(CONTRACT_STATUS_LABELS[p.contract_status || 'none']),
+      p.commission_pct ?? '', neg?.estimated_value_egp ?? '',
+      t ? t.commission.toFixed(2) : 'Not tracked yet', t ? t.payout.toFixed(2) : 'Not tracked yet',
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `wein-deals-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Days until contract_end: negative = already expired, null = no end date
+// or contract not active/signed (draft/none contracts don't "expire").
+function contractExpiry(p) {
+  if (!p.contract_end || !['active', 'signed'].includes(p.contract_status)) return null;
+  const end = new Date(p.contract_end); end.setHours(23, 59, 59, 999);
+  return Math.ceil((end - Date.now()) / 86400000);
+}
+
+function renderContractsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const cmp = DEAL_SORT_COMPARATORS[dealSortKey] || DEAL_SORT_COMPARATORS.status;
+  const rows = cachedProviders.slice().sort((a, b) => cmp(a, b) * dealSortDir);
+  lastVisibleDealIds = rows.map(p => p.id);
+  const expiring = cachedProviders.filter(p => { const e = contractExpiry(p); return e !== null && e <= 30; });
+  body.innerHTML = `
+    ${expiring.length ? `<div style="display:flex;align-items:center;gap:8px;background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--amber);">
+      <i class="ti ti-alert-triangle"></i>
+      <span><b>${expiring.length}</b> contract${expiring.length === 1 ? '' : 's'} expiring within 30 days or already expired: ${expiring.map(p => escapeHtml(p.provider_name)).join(', ')}</span>
+    </div>` : ''}
+    <div id="dealsBulkBar"></div>
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr>
+          <th class="cb-col"><div class="row-cb" id="dealSelectAllCb" onclick="toggleSelectAllDeals()"></div></th>
+          <th class="th-sort" data-sort="name">Provider</th>
+          <th class="th-sort" data-sort="category">Category</th>
+          <th class="th-sort" data-sort="status">Status</th>
+          <th class="th-sort" data-sort="commission">Commission</th>
+          <th>Contract period</th>
+          <th class="th-sort" data-sort="value">Deal value</th>
+          <th>Our commission${DEAL_VALUE_READY ? '' : ` <i class="ti ti-info-circle" title="Needs migration 039_deal_value_and_role_hardening.sql" style="font-size:11px;color:var(--text-tertiary);"></i>`}</th>
+          <th>Provider payout${DEAL_VALUE_READY ? '' : ` <i class="ti ti-info-circle" title="Needs migration 039_deal_value_and_role_hardening.sql" style="font-size:11px;color:var(--text-tertiary);"></i>`}</th>
+          <th>Featured</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(p => {
+            const status = p.contract_status || 'none';
+            const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+            const exp = contractExpiry(p);
+            const period = (p.contract_start || p.contract_end)
+              ? `${p.contract_start ? new Date(p.contract_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'} → ${p.contract_end ? new Date(p.contract_end).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}${exp !== null && exp <= 30 ? ` <span style="font-size:9px;font-weight:700;color:${exp < 0 ? 'var(--red)' : 'var(--amber)'};">${exp < 0 ? `EXPIRED ${-exp}d ago` : `${exp}d left`}</span>` : ''}`
+              : '—';
+            const neg = cachedNegotiations.find(n => n.provider_id === p.id);
+            const selected = selectedDeals.has(p.id);
+            return `
+              <tr class="${selected ? 'row-selected' : ''}" style="${exp !== null && exp < 0 ? 'box-shadow: inset 3px 0 0 var(--red);' : exp !== null && exp <= 30 ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
+                <td class="cb-col" onclick="toggleDealSelection('${p.id}')"><div class="row-cb ${selected ? 'checked' : ''}">${selected ? '✓' : ''}</div></td>
+                <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                <td><span class="cat-badge ${catBadgeClass(categoryLabel(p))}">${escapeHtml(categoryLabel(p))}</span></td>
+                <td><span style="font-family:'Instrument Sans';font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span></td>
+                <td class="mono">${p.commission_pct != null ? `${p.commission_pct}%` : '—'}</td>
+                <td class="mono">${period}</td>
+                <td>
+                  ${neg
+                    ? (canManageDeals()
+                        ? `<div style="display:flex;align-items:center;gap:4px;">
+                            <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-tertiary);">EGP</span>
+                            <input type="number" value="${neg.estimated_value_egp ?? ''}" placeholder="0" class="mono" style="width:70px;background:transparent;border:none;border-bottom:0.5px dashed var(--border);color:var(--amber);font-size:12px;padding:2px 0;outline:none;" onblur="saveDealValue('${neg.id}', this.value)">
+                          </div>`
+                        : `<span class="mono" style="color:var(--amber);">EGP ${neg.estimated_value_egp ?? 0}</span>`)
+                    : '<span style="color:var(--text-tertiary);">—</span>'}
+                </td>
+                ${(() => {
+                  if (!DEAL_VALUE_READY) return `<td><span style="color:var(--text-tertiary);">Not tracked yet</span></td><td><span style="color:var(--text-tertiary);">Not tracked yet</span></td>`;
+                  const t = providerRedemptionTotals(p.id);
+                  return `
+                <td class="mono" title="${t.count} sale${t.count === 1 ? '' : 's'} recorded">${t.count ? `EGP ${t.commission.toFixed(0)}` : '<span style="color:var(--text-tertiary);">EGP 0</span>'}</td>
+                <td class="mono">${t.count ? `EGP ${t.payout.toFixed(0)}` : '<span style="color:var(--text-tertiary);">EGP 0</span>'}</td>`;
+                })()}
+                <td>${p.featured ? `<i class="ti ti-flame" style="font-size:14px;color:var(--amber);"></i>` : '<span style="color:var(--text-tertiary);">—</span>'}</td>
+                <td>
+                  ${canManageDeals() ? `
+                    <div class="table-actions">
+                      ${DEAL_VALUE_READY ? `<button class="mini-btn" type="button" onclick="openRecordSaleModal('${p.id}')" style="border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-plus"></i><span>Sale</span></button>` : ''}
+                      <button class="mini-btn" type="button" onclick="openContractEditor('${p.id}')"><i class="ti ti-edit"></i><span>Edit contract</span></button>
+                    </div>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}
+                </td>
+              </tr>`;
+          }).join('') : `<tr><td colspan="11" style="text-align:center;color:var(--text-tertiary);padding:28px;">No providers yet</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.querySelectorAll('#dealsSubViewBody .th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (dealSortKey === key) dealSortDir = -dealSortDir;
+      else { dealSortKey = key; dealSortDir = 1; }
+      updateDealSortHeaders();
+      renderContractsTable();
+    });
+  });
+  updateDealSortHeaders();
+
+  const selectAllCb = document.getElementById('dealSelectAllCb');
+  if (selectAllCb) {
+    const allSelected = rows.length > 0 && rows.every(p => selectedDeals.has(p.id));
+    selectAllCb.classList.toggle('checked', allSelected);
+    selectAllCb.textContent = allSelected ? '✓' : '';
+  }
+  renderDealsBulkBar();
+}
+
+function renderHotDealsTable() {
+  const body = document.getElementById('dealsSubViewBody');
+  const featured = cachedProviders.filter(p => p.featured);
+  const eligible = cachedProviders.filter(p => !p.featured && p.contract_status === 'active');
+  body.innerHTML = `
+    <div class="kpi-card" style="padding:16px;margin-bottom:14px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Currently featured (${featured.length})</div>
+      ${featured.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Contract</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${featured.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flame" style="font-size:13px;color:var(--amber);margin-right:5px;"></i>${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td><span style="font-family:'Instrument Sans';font-size:11px;color:${(CONTRACT_STATUS_COLORS[p.contract_status || 'none'] || CONTRACT_STATUS_COLORS.none).text};">${CONTRACT_STATUS_LABELS[p.contract_status || 'none']}</span></td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="unfeatureProvider('${p.id}')">Remove from Hot Deals</button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers featured yet</div>'}
+    </div>
+    <div class="kpi-card" style="padding:16px;">
+      <div class="kpi-label" style="margin-bottom:10px;">Eligible (active contract, not yet featured)</div>
+      ${eligible.length ? `
+        <div class="providers-table-wrap">
+          <table class="providers-table">
+            <thead><tr><th>Provider</th><th>Offers</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${eligible.map(p => `
+                <tr>
+                  <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(p.provider_name || 'Unnamed')}</td>
+                  <td class="mono">${cachedOffers.filter(o => o.provider_id === p.id).length}</td>
+                  <td>${canManageDeals() ? `<button class="mini-btn" type="button" onclick="featureProvider('${p.id}')"><i class="ti ti-flame"></i><span>Add to Hot Deals</span></button>` : `<span style="color:var(--text-tertiary);font-size:11px;">View only</span>`}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:24px;">No providers with an active contract yet</div>'}
+    </div>`;
+}
+
+async function featureProvider(providerId) {
+  if (!canManageDeals()) return;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: true });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = true;
+    renderDealsSubView();
+  } catch (e) { console.error('featureProvider error:', e); alert('Could not feature provider: ' + e.message); }
+}
+
+async function unfeatureProvider(providerId) {
+  if (!canManageDeals()) return;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { featured: false });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.featured = false;
+    renderDealsSubView();
+  } catch (e) { console.error('unfeatureProvider error:', e); alert('Could not unfeature provider: ' + e.message); }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LEADS (pre-provider stage -- closes the "Leads" gap vs. a standard CRM)
+// ════════════════════════════════════════════════════════════════════
+let leadFormVisible = false;
+
+// 7-stage funnel from the ClickUp audit (feature #1 -- 82 active tasks,
+// the highest-volume list in the workspace). 'dropped' is a terminal
+// status reachable from any stage, not part of the forward sequence.
+const LEAD_STAGES = [
+  { id: 'new',               label: 'New',               color: 'var(--text-tertiary)' },
+  { id: 'contacting',        label: 'Contacting',        color: 'var(--blue)' },
+  { id: 'meeting_booked',    label: 'Meeting booked',    color: 'var(--blue)' },
+  { id: 'menu_study',        label: 'Menu study',        color: 'var(--amber)' },
+  { id: 'offers_ready',      label: 'Offers ready',      color: 'var(--amber)' },
+  { id: 'awaiting_approval', label: 'Awaiting approval', color: 'var(--amber)' },
+  { id: 'promoted',          label: 'Promoted',          color: 'var(--green)' },
+];
+
+function leadStatusLabel(status) {
+  if (status === 'dropped') return 'Dropped';
+  return (LEAD_STAGES.find(s => s.id === status) || LEAD_STAGES[0]).label;
+}
+
+// ── CSV lead import: parse → map columns → preview → batch insert ────
+function parseCsv(text) {
+  const delim = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some(f => f.trim() !== '')) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+  return rows;
+}
+const CSV_FIELDS = ['ignore', 'business_name', 'vertical', 'location', 'contact_phone', 'source', 'why_promising', 'notes'];
+function guessCsvField(header) {
+  const h = header.toLowerCase();
+  if (/(business|company|provider|venue|^name)/.test(h)) return 'business_name';
+  if (/(vertical|category|type)/.test(h)) return 'vertical';
+  if (/(location|area|address|place)/.test(h)) return 'location';
+  if (/(phone|mobile|whatsapp|contact)/.test(h)) return 'contact_phone';
+  if (/source/.test(h)) return 'source';
+  if (/(why|promis|potential)/.test(h)) return 'why_promising';
+  if (/note/.test(h)) return 'notes';
+  return 'ignore';
+}
+// Downloadable example so people uploading a list know a working shape —
+// not a required shape (the mapping step below accepts any headers), but
+// having a real example removes all the guesswork.
+function downloadCsvTemplate() {
+  const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
+  const rows = [
+    ['Business Name', 'Category', 'Location', 'Phone', 'Source', 'Why Promising'],
+    ['Example Restaurant', CANON[0] || 'Dining', 'Naama Bay', '01001234567', 'Instagram', 'High foot traffic, no exclusive deals yet'],
+    ['Example Spa', CANON[1] || 'Health & Beauty', 'Soho Square', '01098765432', 'Referral', ''],
+  ];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'wein-leads-example.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function startCsvImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCsv(String(reader.result || ''));
+    if (rows.length < 2) {
+      alert('Couldn\'t find both a header row and a data row in this file — the first line must be column names (e.g. "Business Name, Category, Phone…") and every line after it a lead. Click "Example CSV" for a working file to copy the shape from.');
+      return;
+    }
+    const headerCount = rows[0].length;
+    const overLong = rows.slice(1).filter(r => r.length > headerCount);
+    if (overLong.length) {
+      alert(`${overLong.length} row(s) have MORE columns than the header (header has ${headerCount}). That usually means a comma inside a value wasn't wrapped in quotes — e.g. write "Sushi, Lounge" with quotes if a name itself contains a comma. Fix the file and re-upload, or click "Example CSV" to see the expected shape.`);
+      return;
+    }
+    // Shorter rows (trailing blank cells some spreadsheet exports drop) are
+    // harmless — pad them so mapping-by-column-index still lines up.
+    for (let i = 1; i < rows.length; i++) while (rows[i].length < headerCount) rows[i].push('');
+    const headers = rows[0];
+    const overlay = document.createElement('div');
+    overlay.id = 'csv-import-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:18px;width:640px;max-width:94vw;max-height:85vh;overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.45);">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Import ${rows.length - 1} leads from ${escapeHtml(file.name)}</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Map each CSV column to a lead field. Business name is required — rows without one are skipped.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px;">
+          ${headers.map((h, i) => `
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);">
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(h)}">${escapeHtml(h || '(column ' + (i + 1) + ')')}</span>
+              <select class="view-select csv-map" data-col="${i}" style="width:150px;">
+                ${CSV_FIELDS.map(f => `<option value="${f}" ${guessCsvField(h) === f ? 'selected' : ''}>${f === 'ignore' ? '— ignore —' : f}</option>`).join('')}
+              </select>
+            </label>`).join('')}
+        </div>
+        <div id="csv-preview" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button class="mini-btn" type="button" id="csv-cancel">Cancel</button>
+          <button class="view-action" type="button" id="csv-go"><span>Import</span></button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#csv-cancel').onclick = close;
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    const CANON = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all');
+    const currentMapping = () => Array.from(overlay.querySelectorAll('.csv-map')).map(s => s.value);
+    const renderPreview = () => {
+      const mapping = currentMapping();
+      const vertCol = mapping.indexOf('vertical');
+      const nameCol = mapping.indexOf('business_name');
+      let noNameCount = 0;
+      const unmatchedVerts = new Set();
+      rows.slice(1).forEach(r => {
+        if (nameCol < 0 || !r[nameCol]?.trim()) noNameCount++;
+        if (vertCol >= 0 && r[vertCol]?.trim() && !CANON.some(c => c.toLowerCase() === r[vertCol].trim().toLowerCase())) {
+          unmatchedVerts.add(r[vertCol].trim());
+        }
+      });
+      const sample = rows.slice(1, 4).map(r => {
+        const obj = {};
+        mapping.forEach((f, i) => { if (f !== 'ignore' && r[i]?.trim()) obj[f] = r[i].trim(); });
+        return obj.business_name ? `✓ ${escapeHtml(obj.business_name)}${obj.vertical ? ' · ' + escapeHtml(obj.vertical) : ''}${obj.contact_phone ? ' · ' + escapeHtml(obj.contact_phone) : ''}` : '✗ (no business name — skipped)';
+      });
+      let html = '<b>Preview (first 3 rows):</b><br>' + sample.join('<br>');
+      if (nameCol < 0) {
+        html += `<div style="color:var(--red);margin-top:8px;">⚠ No column is mapped to <b>business_name</b> yet — every row will be skipped. Pick the column with the business's name in the dropdown above.</div>`;
+      } else if (noNameCount) {
+        html += `<div style="color:var(--amber);margin-top:8px;">⚠ ${noNameCount} of ${rows.length - 1} row(s) have an empty value in the mapped business-name column and will be skipped.</div>`;
+      }
+      if (unmatchedVerts.size) {
+        html += `<div style="color:var(--amber);margin-top:8px;">⚠ These category values don't match WeIN's 4 categories and will be left blank: <b>${[...unmatchedVerts].map(escapeHtml).join(', ')}</b>. Valid values are exactly: ${CANON.join(' / ')}.</div>`;
+      }
+      overlay.querySelector('#csv-preview').innerHTML = html;
+    };
+    overlay.querySelectorAll('.csv-map').forEach(s => s.addEventListener('change', renderPreview));
+    renderPreview();
+    overlay.querySelector('#csv-go').onclick = async () => {
+      const mapping = currentMapping();
+      if (!mapping.includes('business_name')) { alert('No column is mapped to business_name — pick which column holds the business name before importing.'); return; }
+      const leads = [];
+      let skipped = 0;
+      rows.slice(1).forEach(r => {
+        const obj = {};
+        mapping.forEach((f, i) => { if (f !== 'ignore' && r[i]?.trim()) obj[f] = r[i].trim(); });
+        if (!obj.business_name) { skipped++; return; }
+        if (obj.vertical) {
+          const match = CANON.find(c => c.toLowerCase() === obj.vertical.toLowerCase());
+          obj.vertical = match || null;
+        }
+        obj.status = 'new';
+        obj.source = obj.source || `CSV import ${new Date().toISOString().slice(0, 10)}`;
+        obj.created_by = sessionStorage.getItem('weinRole') || 'portal';
+        obj.stage_entered_at = new Date().toISOString();
+        leads.push(obj);
+      });
+      if (!leads.length) { alert('Nothing to import — no rows had a business name.'); return; }
+      try {
+        const before = (await sbGet('wein_leads?select=id')).length;
+        await sbPost('wein_leads', leads);
+        const after = (await sbGet('wein_leads?select=id')).length;
+        close();
+        alert(`Imported ${after - before} of ${leads.length} leads (${skipped} skipped for missing business name). Verified by count read-back.`);
+        await loadDashboard();
+      } catch (e) { alert('Import failed: ' + (e.message || e)); }
+    };
+  };
+  reader.readAsText(file);
+}
+
+// ── Map view: area-level pins (approximate — no exact coordinates yet) ──
+// Known Sharm El Sheikh areas with approximate centre coordinates. Entities
+// are matched by their location field or name text; anything unmatched is
+// listed honestly as "no location", never guessed onto the map.
+const SHARM_AREAS = {
+  'Soho Square':  { coords: [27.9647, 34.4283], match: ['soho'] },
+  'Naama Bay':    { coords: [27.9158, 34.3300], match: ['naama'] },
+  'Old Market':   { coords: [27.8592, 34.2989], match: ['old market', 'sharm el maya'] },
+  'Nabq Bay':     { coords: [28.0587, 34.4292], match: ['nabq'] },
+  'Sharks Bay':   { coords: [27.9769, 34.4004], match: ['sharks bay', 'shark bay', 'tal avenue'] },
+  'Hadaba':       { coords: [27.8683, 34.3350], match: ['hadaba', 'ras um', 'ras om'] },
+};
+function matchSharmArea(entity) {
+  const text = `${entity.location || ''} ${entity.provider_name || entity.business_name || ''}`.toLowerCase();
+  for (const [area, def] of Object.entries(SHARM_AREAS)) {
+    if (def.match.some(m => text.includes(m))) return area;
+  }
+  return null;
+}
+let leafletLoading = null;
+function loadLeaflet() {
+  if (window.L && window.L.markerClusterGroup) return Promise.resolve();
+  if (leafletLoading) return leafletLoading;
+  leafletLoading = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const clusterCss = document.createElement('link');
+    clusterCss.rel = 'stylesheet'; clusterCss.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css';
+    document.head.appendChild(clusterCss);
+    const clusterDefaultCss = document.createElement('link');
+    clusterDefaultCss.rel = 'stylesheet'; clusterDefaultCss.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css';
+    document.head.appendChild(clusterDefaultCss);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onerror = () => reject(new Error('Leaflet failed to load (offline?)'));
+    js.onload = () => {
+      const clusterJs = document.createElement('script');
+      clusterJs.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+      clusterJs.onload = resolve;
+      clusterJs.onerror = () => reject(new Error('Leaflet marker-cluster plugin failed to load (offline?)'));
+      document.head.appendChild(clusterJs);
+    };
+    document.head.appendChild(js);
+  });
+  return leafletLoading;
+}
+// Kept across renderMapView() calls so the 30s dashboard auto-refresh
+// (loadDashboard -> renderCurrentView -> renderMapView while already on the
+// Map tab) just refreshes markers instead of tearing down and rebuilding the
+// whole Leaflet instance + tile layer every time.
+let sharmMapInstance = null;
+let sharmMarkersLayer = null;
+async function renderMapView() {
+  const main = document.getElementById('mainArea');
+  const alreadyMounted = sharmMapInstance && document.getElementById('sharmMap');
+  if (!alreadyMounted) {
+    sharmMapInstance = null;
+    sharmMarkersLayer = null;
+    main.innerHTML = `
+      <div style="display:flex;flex-direction:column;height:calc(100vh - 92px);">
+        <div class="view-header" style="flex-shrink:0;">
+          <div>
+            <div class="view-title">Map</div>
+          </div>
+        </div>
+        <div id="sharmMap" style="flex:1;min-height:300px;border-radius:10px;border:.5px solid var(--border);overflow:hidden;background:var(--bg-elevated);position:relative;z-index:0;isolation:isolate;"></div>
+      </div>`;
+    try { await loadLeaflet(); } catch (e) {
+      document.getElementById('sharmMap').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:12px;">${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    if (currentView !== 'map' || !document.getElementById('sharmMap')) return;
+    sharmMapInstance = L.map('sharmMap').setView([27.94, 34.37], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(sharmMapInstance);
+    sharmMarkersLayer = (L.markerClusterGroup ? L.markerClusterGroup() : L.layerGroup()).addTo(sharmMapInstance);
+  }
+  sharmMarkersLayer.clearLayers();
+  const areaCounts = {};
+  const jitter = (area) => {
+    const n = (areaCounts[area] = (areaCounts[area] || 0) + 1);
+    const angle = n * 2.39996, r = 0.0022 * Math.sqrt(n); // spiral so same-area pins don't stack
+    return [SHARM_AREAS[area].coords[0] + r * Math.cos(angle), SHARM_AREAS[area].coords[1] + r * Math.sin(angle)];
+  };
+  const dot = (color) => L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
+  const unmapped = [];
+  cachedProviders.forEach(p => {
+    // Exact geocoded coordinates (migration 034 + PROVIDER_LOCATIONS.md) take
+    // priority over area-level guessing — real research, not a text match.
+    if (p.latitude != null && p.longitude != null) {
+      const precision = p.geocode_confidence === 'medium' ? ' (approx. — venue not in map data)' : '';
+      L.marker([p.latitude, p.longitude], { icon: dot('#3fb950') }).addTo(sharmMarkersLayer)
+        .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider${precision}<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
+      return;
+    }
+    const area = matchSharmArea(p);
+    if (!area) { unmapped.push(`${p.provider_name} (provider)`); return; }
+    L.marker(jitter(area), { icon: dot('#3fb950') }).addTo(sharmMarkersLayer)
+      .bindPopup(`<b>${escapeHtml(p.provider_name)}</b><br>Provider · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="openProviderModal('${p.id}', '${negotiationFor(p)?.id || ''}');return false;">Open</a>`);
+  });
+  cachedLeads.filter(l => l.status !== 'dropped' && l.status !== 'promoted').forEach(l => {
+    const area = matchSharmArea(l);
+    if (!area) { unmapped.push(`${l.business_name} (lead)`); return; }
+    L.marker(jitter(area), { icon: dot('#0081FD') }).addTo(sharmMarkersLayer)
+      .bindPopup(`<b>${escapeHtml(l.business_name)}</b><br>Lead · ${leadStatusLabel(l.status)} · ${escapeHtml(area)} (approx.)<br><a href="#" onclick="showView('leads');openLeadDrawer('${l.id}');return false;">Open</a>`);
+  });
+  // Smoothness: size can be stale if the container changed while hidden, and
+  // fitting to the actual markers beats the hardcoded whole-peninsula view.
+  // Fit ONLY on first mount -- refitting on the 30s auto-refresh would yank
+  // the view away from wherever the user panned/zoomed.
+  sharmMapInstance.invalidateSize();
+  const markerLayers = sharmMarkersLayer.getLayers();
+  if (!alreadyMounted && markerLayers.length) {
+    const bounds = L.latLngBounds(markerLayers.map(m => m.getLatLng()));
+    sharmMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+  }
+}
+
+// ── Today view: next-action tracking (needs migration 033) ──────────
+function waLink(phone, name) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('0')) digits = '20' + digits.slice(1); // Egypt default
+  const msg = `Hi! Following up on the WeIN offer sheet for ${name} — do you have 5 minutes today?`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+}
+function waButtonHtml(phone, name) {
+  const url = waLink(phone, name);
+  if (!url) return '';
+  return `<a class="mini-btn" href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#25D366;border-color:#25D366;text-decoration:none;"><i class="ti ti-brand-whatsapp"></i><span>WhatsApp</span></a>`;
+}
+function todayActionItems() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const items = [];
+  // team role can't see leads/pipeline at all -- Today only shows their tasks.
+  const dealWorldHidden = (NAV_HIDDEN_FOR_ROLE[sessionStorage.getItem('weinRole')] || []).includes('pipeline');
+  if (!dealWorldHidden) {
+    cachedLeads.forEach(l => {
+      if (!l.next_action_date || l.status === 'dropped') return;
+      const d = new Date(l.next_action_date); d.setHours(0, 0, 0, 0);
+      if (d <= today) items.push({ kind: 'lead', id: l.id, name: l.business_name || 'Unnamed', vertical: l.vertical, stage: leadStatusLabel(l.status), note: l.next_action_note, phone: l.contact_phone, overdue: Math.round((today - d) / 86400000) });
+    });
+    cachedNegotiations.forEach(n => {
+      if (!n.next_action_date) return;
+      const d = new Date(n.next_action_date); d.setHours(0, 0, 0, 0);
+      if (d > today) return;
+      const p = cachedProviders.find(x => x.id === n.provider_id);
+      items.push({ kind: 'provider', id: n.id, providerId: n.provider_id, name: p?.provider_name || 'Unknown provider', vertical: p?.category, stage: n.stage, note: n.next_action_note, phone: p?.contact_phone, overdue: Math.round((today - d) / 86400000) });
+    });
+  }
+  cachedTasks.forEach(t => {
+    if (!t.due_date || !taskIsOpen(t)) return;
+    const d = new Date(t.due_date); d.setHours(0, 0, 0, 0);
+    if (d > today) return;
+    items.push({ kind: 'task', id: t.id, name: t.title || 'Untitled task', vertical: null, stage: TASK_COLUMNS.find(c => c.id === t.status)?.label || t.status, note: t.description, phone: null, overdue: Math.round((today - d) / 86400000) });
+  });
+  return items.sort((a, b) => b.overdue - a.overdue);
+}
+async function todaySetDate(kind, id, dateOrNull, alsoClearNote) {
+  if (kind === 'task') {
+    // "Done" (dateOrNull===null && alsoClearNote) marks the task done;
+    // snooze just moves due_date.
+    const body = alsoClearNote ? { status: 'done', completed_at: new Date().toISOString() } : { due_date: dateOrNull };
+    try {
+      await sbPatch(`wein_tasks?id=eq.${id}`, body);
+      const check = await sbGet(`wein_tasks?id=eq.${id}&select=status,due_date`);
+      if (!check.length) { alert('Task update did not apply.'); return; }
+      Object.assign(cachedTasks.find(x => x.id === id) || {}, body);
+      refreshNavCounts();
+      if (currentView === 'today') renderTodayView();
+    } catch (e) { alert('Could not update task: ' + (e.message || e)); }
+    return;
+  }
+  const table = kind === 'lead' ? 'wein_leads' : 'wein_negotiations';
+  const body = { next_action_date: dateOrNull };
+  if (alsoClearNote) body.next_action_note = null;
+  try {
+    await sbPatch(`${table}?id=eq.${id}`, body);
+    const check = await sbGet(`${table}?id=eq.${id}&select=next_action_date`);
+    if (!check.length || (check[0].next_action_date || null) !== dateOrNull) {
+      alert('Update did not apply — has migration 033_bd_sales_tools.sql been run in Supabase?');
+      return;
+    }
+    const cache = kind === 'lead' ? cachedLeads : cachedNegotiations;
+    const row = cache.find(x => x.id === id);
+    if (row) Object.assign(row, body);
+    refreshNavCounts();
+    if (currentView === 'today') renderTodayView();
+  } catch (e) { alert('Could not update next action (migration 033 may be missing): ' + (e.message || e)); }
+}
+function todaySnooze(kind, id, days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  todaySetDate(kind, id, d.toISOString().slice(0, 10), false);
+}
+function todayOpen(item) {
+  const it = JSON.parse(decodeURIComponent(item));
+  if (it.kind === 'lead') { showView('leads'); openLeadDrawer(it.id); }
+  else if (it.kind === 'task') { showView('tasks'); openTaskModal(it.id); }
+  else { showView('pipeline'); openProviderModal(it.providerId, it.id); }
+}
+function renderTodayView() {
+  const items = todayActionItems();
+  const overdue = items.filter(x => x.overdue > 0);
+  const dueToday = items.filter(x => x.overdue === 0);
+  const row = (x) => `
+    <article class="file-card" style="cursor:pointer;" onclick="todayOpen('${encodeURIComponent(JSON.stringify({ kind: x.kind, id: x.id, providerId: x.providerId || '' }))}')">
+      <div class="file-card-head">
+        <div style="min-width:0;flex:1;">
+          <div class="file-name">${escapeHtml(x.name)}</div>
+          <div class="file-provider">${x.vertical ? `<span class="cat-badge ${catBadgeClass(x.vertical)}">${escapeHtml(x.vertical)}</span> · ` : ''}${escapeHtml(x.stage || '')} · ${x.kind === 'lead' ? 'Lead' : x.kind === 'task' ? 'Task' : 'Provider'}${x.overdue > 0 ? ` · <span style="color:var(--red);font-weight:600;">${x.overdue}d overdue</span>` : ''}</div>
+        </div>
+      </div>
+      ${x.note ? `<div class="file-meta" style="color:var(--text-secondary);">${escapeHtml(x.note)}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+        ${waButtonHtml(x.phone, x.name)}
+        <button class="mini-btn" type="button" onclick="todaySetDate('${x.kind}','${x.id}',null,true)" style="color:var(--green);"><i class="ti ti-check"></i><span>Done</span></button>
+        <button class="mini-btn" type="button" onclick="todaySnooze('${x.kind}','${x.id}',1)"><span>+1d</span></button>
+        <button class="mini-btn" type="button" onclick="todaySnooze('${x.kind}','${x.id}',3)"><span>+3d</span></button>
+      </div>
+    </article>`;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Today</div>
+        <div class="view-count">${overdue.length} overdue · ${dueToday.length} due today</div>
+      </div>
+    </div>
+    ${overdue.length ? `<div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Overdue</div><div class="files-grid" style="margin-bottom:18px;">${overdue.map(row).join('')}</div>` : ''}
+    ${dueToday.length ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Today</div><div class="files-grid">${dueToday.map(row).join('')}</div>` : ''}
+    ${!items.length ? `<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:40px 0;">Nothing scheduled — open a lead or provider and set a next action date.<br>Pick 3 leads to chase and give each a date.</div>` : ''}`;
+}
+
+// ── Tasks view: ClickUp-style board + list (wein_tasks, dormant since 012) ──
+const TASK_COLUMNS = [
+  { id: 'pending',     label: 'To do',       color: 'var(--text-secondary)' },
+  { id: 'in_progress', label: 'In progress', color: 'var(--blue)' },
+  { id: 'done',        label: 'Done',        color: 'var(--green)' },
+];
+let tasksViewMode = 'board';   // 'board' | 'list'
+let tasksMineOnly = false;
+let showCancelledTasks = false;
+let taskFormVisible = false;
+let taskSortKey = 'due', taskSortDir = 1;
+
+function visibleTasks() {
+  return cachedTasks.filter(t => {
+    if (t.status === 'cancelled' && !showCancelledTasks) return false;
+    if (tasksMineOnly && t.assigned_to_user_id !== window.WEIN.user?.id) return false;
+    return true;
+  });
+}
+
+function renderTasksView() {
+  const mine = cachedTasks.filter(t => taskIsOpen(t) && t.assigned_to_user_id === window.WEIN.user?.id).length;
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Tasks</div>
+        <div class="view-count">${cachedTasks.filter(taskIsOpen).length} open · ${mine} mine</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mini-btn ${tasksViewMode === 'board' ? 'active' : ''}" type="button" onclick="tasksViewMode='board';renderTasksView()" style="${tasksViewMode === 'board' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-layout-kanban"></i><span>Board</span></button>
+        <button class="mini-btn" type="button" onclick="tasksViewMode='list';renderTasksView()" style="${tasksViewMode === 'list' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-list"></i><span>List</span></button>
+        <button class="view-action" type="button" onclick="toggleAddTaskForm()"><i class="ti ti-plus"></i><span>Add Task</span></button>
+      </div>
+    </div>
+    ${!COLLAB_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>038_collaboration.sql</b> hasn't been run in Supabase yet — assignee picker, lead links, task comments and notifications are hidden until it is.</div>` : ''}
+    <div id="addTaskForm" style="display:${taskFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="taskTitle" placeholder="Task title (required)" class="view-input" style="min-width:0;">
+        ${COLLAB_READY ? `<select id="taskAssignee" class="view-select" style="min-width:0;">
+          <option value="">Unassigned</option>
+          ${cachedProfiles.map(p => `<option value="${p.id}" ${p.id === window.WEIN.user?.id ? 'selected' : ''}>${escapeHtml(p.full_name || p.email || 'Unnamed')}</option>`).join('')}
+        </select>` : `<input type="text" id="taskAssigneeText" placeholder="Assignee name" class="view-input" style="min-width:0;">`}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="date" id="taskDue" class="view-input" style="min-width:0;">
+        <select id="taskPriority" class="view-select" style="min-width:0;">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div id="addTaskError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddTaskForm()">Cancel</button>
+        <button class="view-action" type="button" id="taskSaveBtn" onclick="quickAddTask()"><span>Save task</span></button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="chip ${tasksMineOnly ? 'active' : ''}" type="button" onclick="tasksMineOnly=!tasksMineOnly;renderTasksView()">My Tasks</button>
+      <button class="chip ${showCancelledTasks ? 'active' : ''}" type="button" onclick="showCancelledTasks=!showCancelledTasks;renderTasksView()">Show cancelled</button>
+    </div>
+    ${tasksViewMode === 'board'
+      ? `<div class="kanban-board" style="grid-template-columns:repeat(${TASK_COLUMNS.length},1fr);" id="tasksKanbanBoard"></div>`
+      : `<div id="tasksListWrap"></div>`}`;
+  if (tasksViewMode === 'board') renderTasksKanban(); else renderTasksList();
+}
+
+function toggleAddTaskForm() {
+  taskFormVisible = !taskFormVisible;
+  const form = document.getElementById('addTaskForm');
+  if (form) form.style.display = taskFormVisible ? 'block' : 'none';
+  const errEl = document.getElementById('addTaskError');
+  if (errEl) errEl.style.display = 'none';
+}
+
+function taskCardHtml(t) {
+  const overdue = taskOverdueDays(t);
+  const dueChip = t.due_date
+    ? `<span class="pc-meta-date mono" style="color:${overdue > 0 ? 'var(--red)' : overdue === 0 ? 'var(--amber)' : 'var(--text-secondary)'};">${overdue > 0 ? `${overdue}d overdue` : overdue === 0 ? 'due today' : new Date(t.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>`
+    : '';
+  const linked = taskLinkedName(t);
+  const name = assigneeLabel(t);
+  const colIdx = TASK_COLUMNS.findIndex(c => c.id === t.status);
+  return `
+    <div class="provider-card" data-task-id="${t.id}" onclick="openTaskModal('${t.id}')">
+      <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
+        <i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};" title="${escapeHtml(t.priority || 'medium')} priority"></i>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.title || 'Untitled task')}</span>
+      </div>
+      <div class="pc-meta" style="margin-top:5px;">
+        <span class="task-avatar" title="${escapeHtml(name)}">${initialsOf(name)}</span>
+        ${dueChip}
+        ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
+      </div>
+      <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
+        ${colIdx > 0 && t.status !== 'cancelled' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','${TASK_COLUMNS[colIdx - 1].id}')" title="Move back"><i class="ti ti-arrow-left"></i></button>` : ''}
+        ${t.status === 'pending' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','in_progress')" style="flex:1;"><span>Start →</span></button>` : ''}
+        ${t.status === 'in_progress' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','done')" style="flex:1;border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><i class="ti ti-check"></i><span>Done</span></button>` : ''}
+        ${t.status === 'cancelled' ? `<button class="mini-btn" type="button" onclick="setTaskStatus('${t.id}','pending')" style="flex:1;"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderTasksKanban() {
+  const board = document.getElementById('tasksKanbanBoard');
+  if (!board) return;
+  const tasks = visibleTasks();
+  board.innerHTML = TASK_COLUMNS.map(col => {
+    const items = tasks.filter(t => t.status === col.id);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${col.label}</span>
+          <span class="kanban-col-count mono" style="color:${col.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${items.length ? items.map(taskCardHtml).join('') : '<div class="empty-col">No tasks</div>'}</div>
+      </div>`;
+  }).join('') + (showCancelledTasks ? `
+      <div class="kanban-col" style="opacity:.75;">
+        <div class="kanban-col-header"><span class="kanban-col-label">Cancelled</span><span class="kanban-col-count mono" style="color:var(--text-tertiary)">${tasks.filter(t => t.status === 'cancelled').length}</span></div>
+        <div class="kanban-col-body">${tasks.filter(t => t.status === 'cancelled').map(taskCardHtml).join('') || '<div class="empty-col">None</div>'}</div>
+      </div>` : '');
+}
+
+const TASK_SORTERS = {
+  title: (a, b) => (a.title || '').localeCompare(b.title || ''),
+  assignee: (a, b) => assigneeLabel(a).localeCompare(assigneeLabel(b)),
+  due: (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'),
+  priority: (a, b) => ['urgent', 'high', 'medium', 'low'].indexOf(a.priority || 'medium') - ['urgent', 'high', 'medium', 'low'].indexOf(b.priority || 'medium'),
+  status: (a, b) => TASK_COLUMNS.findIndex(c => c.id === a.status) - TASK_COLUMNS.findIndex(c => c.id === b.status),
+};
+function sortTasksBy(key) {
+  if (taskSortKey === key) taskSortDir *= -1; else { taskSortKey = key; taskSortDir = 1; }
+  renderTasksList();
+}
+function renderTasksList() {
+  const wrap = document.getElementById('tasksListWrap');
+  if (!wrap) return;
+  const tasks = visibleTasks().slice().sort((a, b) => (TASK_SORTERS[taskSortKey] || TASK_SORTERS.due)(a, b) * taskSortDir);
+  const th = (key, label) => `<th class="th-sort" onclick="sortTasksBy('${key}')" style="cursor:pointer;">${label}${taskSortKey === key ? (taskSortDir === 1 ? ' ↑' : ' ↓') : ''}</th>`;
+  wrap.innerHTML = `
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr>${th('title', 'Task')}${th('assignee', 'Assignee')}${th('due', 'Due')}${th('priority', 'Priority')}${th('status', 'Status')}<th>Linked to</th></tr></thead>
+        <tbody>${tasks.length ? tasks.map(t => {
+          const overdue = taskOverdueDays(t);
+          const col = TASK_COLUMNS.find(c => c.id === t.status);
+          return `
+          <tr onclick="openTaskModal('${t.id}')" style="cursor:pointer;">
+            <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};"></i> ${escapeHtml(t.title || 'Untitled')}</td>
+            <td>${escapeHtml(assigneeLabel(t))}</td>
+            <td class="mono" style="color:${overdue > 0 ? 'var(--red)' : overdue === 0 ? 'var(--amber)' : 'var(--text-secondary)'};">${t.due_date ? new Date(t.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</td>
+            <td>${escapeHtml(t.priority || 'medium')}</td>
+            <td>${col ? col.label : escapeHtml(t.status)}</td>
+            <td>${escapeHtml(taskLinkedName(t) || '—')}</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:20px;">No tasks</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+async function setTaskStatus(taskId, status) {
+  const task = cachedTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const body = { status, completed_at: status === 'done' ? new Date().toISOString() : null };
+  try {
+    await sbPatch(`wein_tasks?id=eq.${taskId}`, body);
+    const check = await sbGet(`wein_tasks?id=eq.${taskId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Task update did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(task, body);
+    refreshNavCounts();
+    if (currentView === 'tasks') renderTasksView();
+    else if (currentView === 'today') renderTodayView();
+  } catch (e) { alert('Could not update task: ' + (e.message || e)); }
+}
+
+// ── Marketing tab: campaign planner + tracker (migration 040) ──────────
+// v1 scope only -- plan/track campaigns and eyeball nearby redemptions.
+// NOT live auto-publishing: that needs Meta/WhatsApp API app review
+// (external, days-to-weeks), so `channel` just records what platform was
+// used manually. Values match real platform names so a future real
+// integration can key off the same field without a schema change.
+const CAMPAIGN_COLUMNS = [
+  { id: 'planned', label: 'Planned', color: 'var(--text-secondary)' },
+  { id: 'posted',  label: 'Posted',  color: 'var(--blue)' },
+  { id: 'live',    label: 'Live',    color: 'var(--green)' },
+];
+const CAMPAIGN_CHANNEL_LABELS = { instagram: 'Instagram', facebook: 'Facebook', whatsapp: 'WhatsApp', email: 'Email', other: 'Other' };
+const CAMPAIGN_CHANNEL_ICONS = { instagram: 'ti-brand-instagram', facebook: 'ti-brand-facebook', whatsapp: 'ti-brand-whatsapp', email: 'ti-mail', other: 'ti-speakerphone' };
+let campaignFormVisible = false;
+let showArchivedCampaigns = false;
+let marketingViewMode = 'board';      // 'board' | 'calendar'
+let marketingChannelFilter = 'all';
+let marketingCalMonth = null;         // Date pinned to the 1st of the displayed month
+
+function campaignLinkedName(c) {
+  if (c.provider_id) return cachedProviders.find(p => p.id === c.provider_id)?.provider_name || null;
+  if (c.offer_id) return cachedOffers.find(o => o.id === c.offer_id)?.title || null;
+  return null;
+}
+
+// Lightweight "did this correlate with a bump" signal -- redemptions for the
+// same provider/offer within a week either side of the scheduled date. No
+// charting, just the raw rows so staff can eyeball it themselves.
+function nearbyRedemptionsForCampaign(c) {
+  if (!c.scheduled_date || (!c.provider_id && !c.offer_id)) return [];
+  const center = new Date(c.scheduled_date).getTime();
+  const windowMs = 7 * 86400000;
+  return cachedRedemptions.filter(r => {
+    const matchesEntity = (c.provider_id && r.provider_id === c.provider_id) || (c.offer_id && r.offer_id === c.offer_id);
+    if (!matchesEntity || !r.redeemed_at) return false;
+    const d = new Date(r.redeemed_at).getTime();
+    return Math.abs(d - center) <= windowMs;
+  });
+}
+
+function visibleCampaigns() {
+  return cachedCampaigns.filter(c =>
+    (showArchivedCampaigns || c.status !== 'archived') &&
+    (marketingChannelFilter === 'all' || c.channel === marketingChannelFilter));
+}
+
+// Real before/after signal: redemptions for the linked provider/offer in the
+// 7 days BEFORE the scheduled date vs the 7 days AFTER. Only meaningful once
+// the date has passed; returns null otherwise (card falls back to the plain
+// "N redemptions within 7 days" count).
+function campaignBeforeAfter(c) {
+  if (!c.scheduled_date || (!c.provider_id && !c.offer_id)) return null;
+  const center = new Date(c.scheduled_date).getTime();
+  if (Date.now() < center) return null;
+  const w = 7 * 86400000;
+  const before = { count: 0, egp: 0 }, after = { count: 0, egp: 0 };
+  cachedRedemptions.forEach(r => {
+    const matches = (c.provider_id && r.provider_id === c.provider_id) || (c.offer_id && r.offer_id === c.offer_id);
+    if (!matches || !r.redeemed_at) return;
+    const t = new Date(r.redeemed_at).getTime();
+    if (t >= center - w && t < center) { before.count++; before.egp += Number(r.sale_amount_egp || 0); }
+    else if (t >= center && t <= center + w) { after.count++; after.egp += Number(r.sale_amount_egp || 0); }
+  });
+  if (!before.count && !after.count) return null;
+  const deltaPct = before.egp > 0 ? Math.round((after.egp - before.egp) / before.egp * 100) : null;
+  return { before, after, deltaPct };
+}
+
+function renderMarketingView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Marketing</div>
+        <div class="view-count">${cachedCampaigns.filter(c => c.status !== 'archived').length} active campaigns</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="mini-btn" type="button" onclick="marketingViewMode='board';renderMarketingView()" style="${marketingViewMode === 'board' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-layout-kanban"></i><span>Board</span></button>
+        <button class="mini-btn" type="button" onclick="marketingViewMode='calendar';renderMarketingView()" style="${marketingViewMode === 'calendar' ? 'border-color:var(--border-blue);color:var(--blue);' : ''}"><i class="ti ti-calendar"></i><span>Calendar</span></button>
+        <button class="view-action" type="button" onclick="toggleAddCampaignForm()"><i class="ti ti-plus"></i><span>Campaign</span></button>
+      </div>
+    </div>
+    ${!MARKETING_READY ? `<div style="background:var(--amber-tint);border:.5px solid var(--border-amber);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);"><i class="ti ti-alert-triangle"></i> Migration <b>040_marketing_campaigns.sql</b> hasn't been run yet — the Marketing tab is empty until it is.</div>` : ''}
+    <div id="addCampaignForm" style="display:${campaignFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="campaignTitle" placeholder="Campaign title (required)" class="view-input" style="min-width:0;">
+        <select id="campaignChannel" class="view-select" style="min-width:0;">
+          ${Object.entries(CAMPAIGN_CHANNEL_LABELS).map(([k, label]) => `<option value="${k}">${label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <select id="campaignProvider" class="view-select" style="min-width:0;">
+          <option value="">No linked provider</option>
+          ${cachedProviders.map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`).join('')}
+        </select>
+        <input type="date" id="campaignDate" class="view-input" style="min-width:0;">
+      </div>
+      <textarea id="campaignCaption" placeholder="Caption / notes" class="view-input" style="width:100%;box-sizing:border-box;min-height:60px;margin-bottom:8px;"></textarea>
+      <input type="text" id="campaignAssetUrl" placeholder="Asset URL (optional)" class="view-input" style="width:100%;box-sizing:border-box;margin-bottom:8px;">
+      <div id="addCampaignError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddCampaignForm()">Cancel</button>
+        <button class="view-action" type="button" id="campaignSaveBtn" onclick="saveCampaign()"><span>Save campaign</span></button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="chip ${marketingChannelFilter === 'all' ? 'active' : ''}" type="button" onclick="marketingChannelFilter='all';renderMarketingView()">All channels</button>
+      ${Object.entries(CAMPAIGN_CHANNEL_LABELS).map(([k, label]) =>
+        `<button class="chip ${marketingChannelFilter === k ? 'active' : ''}" type="button" onclick="marketingChannelFilter='${k}';renderMarketingView()"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[k]}" style="font-size:11px;"></i> ${label}</button>`).join('')}
+      <button class="chip ${showArchivedCampaigns ? 'active' : ''}" type="button" onclick="showArchivedCampaigns=!showArchivedCampaigns;renderMarketingView()">Show archived</button>
+    </div>
+    ${marketingViewMode === 'calendar'
+      ? `<div id="marketingCalendarWrap"></div>`
+      : `<div class="kanban-board" style="grid-template-columns:repeat(${CAMPAIGN_COLUMNS.length},1fr);" id="marketingKanbanBoard"></div>`}`;
+  if (marketingViewMode === 'calendar') renderMarketingCalendar(); else renderMarketingKanban();
+}
+
+function shiftMarketingMonth(delta) {
+  marketingCalMonth = new Date(marketingCalMonth.getFullYear(), marketingCalMonth.getMonth() + delta, 1);
+  renderMarketingCalendar();
+}
+
+function renderMarketingCalendar() {
+  const wrap = document.getElementById('marketingCalendarWrap');
+  if (!wrap) return;
+  if (!marketingCalMonth) { const now = new Date(); marketingCalMonth = new Date(now.getFullYear(), now.getMonth(), 1); }
+  const y = marketingCalMonth.getFullYear(), m = marketingCalMonth.getMonth();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const monthLabel = marketingCalMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const byDay = {};
+  visibleCampaigns().forEach(c => {
+    if (!c.scheduled_date) return;
+    const d = new Date(c.scheduled_date);
+    if (d.getFullYear() === y && d.getMonth() === m) (byDay[d.getDate()] = byDay[d.getDate()] || []).push(c);
+  });
+  const notesByDay = {};
+  (cachedCalendarNotes || []).forEach(n => {
+    if (!n.note_date) return;
+    const nd = new Date(n.note_date);
+    if (nd.getFullYear() === y && nd.getMonth() === m) (notesByDay[nd.getDate()] = notesByDay[nd.getDate()] || []).push(n);
+  });
+  const todayStr = new Date().toDateString();
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += `<div class="mkt-cal-day mkt-cal-empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = new Date(y, m, d).toDateString() === todayStr;
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells += `<div class="mkt-cal-day${isToday ? ' mkt-cal-today' : ''}">
+      <div class="mkt-cal-num mono">${d}</div>
+      ${(byDay[d] || []).map(c => `<div class="mkt-cal-chip" title="${escapeHtml(c.title || '')} · ${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}" onclick="openCampaignModal('${c.id}')"><i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="font-size:9px;"></i> ${escapeHtml(c.title || 'Untitled')}</div>`).join('')}
+      ${(notesByDay[d] || []).map(n => `<div class="mkt-cal-note" title="${escapeHtml(n.note)}${n.created_by ? ' — ' + escapeHtml(n.created_by) : ''}"><i class="ti ti-note" style="font-size:9px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(n.note)}</span>${canDelete() ? `<span class="mkt-cal-note-x" title="Delete note" onclick="deleteCalendarNote('${n.id}')">×</span>` : ''}</div>`).join('')}
+      ${MKT_NOTES_READY ? `<button class="mkt-cal-add" type="button" title="Add a note to this day" onclick="startCalendarNote(this, '${dateStr}')">+ note</button>` : ''}
+    </div>`;
+  }
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${monthLabel}</div>
+      <button class="mini-btn" type="button" onclick="shiftMarketingMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="mkt-cal-head">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div>${d}</div>`).join('')}</div>
+    <div class="mkt-cal">${cells}</div>`;
+}
+
+function toggleAddCampaignForm() {
+  campaignFormVisible = !campaignFormVisible;
+  const form = document.getElementById('addCampaignForm');
+  if (form) form.style.display = campaignFormVisible ? 'block' : 'none';
+  const errEl = document.getElementById('addCampaignError');
+  if (errEl) errEl.style.display = 'none';
+}
+
+function campaignCardHtml(c) {
+  const linked = campaignLinkedName(c);
+  const nearby = nearbyRedemptionsForCampaign(c);
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  const impactLine = ba
+    ? `<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);" title="Redemptions 7 days before vs 7 days after the scheduled date">
+        <i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i>
+        ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` <span style="color:${ba.deltaPct >= 0 ? 'var(--green)' : 'var(--red)'};">(${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)</span>` : ''}
+      </div>`
+    : (nearby.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);"><i class="ti ti-trending-up"></i> ${nearby.length} redemption${nearby.length === 1 ? '' : 's'} within 7 days</div>` : '');
+  return `
+    <div class="provider-card" data-campaign-id="${c.id}" onclick="openCampaignModal('${c.id}')">
+      <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
+        <i class="ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}" style="color:var(--text-secondary);"></i>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.title || 'Untitled campaign')}</span>
+      </div>
+      <div class="pc-meta" style="margin-top:5px;">
+        <span class="cat-badge">${escapeHtml(CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel)}</span>
+        ${c.scheduled_date ? `<span class="pc-meta-date mono">${new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>` : ''}
+        ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
+      </div>
+      ${impactLine}
+      <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
+        ${c.status === 'planned' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','posted')" style="flex:1;"><span>Mark posted →</span></button>` : ''}
+        ${c.status === 'posted' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','live')" style="flex:1;border-color:var(--green,#3fb950);color:var(--green,#3fb950);"><span>Mark live</span></button>` : ''}
+        ${c.status === 'live' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','archived')" style="flex:1;"><i class="ti ti-archive"></i><span>Archive</span></button>` : ''}
+        ${c.status === 'archived' ? `<button class="mini-btn" type="button" onclick="setCampaignStatus('${c.id}','planned')" style="flex:1;"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>` : ''}
+        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="deleteCampaign('${c.id}')" title="Delete"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Campaign detail modal + calendar day notes (migration 043) ─────────
+let currentCampaignId = null;
+
+function openCampaignModal(campaignId) {
+  const c = cachedCampaigns.find(x => x.id === campaignId);
+  if (!c) return;
+  currentCampaignId = campaignId;
+  document.getElementById('cm-title').textContent = c.title || 'Untitled campaign';
+  document.getElementById('cm-channel-icon').className = `ti ${CAMPAIGN_CHANNEL_ICONS[c.channel] || 'ti-speakerphone'}`;
+  const linked = campaignLinkedName(c);
+  document.getElementById('cm-meta').textContent = [
+    CAMPAIGN_CHANNEL_LABELS[c.channel] || c.channel,
+    c.scheduled_date ? new Date(c.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+    linked,
+  ].filter(Boolean).join(' · ');
+  document.getElementById('cm-status').textContent = c.status;
+  const ba = campaignBeforeAfter(c);
+  const egp = v => v >= 1000 ? `EGP ${(v / 1000).toFixed(1)}k` : `EGP ${Math.round(v)}`;
+  document.getElementById('cm-body').innerHTML = [
+    c.caption ? `<div style="white-space:pre-wrap;">${escapeHtml(c.caption)}</div>` : '',
+    c.asset_url ? `<a href="${escapeHtml(c.asset_url)}" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px;">Asset ↗</a>` : '',
+    ba ? `<div style="margin-top:6px;font-size:11px;" title="Redemptions 7 days before vs 7 days after the scheduled date"><i class="ti ti-trending-up" style="color:${ba.after.egp >= ba.before.egp ? 'var(--green)' : 'var(--red)'};"></i> ${ba.before.count} / ${egp(ba.before.egp)} → <b>${ba.after.count} / ${egp(ba.after.egp)}</b>${ba.deltaPct != null ? ` (${ba.deltaPct >= 0 ? '+' : ''}${ba.deltaPct}%)` : ''}</div>` : '',
+  ].filter(Boolean).join('') || '<span style="color:var(--text-tertiary);">No caption</span>';
+  document.getElementById('cm-input-row').style.display = MKT_NOTES_READY ? 'flex' : 'none';
+  document.getElementById('cm-migration-hint').style.display = MKT_NOTES_READY ? 'none' : 'block';
+  const commentsEl = document.getElementById('cm-comments');
+  if (MKT_NOTES_READY) {
+    commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Loading…</div>';
+    fetchThread('campaign_id', campaignId).then(cs => renderThread('cm-comments', cs, 'campaign_id', campaignId))
+      .catch(() => { commentsEl.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);text-align:center;padding:12px 0;">Could not load comments</div>'; });
+  } else {
+    commentsEl.innerHTML = '';
+  }
+  document.getElementById('cm-send-btn').onclick = () => submitThreadComment('campaign_id', campaignId, 'cm-comment-input', 'cm-comments');
+  document.getElementById('campaign-modal-backdrop').style.display = 'flex';
+}
+
+function closeCampaignModal() {
+  document.getElementById('campaign-modal-backdrop').style.display = 'none';
+  currentCampaignId = null;
+}
+
+// "+ note" in a calendar day cell swaps itself for an inline input; Enter or
+// clicking away saves, Escape cancels.
+function startCalendarNote(btn, dateStr) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Note…';
+  input.className = 'mkt-cal-note-input';
+  input.onkeydown = e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = ''; input.blur(); }
+  };
+  input.onblur = () => saveCalendarNote(dateStr, input);
+  btn.replaceWith(input);
+  input.focus();
+}
+
+async function saveCalendarNote(dateStr, input) {
+  const note = input.value.trim();
+  if (!note) { renderMarketingCalendar(); return; }
+  try {
+    const rows = await sbPost('wein_calendar_notes', {
+      note_date: dateStr, note,
+      created_by: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal',
+    });
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (!created?.id) throw new Error('insert returned no row');
+    cachedCalendarNotes.push(created);
+  } catch (e) { alert('Could not save note: ' + (e.message || e)); }
+  renderMarketingCalendar();
+}
+
+async function deleteCalendarNote(noteId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this note?')) return;
+  try {
+    await sbDelete(`wein_calendar_notes?id=eq.${noteId}`);
+    const check = await sbGet(`wein_calendar_notes?id=eq.${noteId}&select=id`);
+    if (check.length) { alert('Delete did not apply (permissions?). Nothing changed.'); return; }
+    cachedCalendarNotes = cachedCalendarNotes.filter(n => n.id !== noteId);
+    renderMarketingCalendar();
+  } catch (e) { alert('Could not delete note: ' + (e.message || e)); }
+}
+
+function renderMarketingKanban() {
+  const board = document.getElementById('marketingKanbanBoard');
+  if (!board) return;
+  const campaigns = visibleCampaigns();
+  board.innerHTML = CAMPAIGN_COLUMNS.map(col => {
+    const items = campaigns.filter(c => c.status === col.id);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${col.label}</span>
+          <span class="kanban-col-count mono" style="color:${col.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${items.length ? items.map(campaignCardHtml).join('') : '<div class="empty-col">No campaigns</div>'}</div>
+      </div>`;
+  }).join('') + (showArchivedCampaigns ? `
+      <div class="kanban-col" style="opacity:.75;">
+        <div class="kanban-col-header"><span class="kanban-col-label">Archived</span><span class="kanban-col-count mono" style="color:var(--text-tertiary)">${campaigns.filter(c => c.status === 'archived').length}</span></div>
+        <div class="kanban-col-body">${campaigns.filter(c => c.status === 'archived').map(campaignCardHtml).join('') || '<div class="empty-col">None</div>'}</div>
+      </div>` : '');
+}
+
+async function saveCampaign() {
+  const titleEl = document.getElementById('campaignTitle');
+  const errEl = document.getElementById('addCampaignError');
+  const title = titleEl?.value.trim();
+  if (!title) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
+  const body = {
+    title,
+    channel: document.getElementById('campaignChannel').value,
+    provider_id: document.getElementById('campaignProvider').value || null,
+    scheduled_date: document.getElementById('campaignDate').value || null,
+    caption: document.getElementById('campaignCaption').value.trim() || null,
+    asset_url: document.getElementById('campaignAssetUrl').value.trim() || null,
+    status: 'planned',
+    created_by: window.WEIN.user?.id || null,
+  };
+  const btn = document.getElementById('campaignSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const rows = await sbPost('wein_campaigns', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (created?.id) cachedCampaigns.unshift(created);
+    campaignFormVisible = false;
+    renderMarketingView();
+  } catch (e) {
+    errEl.textContent = 'Could not save campaign: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save campaign'; }
+  }
+}
+
+async function setCampaignStatus(campaignId, status) {
+  const campaign = cachedCampaigns.find(c => c.id === campaignId);
+  if (!campaign) return;
+  try {
+    await sbPatch(`wein_campaigns?id=eq.${campaignId}`, { status });
+    const check = await sbGet(`wein_campaigns?id=eq.${campaignId}&select=status`);
+    if (!check.length || check[0].status !== status) {
+      alert('Campaign update did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    campaign.status = status;
+    if (currentView === 'marketing') renderMarketingView();
+  } catch (e) { alert('Could not update campaign: ' + (e.message || e)); }
+}
+
+async function deleteCampaign(campaignId) {
+  if (!confirm('Delete this campaign? This cannot be undone.')) return;
+  try {
+    await sbDelete(`wein_campaigns?id=eq.${campaignId}`);
+    const check = await sbGet(`wein_campaigns?id=eq.${campaignId}&select=id`);
+    if (check.length) { alert('Delete did not apply (permissions?). Nothing changed.'); return; }
+    cachedCampaigns = cachedCampaigns.filter(c => c.id !== campaignId);
+    if (currentView === 'marketing') renderMarketingView();
+  } catch (e) { alert('Could not delete campaign: ' + (e.message || e)); }
+}
+
+async function quickAddTask(prelink) {
+  const titleEl = document.getElementById('taskTitle');
+  const errEl = document.getElementById('addTaskError');
+  const title = titleEl?.value.trim();
+  if (!title) {
+    if (errEl) { errEl.textContent = 'Task title is required.'; errEl.style.display = 'block'; }
+    titleEl?.focus();
+    return;
+  }
+  const assigneeId = COLLAB_READY ? (document.getElementById('taskAssignee')?.value || null) : null;
+  const assigneeName = COLLAB_READY
+    ? (profileById(assigneeId)?.full_name || null)
+    : (document.getElementById('taskAssigneeText')?.value.trim() || null);
+  const body = {
+    title,
+    status: 'pending',
+    priority: document.getElementById('taskPriority')?.value || 'medium',
+    task_type: 'general',
+    due_date: document.getElementById('taskDue')?.value || null,
+    created_by: window.WEIN.fullName || sessionStorage.getItem('weinRole') || 'portal',
+    assigned_to: assigneeName,
+  };
+  if (COLLAB_READY && assigneeId) body.assigned_to_user_id = assigneeId;
+  if (prelink?.provider_id) { body.provider_id = prelink.provider_id; body.provider_name = prelink.provider_name || null; }
+  if (COLLAB_READY && prelink?.lead_id) body.lead_id = prelink.lead_id;
+  const btn = document.getElementById('taskSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const rows = await sbPost('wein_tasks', body);
+    const created = Array.isArray(rows) ? rows[0] : rows;
+    if (created?.id) cachedTasks.unshift(created);
+    taskFormVisible = false;
+    await notifyTaskAssigned(created);
+    refreshNavCounts();
+    renderCurrentView();
+    return created;
+  } catch (e) {
+    if (errEl) { errEl.textContent = 'Could not save task: ' + (e.message || e); errEl.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save task'; }
+  }
+}
+
+// Fire-and-forget bell notification when a task is assigned to someone else.
+async function notifyTaskAssigned(task) {
+  if (!COLLAB_READY || !task?.assigned_to_user_id || task.assigned_to_user_id === window.WEIN.user?.id) return;
+  try {
+    await sbPost('wein_notifications', {
+      type: 'task_assigned',
+      title: `Task assigned: ${task.title}`,
+      body: [task.due_date ? `Due ${new Date(task.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : null, task.priority ? `${task.priority} priority` : null].filter(Boolean).join(' · ') || null,
+      actor_name: window.WEIN.fullName || null,
+      entity_type: 'task',
+      entity_id: task.id,
+      recipient_user_id: task.assigned_to_user_id,
+    });
+  } catch (e) { /* bell is non-critical */ }
+}
+
+// ── Task detail modal ────────────────────────────────────────────────
+function populateTaskModalPickers() {
+  const assigneeSel = document.getElementById('tm-assignee');
+  assigneeSel.innerHTML = '<option value="">Unassigned</option>' +
+    cachedProfiles.map(p => `<option value="${p.id}">${escapeHtml(p.full_name || p.email || 'Unnamed')}</option>`).join('');
+  assigneeSel.disabled = !COLLAB_READY;
+
+  const linkRow = document.getElementById('tm-link-row');
+  const role = sessionStorage.getItem('weinRole');
+  const dealWorldHidden = (NAV_HIDDEN_FOR_ROLE[role] || []).includes('pipeline');
+  linkRow.style.display = dealWorldHidden ? 'none' : 'flex';
+
+  const provSel = document.getElementById('tm-link-provider');
+  provSel.innerHTML = '<option value="">— No provider —</option>' +
+    cachedProviders.map(p => `<option value="${p.id}">${escapeHtml(p.provider_name || 'Unnamed')}</option>`).join('');
+  const leadSel = document.getElementById('tm-link-lead');
+  leadSel.innerHTML = '<option value="">— No lead —</option>' +
+    cachedLeads.map(l => `<option value="${l.id}">${escapeHtml(l.business_name || 'Unnamed')}</option>`).join('');
+  leadSel.disabled = !COLLAB_READY;
+  // Provider and lead links are mutually exclusive — picking one clears the other.
+  provSel.onchange = () => { if (provSel.value) leadSel.value = ''; };
+  leadSel.onchange = () => { if (leadSel.value) provSel.value = ''; };
+}
+
+function openTaskModal(taskId, prelink) {
+  window.currentTaskId = taskId || null;
+  populateTaskModalPickers();
+  const t = taskId ? cachedTasks.find(x => x.id === taskId) : null;
+  document.getElementById('tm-title').value = t?.title || '';
+  document.getElementById('tm-description').value = t?.description || '';
+  document.getElementById('tm-assignee').value = t?.assigned_to_user_id || '';
+  document.getElementById('tm-due').value = t?.due_date || '';
+  document.getElementById('tm-priority').value = t?.priority || 'medium';
+  document.getElementById('tm-status').value = t?.status || 'pending';
+  document.getElementById('tm-link-provider').value = t?.provider_id || prelink?.provider_id || '';
+  document.getElementById('tm-link-lead').value = t?.lead_id || prelink?.lead_id || '';
+  document.getElementById('tm-delete-btn').style.display = (t && canDelete()) ? '' : 'none';
+  document.getElementById('tm-error').style.display = 'none';
+  const commentsSection = document.getElementById('tm-comments-section');
+  if (t && COLLAB_READY) {
+    commentsSection.style.display = 'block';
+    fetchThread('task_id', t.id).then(c => renderThread('tm-comments', c, 'task_id', t.id));
+  } else {
+    commentsSection.style.display = 'none'; // no thread until the task is saved once, or 038 isn't applied
+  }
+  document.getElementById('task-modal-backdrop').style.display = 'flex';
+}
+
+function closeTaskModal() {
+  document.getElementById('task-modal-backdrop').style.display = 'none';
+  window.currentTaskId = null;
+}
+document.getElementById('task-modal-backdrop').addEventListener('click', function (e) { if (e.target === this) closeTaskModal(); });
+
+async function saveTask() {
+  const errEl = document.getElementById('tm-error');
+  const title = document.getElementById('tm-title').value.trim();
+  if (!title) { errEl.textContent = 'Task title is required.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  const assigneeId = COLLAB_READY ? (document.getElementById('tm-assignee').value || null) : undefined;
+  const providerId = document.getElementById('tm-link-provider').value || null;
+  const leadId = COLLAB_READY ? (document.getElementById('tm-link-lead').value || null) : undefined;
+  const body = {
+    title,
+    description: document.getElementById('tm-description').value.trim() || null,
+    due_date: document.getElementById('tm-due').value || null,
+    priority: document.getElementById('tm-priority').value,
+    status: document.getElementById('tm-status').value,
+    provider_id: providerId,
+    provider_name: providerId ? (cachedProviders.find(p => p.id === providerId)?.provider_name || null) : null,
+  };
+  if (assigneeId !== undefined) { body.assigned_to_user_id = assigneeId; body.assigned_to = profileById(assigneeId)?.full_name || null; }
+  if (leadId !== undefined) body.lead_id = leadId;
+  if (body.status === 'done' && (!window.currentTaskId || cachedTasks.find(t => t.id === window.currentTaskId)?.status !== 'done')) body.completed_at = new Date().toISOString();
+
+  const btn = document.getElementById('tm-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const prevAssignee = window.currentTaskId ? cachedTasks.find(t => t.id === window.currentTaskId)?.assigned_to_user_id : null;
+    if (window.currentTaskId) {
+      await sbPatch(`wein_tasks?id=eq.${window.currentTaskId}`, body);
+      const check = await sbGet(`wein_tasks?id=eq.${window.currentTaskId}&select=title`);
+      if (!check.length) { errEl.textContent = 'Update did not apply (permissions?).'; errEl.style.display = 'block'; return; }
+      Object.assign(cachedTasks.find(t => t.id === window.currentTaskId), body);
+      if (assigneeId && assigneeId !== prevAssignee) await notifyTaskAssigned({ ...body, id: window.currentTaskId });
+    } else {
+      body.status = body.status || 'pending';
+      body.task_type = 'general';
+      body.created_by = window.WEIN.fullName || sessionStorage.getItem('weinRole') || 'portal';
+      const rows = await sbPost('wein_tasks', body);
+      const created = Array.isArray(rows) ? rows[0] : rows;
+      if (created?.id) { cachedTasks.unshift(created); window.currentTaskId = created.id; await notifyTaskAssigned(created); }
+    }
+    refreshNavCounts();
+    closeTaskModal();
+    renderCurrentView();
+  } catch (e) {
+    errEl.textContent = 'Could not save task: ' + (e.message || e);
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteTaskFromModal() {
+  if (!window.currentTaskId || !canDelete()) return;
+  if (!confirm('Delete this task permanently?')) return;
+  try {
+    await sbDelete(`wein_tasks?id=eq.${window.currentTaskId}`);
+    cachedTasks = cachedTasks.filter(t => t.id !== window.currentTaskId);
+    refreshNavCounts();
+    closeTaskModal();
+    renderCurrentView();
+  } catch (e) { alert('Could not delete task: ' + (e.message || e)); }
+}
+
+function renderLeadsView() {
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div style="display:flex;align-items:center;">
+        <div>
+          <div class="view-title">Leads</div>
+          <div class="view-count">${cachedLeads.length} total</div>
+        </div>
+        ${(() => { const n = cachedLeads.filter(isLeadStale).length; return n > 0 ? `<div class="stale-chip"><div class="dot"></div><span class="label">${n} stale lead${n === 1 ? '' : 's'}</span></div>` : ''; })()}
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${canManageDeals() ? `<button class="mini-btn" type="button" onclick="downloadCsvTemplate()"><i class="ti ti-download"></i><span>Example CSV</span></button><button class="mini-btn" type="button" onclick="document.getElementById('leadCsvInput').click()"><i class="ti ti-upload"></i><span>Import CSV</span></button><input type="file" id="leadCsvInput" accept=".csv,text/csv" style="display:none;" onchange="startCsvImport(this.files[0]);this.value='';">` : ''}
+        <button class="view-action" type="button" onclick="toggleAddLeadForm()"><i class="ti ti-plus"></i><span>Add Lead</span></button>
+      </div>
+    </div>
+    <div id="addLeadForm" style="display:${leadFormVisible ? 'block' : 'none'};background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.14);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadBusinessName" placeholder="Business name (required)" class="view-input" style="min-width:0;">
+        <input type="text" id="leadVertical" placeholder="Vertical (e.g. Dining)" class="view-input" style="min-width:0;">
+      </div>
+      <div id="addLeadError" style="display:none;color:var(--red);font-size:11px;margin-bottom:8px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="text" id="leadLocation" placeholder="Location" class="view-input" style="min-width:0;">
+        <input type="text" id="leadSource" placeholder="Source (e.g. Instagram, referral)" class="view-input" style="min-width:0;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input type="tel" id="leadContactPhone" placeholder="Contact phone (for WhatsApp)" class="view-input" style="min-width:0;">
+      </div>
+      <textarea id="leadWhyPromising" placeholder="Why is this lead promising?" style="width:100%;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-primary);resize:none;height:54px;outline:none;box-sizing:border-box;margin-bottom:8px;font-family:inherit;"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="mini-btn" type="button" onclick="toggleAddLeadForm()">Cancel</button>
+        <button class="view-action" type="button" id="leadSaveBtn" onclick="submitLead()"><span>Save lead</span></button>
+      </div>
+    </div>
+    ${categoryChipsHtml(leadsCatFilter, 'setLeadsCatFilter')}
+    <div class="kanban-board" style="grid-template-columns:repeat(${LEAD_STAGES.length},1fr);" id="leadsKanbanBoard"></div>
+    <div style="margin-top:14px;font-size:11px;color:var(--text-tertiary);">Dropped leads (${cachedLeads.filter(l => l.status === 'dropped').length}) are hidden from the board above. <button class="mini-btn" type="button" onclick="toggleShowDroppedLeads()" id="droppedToggleBtn">${showDroppedLeads ? 'Hide dropped' : 'Show dropped'}</button></div>
+    <div id="droppedLeadsWrap" style="display:${showDroppedLeads ? 'block' : 'none'};margin-top:10px;"></div>`;
+  renderLeadsKanban();
+  if (showDroppedLeads) renderDroppedLeadsTable();
+}
+
+let showDroppedLeads = false;
+function toggleShowDroppedLeads() {
+  showDroppedLeads = !showDroppedLeads;
+  renderLeadsView();
+}
+
+let leadsCatFilter = 'all';
+function setLeadsCatFilter(value) {
+  leadsCatFilter = value;
+  renderLeadsView();
+}
+
+function renderDroppedLeadsTable() {
+  const wrap = document.getElementById('droppedLeadsWrap');
+  if (!wrap) return;
+  const dropped = cachedLeads.filter(l => l.status === 'dropped');
+  wrap.innerHTML = `
+    <div class="providers-table-wrap">
+      <table class="providers-table">
+        <thead><tr><th>Business</th><th>Vertical</th><th>Reason</th><th>Location</th><th>Actions</th></tr></thead>
+        <tbody>${dropped.length ? dropped.map(lead => `
+          <tr>
+            <td style="color:var(--text-primary);font-weight:600;">${escapeHtml(lead.business_name || 'Unnamed')}</td>
+            <td>${escapeHtml(lead.vertical || '—')}</td>
+            <td>${escapeHtml((lead.drop_reason || '—').replace(/_/g, ' '))}</td>
+            <td>${escapeHtml(lead.location || '—')}</td>
+            <td>${canDelete() ? `<button class="mini-btn" type="button" onclick="deleteLead('${lead.id}')" style="color:var(--red);"><span>Delete</span></button>` : '—'}</td>
+          </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:20px;">No dropped leads</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+function leadCardHtml(lead) {
+  const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
+  const isLast = stageIdx === LEAD_STAGES.length - 1;
+  const isFirst = stageIdx === 0;
+  const nextLabel = isLast ? null : LEAD_STAGES[stageIdx + 1].label;
+  const metaBits = [lead.vertical, lead.location].filter(Boolean);
+  const stale = isLeadStale(lead);
+  return `
+    <div class="provider-card" data-lead-id="${lead.id}" onclick="openLeadDrawer('${lead.id}')" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
+      <div class="pc-name">${escapeHtml(lead.business_name || 'Unnamed')}</div>
+      ${metaBits.length ? `<div class="pc-meta">${metaBits.map((bit, i) => `<span class="${i === 0 ? `pc-meta-cat cat-badge ${catBadgeClass(bit)}` : 'pc-meta-date mono'}">${escapeHtml(bit)}</span>`).join('')}${lead.vertical_needs_review ? `<span class="pc-meta-date mono" title="AI-tagged vertical, low confidence" style="color:var(--amber);border:0.5px solid var(--border-amber);border-radius:999px;padding:2px 6px;">Verify category</span>` : ''}${lead.stage_entered_at ? (() => { const d = daysSince(lead.stage_entered_at); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-secondary)'};">${d}d in stage</span>`; })() : ''}${stale ? `<span class="stale-tag">${daysSince(lead.updated_at || lead.created_at)}d</span>` : ''}${waLink(lead.contact_phone, lead.business_name) ? `<a href="${waLink(lead.contact_phone, lead.business_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}</div>` : ''}
+      ${lead.why_promising ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">${escapeHtml(lead.why_promising)}</div>` : ''}
+      <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;">
+        ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatLead('${lead.id}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
+        ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLead('${lead.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text-primary);"><span>${stageIdx === LEAD_STAGES.length - 2 ? 'Promote' : '→ ' + nextLabel}</span></button>` : ''}
+        ${canDelete() ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();deleteLead('${lead.id}')" style="color:var(--red);" title="Delete"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LEAD DETAIL DRAWER
+// Activity feed is derived from real wein_leads timestamps (no per-lead
+// event log exists). Since migration 038, leads also have a real threaded
+// notes section (wein_comments.lead_id) and linked tasks (wein_tasks.lead_id)
+// alongside the single free-text "Details" box.
+// ════════════════════════════════════════════════════════════════════
+function openLeadDrawer(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  window.currentLeadId = leadId;
+  const stageIdx = Math.max(0, LEAD_STAGES.findIndex(s => s.id === lead.status));
+  const stage = LEAD_STAGES[stageIdx] || LEAD_STAGES[0];
+  const days = daysSince(lead.updated_at || lead.created_at);
+  const stale = isLeadStale(lead);
+
+  document.getElementById('lead-drawer-cat').className = `cat-badge ${catBadgeClass(lead.vertical)}`;
+  document.getElementById('lead-drawer-cat').textContent = lead.vertical || '—';
+  document.getElementById('lead-drawer-verify-badge').style.display = lead.vertical_needs_review ? 'inline-block' : 'none';
+  document.getElementById('lead-drawer-name').textContent = lead.business_name || 'Unnamed';
+  document.getElementById('lead-drawer-stage-label').textContent = stage.label;
+  document.getElementById('lead-drawer-stage-label').style.color = stage.color;
+  document.getElementById('lead-drawer-stage-count').textContent = `Stage ${stageIdx + 1} of ${LEAD_STAGES.length}`;
+  document.getElementById('lead-drawer-dots').innerHTML = LEAD_STAGES.map((s, idx) =>
+    `<div class="stage-dot" style="width:${idx === stageIdx ? '20px' : '8px'};${idx <= stageIdx ? `background:${s.color};border-color:${s.color};` : ''}"></div>`
+  ).join('');
+  document.getElementById('lead-drawer-owner').textContent = ownerLabel(lead.created_by);
+  document.getElementById('lead-drawer-days').textContent = `${days}d${stale ? ' · stale' : ''}`;
+  document.getElementById('lead-drawer-days').style.color = stale ? 'var(--red)' : (days >= 4 ? 'var(--amber)' : 'var(--text-secondary)');
+
+  const acts = [];
+  if (lead.updated_at && lead.updated_at !== lead.created_at) {
+    acts.push({ text: `Status: ${leadStatusLabel(lead.status)}`, time: new Date(lead.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), hue: stage.color });
+  }
+  acts.push({ text: `Lead added${lead.source ? ' via ' + lead.source : ''}`, time: lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—', hue: 'var(--text-tertiary)' });
+  document.getElementById('lead-drawer-activity').innerHTML = acts.map(a =>
+    `<div class="lead-act-row"><div class="lead-act-dot" style="background:${a.hue}"></div><div><div class="lead-act-text">${escapeHtml(a.text)}</div><div class="lead-act-time">${a.time}</div></div></div>`
+  ).join('');
+  document.getElementById('lead-drawer-why').innerHTML = lead.why_promising
+    ? `<div style="border-top:.5px solid var(--border-subtle);padding-top:14px;"><div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Why promising</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">${escapeHtml(lead.why_promising)}</div></div>`
+    : '';
+
+  const naDate = document.getElementById('lead-drawer-na-date');
+  const naNote = document.getElementById('lead-drawer-na-note');
+  naDate.value = lead.next_action_date || '';
+  naNote.value = lead.next_action_note || '';
+  document.getElementById('lead-drawer-na-save').onclick = async () => {
+    try {
+      const body = { next_action_date: naDate.value || null, next_action_note: naNote.value || null };
+      await sbPatch(`wein_leads?id=eq.${lead.id}`, body);
+      const check = await sbGet(`wein_leads?id=eq.${lead.id}&select=next_action_date`);
+      if (!check.length || (check[0].next_action_date || null) !== body.next_action_date) {
+        alert('Did not save — has migration 033_bd_sales_tools.sql been run in Supabase?');
+        return;
+      }
+      Object.assign(lead, body);
+      refreshNavCounts();
+    } catch (e) { alert('Could not save next action (migration 033 may be missing): ' + (e.message || e)); }
+  };
+
+  const noteEl = document.getElementById('lead-drawer-note');
+  noteEl.value = lead.notes || '';
+  document.getElementById('lead-drawer-note-save').onclick = async () => {
+    const btn = document.getElementById('lead-drawer-note-save');
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+    await saveLeadNote(lead.id, noteEl.value);
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = 'Save note'; btn.disabled = false; }, 1200);
+  };
+
+  const isLast = stageIdx === LEAD_STAGES.length - 1;
+  const isFirst = stageIdx === 0;
+  const isDropped = lead.status === 'dropped';
+  document.getElementById('lead-drawer-foot').innerHTML = isDropped ? '' : `
+    <div style="display:flex;flex-direction:column;width:100%;">
+      <div style="display:flex;gap:9px;width:100%;">
+        ${!isFirst ? `<button class="lead-drawer-back" onclick="retreatLead('${lead.id}');closeLeadDrawer();">← Move back</button>` : ''}
+        ${!isLast ? `<button class="lead-drawer-advance" onclick="advanceLead('${lead.id}');closeLeadDrawer();">${stageIdx === LEAD_STAGES.length - 2 ? 'Promote →' : 'Advance to ' + LEAD_STAGES[stageIdx + 1].label + ' →'}</button>` : ''}
+      </div>
+      <button type="button" onclick="closeLeadDrawer();dropLead('${lead.id}');" style="width:100%;margin-top:8px;background:transparent;border:none;color:var(--red);font-size:11px;font-weight:600;cursor:pointer;padding:2px;">Drop lead</button>
+    </div>`;
+
+  const tasksSection = document.getElementById('lead-drawer-tasks-section');
+  const threadSection = document.getElementById('lead-drawer-thread-section');
+  if (COLLAB_READY) {
+    tasksSection.style.display = 'block';
+    const leadTasks = cachedTasks.filter(t => t.lead_id === lead.id);
+    document.getElementById('lead-drawer-tasks').innerHTML = leadTasks.length
+      ? leadTasks.map(t => `<div class="table-actions" style="cursor:pointer;" onclick="openTaskModal('${t.id}')"><i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};"></i><span style="flex:1;font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.title || 'Untitled')}</span><span style="font-size:10px;color:var(--text-tertiary);">${t.status === 'done' ? '✓' : TASK_COLUMNS.find(c => c.id === t.status)?.label || ''}</span></div>`).join('')
+      : '<div style="font-size:11px;color:var(--text-tertiary);">No tasks yet</div>';
+    threadSection.style.display = 'block';
+    fetchThread('lead_id', lead.id).then(c => renderThread('lead-drawer-comments', c, 'lead_id', lead.id));
+  } else {
+    tasksSection.style.display = 'none';
+    threadSection.style.display = 'none';
+  }
+
+  document.getElementById('lead-drawer-backdrop').style.display = 'block';
+}
+
+function closeLeadDrawer() {
+  document.getElementById('lead-drawer-backdrop').style.display = 'none';
+  window.currentLeadId = null;
+}
+
+document.getElementById('lead-drawer-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeLeadDrawer();
+});
+
+function renderLeadsKanban() {
+  const board = document.getElementById('leadsKanbanBoard');
+  if (!board) return;
+  board.innerHTML = LEAD_STAGES.map(stage => {
+    const items = cachedLeads.filter(l => l.status === stage.id && matchesCategoryFilter(l.vertical, leadsCatFilter));
+    const cardsHtml = items.length ? items.map(leadCardHtml).join('') : `<div class="empty-col">No leads</div>`;
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${stage.label}</span>
+          <span class="kanban-col-count mono" style="color:${stage.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${cardsHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+// Only write 033 columns when they exist (feature-detect off fetched rows),
+// so core actions keep working before the migration is pasted.
+function leadHasCol(col) { return cachedLeads.length > 0 && col in cachedLeads[0]; }
+function withStageStamp(body) {
+  if (leadHasCol('stage_entered_at')) body.stage_entered_at = new Date().toISOString();
+  return body;
+}
+
+async function advanceLead(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
+  if (stageIdx === -1 || stageIdx === LEAD_STAGES.length - 1) return;
+  const nextStage = LEAD_STAGES[stageIdx + 1].id;
+  if (nextStage === 'promoted') { await promoteLead(leadId); return; }
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, withStageStamp({ status: nextStage, updated_at: new Date().toISOString() }));
+    await loadDashboard();
+  } catch (e) { console.error('advanceLead error:', e); alert('Could not advance lead: ' + e.message); }
+}
+
+function toggleAddLeadForm() {
+  leadFormVisible = !leadFormVisible;
+  const form = document.getElementById('addLeadForm');
+  if (form) form.style.display = leadFormVisible ? 'block' : 'none';
+  // Clear any leftover validation error/highlight from a previous attempt
+  // so it doesn't look "stuck" the next time the form opens.
+  const errEl = document.getElementById('addLeadError');
+  const nameEl = document.getElementById('leadBusinessName');
+  if (errEl) errEl.style.display = 'none';
+  if (nameEl) nameEl.style.borderColor = '';
+}
+
+async function submitLead() {
+  const nameEl = document.getElementById('leadBusinessName');
+  const errEl = document.getElementById('addLeadError');
+  const business_name = nameEl.value.trim();
+  if (!business_name) {
+    errEl.textContent = 'Business name is required.';
+    errEl.style.display = 'block';
+    nameEl.style.borderColor = 'var(--red)';
+    nameEl.focus();
+    return;
+  }
+  errEl.style.display = 'none';
+  nameEl.style.borderColor = '';
+  const vertical = document.getElementById('leadVertical').value.trim();
+  const location = document.getElementById('leadLocation').value.trim();
+  const source = document.getElementById('leadSource').value.trim();
+  const why_promising = document.getElementById('leadWhyPromising').value.trim();
+  const contact_phone = (document.getElementById('leadContactPhone')?.value || '').trim();
+  const btn = document.getElementById('leadSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const body = {
+      business_name, vertical: vertical || null, location: location || null,
+      source: source || null, why_promising: why_promising || null,
+      created_by: sessionStorage.getItem('weinRole') || 'portal',
+    };
+    if (contact_phone && leadHasCol('contact_phone')) body.contact_phone = contact_phone;
+    if (leadHasCol('stage_entered_at')) body.stage_entered_at = new Date().toISOString();
+    await sbPost('wein_leads', body);
+    leadFormVisible = false;
+    await loadDashboard();
+  } catch (e) {
+    console.error('submitLead error:', e);
+    errEl.textContent = 'Could not save lead: ' + (e.message || e);
+    errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = 'Save lead'; }
+  }
+}
+
+const DROP_REASONS = [
+  ['price_objection', 'Price objection'],
+  ['not_interested', 'Not interested'],
+  ['wrong_contact', 'Wrong contact'],
+  ['seasonal', 'Seasonal / bad timing'],
+  ['other', 'Other'],
+];
+async function dropLead(leadId) {
+  // Pre-033 fallback: no drop_reason column yet, keep the old direct drop
+  if (!leadHasCol('drop_reason')) {
+    if (!confirm('Drop this lead?')) return;
+    await doDropLead(leadId, null);
+    return;
+  }
+  const lead = cachedLeads.find(l => l.id === leadId);
+  const overlay = document.createElement('div');
+  overlay.id = 'drop-reason-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-surface);border:.5px solid var(--border);border-radius:10px;padding:18px;width:340px;max-width:92vw;box-shadow:0 18px 44px rgba(0,0,0,.45);">
+      <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Drop "${escapeHtml(lead?.business_name || 'lead')}"?</div>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">Why? One tap — this data shows what's killing deals.</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${DROP_REASONS.map(([v, label]) => `<button class="mini-btn" type="button" data-reason="${v}" style="justify-content:flex-start;width:100%;">${label}</button>`).join('')}
+      </div>
+      <input type="text" id="drop-reason-other" placeholder="Details (required for Other)" style="display:none;width:100%;margin-top:8px;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:7px;color:var(--text-primary);font-size:12px;padding:7px 9px;outline:none;box-sizing:border-box;">
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <button class="mini-btn" type="button" id="drop-reason-cancel">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#drop-reason-cancel').onclick = close;
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelectorAll('[data-reason]').forEach(btn => {
+    btn.onclick = async () => {
+      const reason = btn.dataset.reason;
+      if (reason === 'other') {
+        const inp = overlay.querySelector('#drop-reason-other');
+        if (inp.style.display === 'none') { inp.style.display = 'block'; inp.focus(); return; }
+        if (!inp.value.trim()) { inp.focus(); return; }
+        close();
+        await doDropLead(leadId, 'other: ' + inp.value.trim());
+        return;
+      }
+      close();
+      await doDropLead(leadId, reason);
+    };
+  });
+}
+async function doDropLead(leadId, reason) {
+  try {
+    const body = withStageStamp({ status: 'dropped', updated_at: new Date().toISOString() });
+    if (reason !== null && leadHasCol('drop_reason')) body.drop_reason = reason;
+    await sbPatch(`wein_leads?id=eq.${leadId}`, body);
+    await loadDashboard();
+  } catch (e) { console.error('dropLead error:', e); alert('Could not drop lead: ' + e.message); }
+}
+
+async function retreatLead(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  const stageIdx = LEAD_STAGES.findIndex(s => s.id === lead.status);
+  if (stageIdx <= 0) return;
+  const prevStage = LEAD_STAGES[stageIdx - 1].id;
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, withStageStamp({ status: prevStage, updated_at: new Date().toISOString() }));
+    await loadDashboard();
+  } catch (e) { console.error('retreatLead error:', e); alert('Could not move lead back: ' + e.message); }
+}
+
+async function saveLeadNote(leadId, note) {
+  try {
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { notes: note });
+    const lead = cachedLeads.find(l => l.id === leadId);
+    if (lead) lead.notes = note;
+  } catch (e) {
+    console.error('saveLeadNote error:', e);
+    alert('Could not save note. If this is the first time, someone needs to run the 030_lead_notes.sql migration in Supabase (adds the `notes` column to wein_leads).');
+  }
+}
+
+async function deleteLead(leadId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this lead permanently? This cannot be undone.')) return;
+  try {
+    await sbDelete(`wein_leads?id=eq.${leadId}`);
+    await loadDashboard();
+  } catch (e) { console.error('deleteLead error:', e); alert('Could not delete lead: ' + e.message); }
+}
+
+async function promoteLead(leadId) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (!lead) return;
+  try {
+    const slug = lead.business_name.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString(36);
+    const [provider] = await sbPost('wein_providers', {
+      provider_name: lead.business_name,
+      provider_slug: slug,
+      vertical: lead.vertical || null,
+      category: lead.vertical || null,
+      location: lead.location || null,
+    });
+    await sbPost('wein_negotiations', {
+      provider_id: provider.id, provider_name: provider.provider_name,
+      deal_breaker: window.WEIN?.fullName || sessionStorage.getItem('weinRole') || 'portal', stage: 'menu_collected', stage_entered_at: new Date().toISOString(),
+    });
+    await sbPatch(`wein_leads?id=eq.${leadId}`, { status: 'promoted', promoted_provider_id: provider.id, updated_at: new Date().toISOString() });
+    await loadDashboard();
+  } catch (e) { console.error('promoteLead error:', e); alert('Could not promote lead: ' + e.message); }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LAUNCH (post-signing rollout, ClickUp audit feature #2 -- Pipeline's
+// kanban stops at 'accepted', this picks up from a signed contract
+// through to live. A provider with contract_status='active' and no
+// explicit launch_stage shows up implicitly in the 'signed' column.)
+// ════════════════════════════════════════════════════════════════════
+const LAUNCH_STAGES = [
+  { id: 'signed',              label: 'Signed',              color: 'var(--text-tertiary)' },
+  { id: 'collecting_content',  label: 'Collecting content',  color: 'var(--blue)' },
+  { id: 'offer_setup',         label: 'Offer setup',         color: 'var(--amber)' },
+  { id: 'training_testing',    label: 'Training and testing', color: 'var(--amber)' },
+  { id: 'live',                label: 'Live',                 color: 'var(--green)' },
+];
+
+function launchStageOf(provider) {
+  return provider.launch_stage || (provider.contract_status === 'active' ? 'signed' : null);
+}
+
+function renderLaunchView() {
+  const inLaunch = cachedProviders.filter(p => launchStageOf(p));
+  document.getElementById('mainArea').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Launch</div>
+        <div class="view-count">${inLaunch.length} in rollout</div>
+      </div>
+    </div>
+    <div class="kanban-board" style="grid-template-columns:repeat(${LAUNCH_STAGES.length},1fr);" id="launchKanbanBoard"></div>`;
+  renderLaunchKanban(inLaunch);
+}
+
+function launchCardHtml(provider) {
+  const stage = launchStageOf(provider);
+  const stageIdx = LAUNCH_STAGES.findIndex(s => s.id === stage);
+  const isLast = stageIdx === LAUNCH_STAGES.length - 1;
+  return `
+    <div class="provider-card" onclick="openProviderModal('${provider.id}', '')">
+      <div class="pc-name">${escapeHtml(provider.provider_name)}</div>
+      <div class="pc-meta">
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(provider.vertical || provider.category)}">${escapeHtml(provider.vertical || provider.category || '—')}</span>
+      </div>
+      <div class="table-actions" style="margin-top:8px;">
+        ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceLaunch('${provider.id}')"><span>→ ${LAUNCH_STAGES[stageIdx + 1].label}</span></button>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderLaunchKanban(inLaunch) {
+  const board = document.getElementById('launchKanbanBoard');
+  if (!board) return;
+  board.innerHTML = LAUNCH_STAGES.map(stage => {
+    const items = inLaunch.filter(p => launchStageOf(p) === stage.id);
+    const cardsHtml = items.length ? items.map(launchCardHtml).join('') : `<div class="empty-col">No providers</div>`;
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-label">${stage.label}</span>
+          <span class="kanban-col-count mono" style="color:${stage.color}">${items.length}</span>
+        </div>
+        <div class="kanban-col-body">${cardsHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+async function advanceLaunch(providerId) {
+  const provider = cachedProviders.find(p => p.id === providerId);
+  if (!provider) return;
+  const stage = launchStageOf(provider);
+  const stageIdx = LAUNCH_STAGES.findIndex(s => s.id === stage);
+  if (stageIdx === -1 || stageIdx === LAUNCH_STAGES.length - 1) return;
+  const nextStage = LAUNCH_STAGES[stageIdx + 1].id;
+  try {
+    await sbPatch(`wein_providers?id=eq.${providerId}`, { launch_stage: nextStage });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) cached.launch_stage = nextStage;
+    renderCurrentView();
+  } catch (e) { console.error('advanceLaunch error:', e); alert('Could not advance: ' + e.message); }
+}
+
+// ── Onboarding progress (derived from stage + contract + launch, no writes) ──
+const ONBOARD_STAGE_RANK = { paused: 1, menu_collected: 1, waiting_founder: 2, offers_generated: 2, sent_back: 3, negotiating: 4, accepted: 5, closed: 5 };
+function onboardSteps(p, neg) {
+  const rank = ONBOARD_STAGE_RANK[neg?.stage] || 0;
+  const offerCount = cachedOffers.filter(o => o.provider_id === p.id).length;
+  const signed = ['active', 'signed'].includes(p.contract_status) || rank >= 5;
+  const launched = !!p.launch_stage && p.launch_stage === LAUNCH_STAGES[LAUNCH_STAGES.length - 1].id;
+  return [
+    { label: 'Menu', done: rank >= 1 },
+    { label: 'Offers', done: rank >= 2 || offerCount > 0 },
+    { label: 'Sheet sent', done: rank >= 3 },
+    { label: 'Negotiating', done: rank >= 4 },
+    { label: 'Signed', done: signed },
+    { label: 'Launched', done: launched },
+  ];
+}
+function renderOnboardStrip(p, neg) {
+  const el = document.getElementById('modal-onboard-strip');
+  if (!el) return;
+  const steps = onboardSteps(p, neg);
+  el.innerHTML = steps.map((s, i) => `
+    <div style="display:flex;align-items:center;${i ? 'flex:1;' : ''}">
+      ${i ? `<div style="flex:1;height:1.5px;background:${steps[i - 1].done && s.done ? 'var(--green)' : 'var(--border)'};margin:0 5px 12px;"></div>` : ''}
+      <div title="${s.label}" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${s.done ? 'var(--green)' : 'var(--bg-elevated)'};border:1.5px solid ${s.done ? 'var(--green)' : 'var(--border)'};"></div>
+        <span style="font-family:'Instrument Sans';font-size:9px;font-weight:${s.done ? '600' : '500'};color:${s.done ? 'var(--text-secondary)' : 'var(--text-tertiary)'};white-space:nowrap;">${s.label}</span>
+      </div>
+    </div>`).join('');
+}
+
+// Column index (0-3) for a raw negotiation stage, via STAGE_COLUMNS -> COLUMNS.
+function pipelineColIdx(stage) {
+  const colId = STAGE_COLUMNS[stage];
+  return COLUMNS.findIndex(c => c.id === colId);
+}
+
+// Stage moves for Pipeline cards -- mirrors advanceLead/retreatLead, but on
+// wein_negotiations.stage with a read-back verify (same pattern as
+// setTaskStatus). canManageDeals-gated: moving a deal is a deal action.
+async function moveNegotiationStage(negotiationId, direction) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg) return;
+  const colIdx = pipelineColIdx(neg.stage);
+  if (colIdx === -1) return;
+  const targetIdx = colIdx + direction;
+  if (targetIdx < 0 || targetIdx >= PIPELINE_STAGE_ORDER.length) return;
+  const stage = PIPELINE_STAGE_ORDER[targetIdx];
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+  } catch (e) { alert('Could not move stage: ' + (e.message || e)); }
+}
+function advanceNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, 1); }
+function retreatNegotiation(negotiationId) { return moveNegotiationStage(negotiationId, -1); }
+
+// Direct stage set from the provider modal's stage selector.
+async function saveNegotiationStage(negotiationId, stage) {
+  if (!canManageDeals()) return;
+  const neg = cachedNegotiations.find(n => n.id === negotiationId);
+  if (!neg || neg.stage === stage) return;
+  const body = { stage, stage_entered_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, body);
+    const check = await sbGet(`wein_negotiations?id=eq.${negotiationId}&select=stage`);
+    if (!check.length || check[0].stage !== stage) {
+      alert('Stage change did not apply (permissions?). Nothing changed.');
+      return;
+    }
+    Object.assign(neg, body);
+    refreshNavCounts();
+    renderCurrentView();
+    // Refresh the modal so pill colors / onboarding strip / meta reflect the move
+    if (window.currentProviderId) await openProviderModal(window.currentProviderId, negotiationId);
+  } catch (e) { alert('Could not change stage: ' + (e.message || e)); }
+}
+
+function providerCardHtml(item) {
+  const p = item.provider;
+  const isRunning = runningPipelines[p.provider_name] === 'running';
+  const progress = STAGE_PROGRESS[item.stage] || 10;
+  const progressColor = item.stage === 'accepted' || item.stage === 'closed' ? 'var(--green)' : 'var(--amber)';
+  const date = item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+  const safeName = p.provider_name.replace(/'/g, "\\'");
+  const dealBreaker = item.dealBreaker;
+  const stale = isStale(p);
+  return `
+    <div class="provider-card" data-role="${dealBreaker}" data-provider-id="${p.id}" data-negotiation-id="${item.negotiationId || ''}" onclick="openProviderModal(this.dataset.providerId, this.dataset.negotiationId)" style="${stale ? 'box-shadow: inset 3px 0 0 var(--amber);' : ''}">
+      <div class="pc-name${isRunning ? ' status-running' : ''}">${p.provider_name}${p.featured ? `<i class="ti ti-flame" style="font-size:11px;color:var(--amber);margin-left:4px;" title="Featured / Hot Deal"></i>` : ''}</div>
+      <div class="pc-meta">
+        <span class="pc-meta-cat cat-badge ${catBadgeClass(p.vertical || p.category)}">${p.vertical || p.category || '—'}</span>
+        ${(() => { const status = p.contract_status || 'none'; const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none; return `<span style="font-family:'Instrument Sans';font-size:9px;font-weight:500;padding:1px 6px;border-radius:3px;background:${colors.bg};border:0.5px solid ${colors.border};color:${colors.text};">${CONTRACT_STATUS_LABELS[status]}</span>`; })()}
+        <span class="pc-meta-date mono">${date}</span>
+        ${item.stageEnteredAt ? (() => { const d = daysSince(item.stageEnteredAt); return `<span class="pc-meta-date mono" title="Time in current stage" style="color:${d >= 14 ? 'var(--red)' : d >= 7 ? 'var(--amber)' : 'var(--text-secondary)'};">${d}d in stage</span>`; })() : ''}
+        ${stale ? `<span class="stale-tag">${daysSince(item.updatedAt)}d</span>` : ''}
+        ${waLink(p.contact_whatsapp || p.contact_phone, p.provider_name) ? `<a href="${waLink(p.contact_whatsapp || p.contact_phone, p.provider_name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="WhatsApp" style="color:#25D366;display:inline-flex;"><i class="ti ti-brand-whatsapp" style="font-size:14px;"></i></a>` : ''}
+      </div>
+      <div class="pc-row">
+        <span class="pc-badge mono">${item.offerCount} offers</span>
+        ${canManageDeals() ? `<button class="pc-run-btn" onclick="event.stopPropagation();runPipelineFromCard('${safeName}', '${(p.vertical || '').replace(/'/g, "\\'")}')" ${isRunning ? 'disabled' : ''}>${isRunning ? '…' : '▶ Run'}</button>` : ''}
+      </div>
+      ${(() => {
+        if (!canManageDeals() || !item.negotiationId) return '';
+        const colIdx = pipelineColIdx(item.stage);
+        if (colIdx === -1) return '';
+        const isFirst = colIdx === 0, isLast = colIdx === COLUMNS.length - 1;
+        const nextLabel = isLast ? '' : COLUMNS[colIdx + 1].label;
+        return `<div class="table-actions" style="margin-bottom:8px;flex-wrap:nowrap;gap:4px;">
+          ${!isFirst ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();retreatNegotiation('${item.negotiationId}')" title="Move back" style="flex-shrink:0;padding:5px 7px;"><i class="ti ti-arrow-left" style="font-size:12px;"></i></button>` : ''}
+          ${!isLast ? `<button class="mini-btn" type="button" onclick="event.stopPropagation();advanceNegotiation('${item.negotiationId}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text-primary);"><span>→ ${nextLabel}</span></button>` : ''}
+        </div>`;
+      })()}
+      <div class="pc-progress"><div class="pc-progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
+      <div style="display:flex;align-items:center;gap:5px;padding-top:6px;border-top:0.5px solid var(--border-subtle);margin-top:4px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:var(--blue-soft);border:0.5px solid var(--border-blue);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--blue);">
+          ${dealBreaker === 'admin' ? 'AD' : 'DB'}
+        </div>
+        <span style="font-size:11px;color:var(--text-secondary);">${dealBreaker === 'admin' ? 'Admin' : 'Deal Breaker'}</span>
+      </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROVIDER DETAIL PANEL
+// Field names below match the live schema, not the prompt's literal
+// names: wein_offers has `title`/`promo_egp`/`category`/`title_strategy`
+// (no offer_title/price_egp/party_size/tier columns), wein_files has
+// `file_name`/`drive_view_url` (no file_url), and the new wein_comments
+// table (see _WeIN_System/supabase/023_wein_comments.sql -- not yet
+// applied, same as every other pending migration in this project) uses
+// negotiation_id/author_role/author_name/body/created_at exactly as the
+// prompt's JS expects.
+//
+// Guards against a race when cards are clicked in quick succession: each
+// open call gets a token, and a fetch only writes to the DOM if its
+// token is still the most recent one requested.
+// ════════════════════════════════════════════════════════════════════
+let modalOpenToken = 0;
+
+const STAGE_COLORS = {
+  'menu_collected': { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
+  'paused':         { bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.22)', text: 'var(--text-secondary)', dot: 'var(--text-secondary)' },
+  'contacted':      { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
+  'negotiating':    { bg: 'var(--blue-tint)', border: 'rgba(59,130,246,0.22)', text: 'var(--blue)', dot: 'var(--blue)' },
+  'offer_sent':     { bg: 'var(--amber-tint)', border: 'var(--border-amber)', text: 'var(--amber)', dot: 'var(--amber)' },
+  'accepted':       { bg: 'var(--green-tint)', border: 'rgba(34,197,94,0.22)', text: 'var(--green)', dot: 'var(--green)' },
+};
+
+async function deleteFile(fileId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this file entry permanently? This cannot be undone.')) return;
+  try {
+    await sbDelete(`wein_files?id=eq.${fileId}`);
+    await loadDashboard();
+    if (window.currentProviderId) await openProviderModal(window.currentProviderId, window.currentNegotiationId);
+  } catch (e) { console.error('deleteFile error:', e); alert('Could not delete file: ' + e.message); }
+}
+
+async function renderModalOffers(providerId, token) {
+  const offersEl = document.getElementById('modal-offers');
+  if (!offersEl) return;
+  try {
+    const offers = await sbGet(`wein_offers?provider_id=eq.${providerId}&select=*&order=status.asc`);
+    if (token !== modalOpenToken) return;
+    // Archived (pre-migration legacy) rows are history: shown collapsed under
+    // a toggle, clearly labeled, with no accept/reject actions.
+    const visible = offers.filter(o => (o.status || 'archived') !== 'archived');
+    const archived = offers.filter(o => (o.status || 'archived') === 'archived');
+    const order = { pending: 0, accepted: 1, rejected: 2 };
+    visible.sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
+
+    const archivedHtml = archived.length ? `
+      <button type="button" class="mini-btn" style="width:100%;justify-content:center;color:var(--text-tertiary);"
+        onclick="const w=document.getElementById('modal-archived-offers');const open=w.style.display==='none';w.style.display=open?'flex':'none';this.querySelector('span').textContent=open?'Hide ${archived.length} archived offers':'Show ${archived.length} archived offers (old runs)';">
+        <i class="ti ti-archive"></i><span>Show ${archived.length} archived offers (old runs)</span>
+      </button>
+      <div id="modal-archived-offers" style="display:none;flex-direction:column;gap:6px;">
+        ${archived.map(o => `
+        <div style="background:var(--bg-elevated);border:0.5px dashed var(--border);border-radius:6px;padding:9px 11px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div style="min-width:0;flex:1;">
+              <div style="font-family:'Instrument Sans';font-size:12px;font-weight:500;color:var(--text-primary);line-height:1.25;">${escapeHtml(o.title || 'Untitled offer')}</div>
+              <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);margin-top:3px;">${escapeHtml(o.category || '—')} · v${o.version ?? '—'}</div>
+            </div>
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;flex-shrink:0;">Archived</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);">${discountPctLabel(o.discount_pct) != null ? discountPctLabel(o.discount_pct) + '% off' : ''}</span>
+            <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
+            <span style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>
+            <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore to pending</span></button>
+          </div>
+        </div>`).join('')}
+      </div>` : '';
+
+    offersEl.innerHTML = (visible.length ? visible.map(o => {
+      const st = o.status || 'pending';
+      const dimmed = st === 'rejected' ? 'opacity:0.75;' : '';
+      const badge = st === 'accepted'
+        ? `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--green,#2e7d32);background:rgba(46,125,50,0.12);border:0.5px solid rgba(46,125,50,0.4);border-radius:999px;padding:3px 7px;flex-shrink:0;"><i class="ti ti-check" style="font-size:10px;"></i> Accepted</span>`
+        : `<span style="font-family:'Instrument Sans';font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-tint);border:0.5px solid var(--border-amber);border-radius:999px;padding:3px 7px;flex-shrink:0;">${discountPctLabel(o.discount_pct) != null ? `${discountPctLabel(o.discount_pct)}% off` : 'Offer'}</span>`;
+      const actions = st === 'pending' ? `
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','accepted','${providerId}')" style="border-color:var(--green,#2e7d32);color:var(--green,#2e7d32);"><i class="ti ti-check"></i><span>Accept</span></button>
+        <button class="mini-btn" type="button" onclick="toggleOfferDetails('${o.id}')"><i class="ti ti-list-details"></i><span>Details</span></button>
+        <button class="mini-btn" type="button" onclick="openOfferEdit('${o.id}')"><i class="ti ti-pencil"></i><span>Edit</span></button>
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','rejected','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-x"></i><span>Reject</span></button>`
+        : st === 'rejected' ? `
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Restore</span></button>`
+        : st === 'accepted' ? `
+        <button class="mini-btn" type="button" onclick="setOfferStatusInModal('${o.id}','pending','${providerId}')" style="color:var(--text-secondary);"><i class="ti ti-arrow-back-up"></i><span>Revert to pending</span></button>` : '';
+      return `
+      <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px;padding:10px 11px;display:flex;flex-direction:column;gap:7px;${dimmed}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-family:'Instrument Sans';font-size:12px;font-weight:600;color:var(--text-primary);line-height:1.25;">${o.title || 'Untitled offer'}</div>
+            <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);margin-top:3px;">${o.category || '—'}</div>
+          </div>
+          ${badge}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);background:var(--bg-surface);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">Party of ${o.party_size || '—'}</span>
+          <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);background:var(--bg-surface);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;">${o.tier || '—'}</span>
+          <span style="font-family:'Instrument Sans';font-size:10px;color:var(--text-secondary);background:var(--bg-surface);border:0.5px solid var(--border);border-radius:999px;padding:3px 7px;text-decoration:line-through;">EGP ${o.regular_egp != null ? o.regular_egp : '—'}</span>
+          <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--amber);font-weight:600;">EGP ${o.promo_egp != null ? o.promo_egp : '—'}</span>
+        </div>
+        ${actions ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div>` : ''}
+        <div id="offer-details-${o.id}" style="display:none;background:var(--bg-surface);border:0.5px solid var(--border-subtle);border-radius:6px;padding:9px 10px;"></div>
+      </div>`;
+    }).join('') : (archived.length ? '' : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>')) + archivedHtml;
+  } catch (e) {
+    if (token === modalOpenToken) offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No offers yet</div>';
+  }
+}
+
+// Delegates to the shared write path (undo toast included); keeps the
+// modal list and nav counts fresh.
+async function setOfferStatusInModal(offerId, status, providerId) {
+  await setOfferStatus(offerId, status);
+  await renderModalOffers(providerId, modalOpenToken);
+  refreshNavCounts();
+}
+
+async function openProviderModal(providerUuid, negotiationId, openContract) {
+  const token = ++modalOpenToken;
+  const neg = negotiationId ? cachedNegotiations.find(n => n.id === negotiationId) : null;
+  const p = cachedProviders.find(p => p.id === providerUuid)
+    || (neg ? cachedProviders.find(p => p.id === neg.provider_id || (p.provider_name || '').toLowerCase() === (neg.provider_name || '').toLowerCase()) : null);
+  if (!p) return;
+
+  const providerId = p.id || neg?.provider_id || providerUuid;
+  window.currentNegotiationId = negotiationId || neg?.id || null;
+  window.currentProviderId = providerId;
+
+  document.getElementById('provider-modal-backdrop').style.display = 'flex';
+
+  const activeNeg = neg || negotiationFor(p);
+  const stage = activeNeg ? activeNeg.stage : 'new';
+  const colors = STAGE_COLORS[stage] || { bg: 'var(--bg-elevated)', border: 'var(--border)', text: 'var(--text-secondary)', dot: 'var(--text-secondary)' };
+
+  document.getElementById('modal-provider-name').textContent = p.provider_name;
+  document.getElementById('modal-provider-meta').textContent = `${p.vertical || p.category || '—'} · ${stage}`;
+  const profileEditable = canEditProviderProfile();
+  // Full-profile section starts collapsed per provider; stale content from a
+  // previously-opened provider must never show through.
+  currentProviderProfileRow = null;
+  setModalTab('profile'); // always reset to Profile on open -- previous provider's active tab must never carry over
+  loadFullProfile(p); // Profile is now a first-class tab, not a collapsed section -- load immediately, no click needed
+  document.getElementById('modal-profile-name').value = p.provider_name || '';
+  document.getElementById('modal-profile-name').disabled = !profileEditable;
+  document.getElementById('modal-profile-location').disabled = !profileEditable;
+  const verticalSel = document.getElementById('modal-profile-vertical');
+  verticalSel.disabled = !profileEditable;
+  const currentVertical = p.vertical || p.category || CATEGORY_CHIP_OPTIONS[1];
+  verticalSel.innerHTML = CATEGORY_CHIP_OPTIONS.filter(c => c !== 'all')
+    .map(c => `<option value="${escapeHtml(c)}" ${c === currentVertical ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+  document.getElementById('modal-profile-location').value = p.location || '';
+  document.getElementById('modal-stage-dot').style.background = colors.dot;
+  const pill = document.getElementById('modal-stage-pill');
+  pill.style.background = colors.bg; pill.style.border = `0.5px solid ${colors.border}`; pill.style.color = colors.text;
+  // For deal roles with a real negotiation, the pill is a working stage
+  // selector; otherwise (team/no negotiation yet) it stays display-only.
+  if (canManageDeals() && activeNeg) {
+    const stageLabel = s => COLUMNS[pipelineColIdx(s)]?.label || s;
+    const opts = PIPELINE_STAGE_ORDER.slice();
+    if (!opts.includes(stage)) opts.unshift(stage); // non-canonical (e.g. paused) still shows truthfully
+    pill.innerHTML = `<select onchange="saveNegotiationStage('${activeNeg.id}', this.value)" style="background:transparent;border:none;color:inherit;font-family:'Instrument Sans';font-size:11px;font-weight:500;outline:none;cursor:pointer;">${opts.map(s => `<option value="${s}" ${s === stage ? 'selected' : ''} style="color:#0a1018;background:#fff;">${escapeHtml(stageLabel(s))}</option>`).join('')}</select>`;
+  } else {
+    pill.textContent = stage;
+  }
+
+  document.getElementById('modal-contact-name').value = p.contact_name || '';
+  document.getElementById('modal-contact-phone').value = p.contact_phone || '';
+  document.getElementById('modal-contact-whatsapp').value = p.contact_whatsapp || '';
+
+  document.getElementById('modal-contract-status').value = p.contract_status || 'none';
+  document.getElementById('modal-commission-pct').value = p.commission_pct ?? '';
+  document.getElementById('modal-contract-start').value = p.contract_start || '';
+  document.getElementById('modal-contract-end').value = p.contract_end || '';
+  document.getElementById('modal-featured').checked = !!p.featured;
+  document.getElementById('modal-contract-panel').style.display = openContract ? 'block' : 'none';
+  updateContractPill(p);
+
+  const negRow = cachedNegotiations.find(n => n.id === negotiationId) || negotiationFor(p);
+  renderOnboardStrip(p, negRow);
+  const mnaDate = document.getElementById('modal-na-date');
+  const mnaNote = document.getElementById('modal-na-note');
+  const mnaSave = document.getElementById('modal-na-save');
+  mnaDate.value = negRow?.next_action_date || '';
+  mnaNote.value = negRow?.next_action_note || '';
+  mnaDate.disabled = mnaNote.disabled = mnaSave.disabled = !negRow;
+  mnaSave.onclick = async () => {
+    if (!negRow) return;
+    try {
+      const body = { next_action_date: mnaDate.value || null, next_action_note: mnaNote.value || null };
+      await sbPatch(`wein_negotiations?id=eq.${negRow.id}`, body);
+      const check = await sbGet(`wein_negotiations?id=eq.${negRow.id}&select=next_action_date`);
+      if (!check.length || (check[0].next_action_date || null) !== body.next_action_date) {
+        alert('Did not save — has migration 033_bd_sales_tools.sql been run in Supabase?');
+        return;
+      }
+      Object.assign(negRow, body);
+      refreshNavCounts();
+    } catch (e) { alert('Could not save next action: ' + (e.message || e)); }
+  };
+
+  const offersEl = document.getElementById('modal-offers'), filesEl = document.getElementById('modal-files'), commentsEl = document.getElementById('modal-comments');
+  offersEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
+  filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
+  commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Loading…</div>';
+
+  await renderModalOffers(providerId, token);
+
+  const tasksWrap = document.getElementById('modal-tasks-wrap');
+  if (COLLAB_READY) {
+    tasksWrap.style.display = 'block';
+    const providerTasks = cachedTasks.filter(t => t.provider_id === providerId);
+    document.getElementById('modal-tasks').innerHTML = providerTasks.length
+      ? providerTasks.map(t => `<div class="table-actions" style="cursor:pointer;" onclick="openTaskModal('${t.id}')"><i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};"></i><span style="flex:1;font-size:11px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.title || 'Untitled')}</span><span style="font-size:9px;color:var(--text-tertiary);">${t.status === 'done' ? '✓' : TASK_COLUMNS.find(c => c.id === t.status)?.label || ''}</span></div>`).join('')
+      : '<div style="font-size:11px;color:var(--text-tertiary);">No tasks yet</div>';
+  } else {
+    tasksWrap.style.display = 'none';
+  }
+
+  try {
+    const files = await sbGet(`wein_files?provider_id=eq.${providerId}&select=*`);
+    if (token !== modalOpenToken) return;
+    filesEl.innerHTML = files.length ? files.map(f => `
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:5px;">
+        <i class="ti ti-file" style="font-size:14px;color:var(--text-secondary);flex-shrink:0;" aria-hidden="true"></i>
+        <span style="font-family:'Instrument Sans';font-size:11px;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.file_name}</span>
+        ${f.drive_view_url ? `<a href="${f.drive_view_url}" target="_blank" rel="noopener" style="font-family:'Instrument Sans';font-size:10px;color:var(--blue);text-decoration:none;flex-shrink:0;">View</a>` : ''}
+        ${canDelete() ? `<button type="button" onclick="deleteFile('${f.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;flex-shrink:0;padding:0;display:flex;"><i class="ti ti-trash" style="font-size:13px;"></i></button>` : ''}
+      </div>`).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>';
+  } catch (e) { if (token === modalOpenToken) filesEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No files yet</div>'; }
+
+  if (window.currentNegotiationId) {
+    try {
+      const comments = await sbGet(`wein_comments?negotiation_id=eq.${window.currentNegotiationId}&order=created_at.asc&select=*`);
+      if (token !== modalOpenToken) return;
+      renderComments(comments);
+    } catch (e) { if (token === modalOpenToken) commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>'; }
+  } else {
+    commentsEl.innerHTML = '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>';
+  }
+}
+
+// ── Generalized comment threads ──────────────────────────────────────
+// One system for provider (negotiation_id), lead (lead_id) and task
+// (task_id) threads — the 038 migration made wein_comments multi-target.
+function fetchThread(targetCol, targetId) {
+  return sbGet(`wein_comments?${targetCol}=eq.${targetId}&order=created_at.asc&select=*`);
+}
+
+async function deleteComment(commentId, targetCol, targetId, elId) {
+  if (!canDelete()) return;
+  if (!confirm('Delete this note permanently?')) return;
+  try {
+    await sbDelete(`wein_comments?id=eq.${commentId}`);
+    if (targetCol && targetId) renderThread(elId, await fetchThread(targetCol, targetId), targetCol, targetId);
+  } catch (e) { console.error('deleteComment error:', e); alert('Could not delete note: ' + e.message); }
+}
+
+function renderThread(elId, comments, targetCol, targetId) {
+  const commentsEl = document.getElementById(elId);
+  if (!commentsEl) return;
+  const myName = window.WEIN?.fullName || ROLE_LABELS[sessionStorage.getItem('weinRole')] || '';
+  commentsEl.innerHTML = comments.length ? comments.map(c => {
+    const isMine = !!myName && c.author_name === myName;
+    const authorLabel = ROLE_LABELS[c.author_role] && c.author_name !== ROLE_LABELS[c.author_role]
+      ? `${escapeHtml(c.author_name)} (${ROLE_LABELS[c.author_role]})`
+      : escapeHtml(c.author_name || ROLE_LABELS[c.author_role] || 'Unknown');
+    const delBtn = canDelete() ? `<button type="button" onclick="deleteComment('${c.id}','${targetCol}','${targetId}','${elId}')" style="background:none;border:none;color:var(--red);cursor:pointer;padding:0;display:inline-flex;margin-left:6px;"><i class="ti ti-trash" style="font-size:11px;"></i></button>` : '';
+    return isMine ? `
+      <div style="display:flex;flex-direction:column;align-items:flex-end;">
+        <div style="background:var(--blue-tint);border:0.5px solid var(--border-blue);border-radius:6px 6px 0 6px;padding:7px 10px;max-width:85%;">
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${escapeHtml(c.body)}</div>
+        </div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${authorLabel} · ${timeAgo(c.created_at)}${delBtn}</div>
+      </div>` : `
+      <div style="display:flex;flex-direction:column;align-items:flex-start;">
+        <div style="background:var(--bg-elevated);border:0.5px solid var(--border);border-radius:6px 6px 6px 0;padding:7px 10px;max-width:85%;">
+          <div style="font-family:'Instrument Sans';font-size:12px;color:var(--text-primary);">${escapeHtml(c.body)}</div>
+        </div>
+        <div style="font-family:'Instrument Sans';font-size:10px;color:var(--text-tertiary);margin-top:3px;">${authorLabel} · ${timeAgo(c.created_at)}${delBtn}</div>
+      </div>`;
+  }).join('') : '<div style="font-family:\'Instrument Sans\';font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">No notes yet</div>';
+  commentsEl.scrollTop = commentsEl.scrollHeight;
+}
+
+async function submitThreadComment(targetCol, targetId, inputId, elId) {
+  const input = document.getElementById(inputId);
+  const body = input?.value.trim();
+  if (!body || !targetId) return;
+  const role = sessionStorage.getItem('weinRole') || 'team';
+  const name = window.WEIN?.fullName || ROLE_LABELS[role] || role;
+  try {
+    await sbPost('wein_comments', { [targetCol]: targetId, author_role: role, author_name: name, body });
+  } catch (e) {
+    alert('Could not post note: ' + (e.message || e) + (String(e.message || '').includes('author_role') ? ' — has migration 038 been run? (it fixes the roles allowed to comment)' : ''));
+    return;
+  }
+  input.value = '';
+  renderThread(elId, await fetchThread(targetCol, targetId), targetCol, targetId);
+}
+
+// Provider modal call sites keep their original names/behavior:
+function renderComments(comments) { renderThread('modal-comments', comments, 'negotiation_id', window.currentNegotiationId); }
+function submitComment() { return submitThreadComment('negotiation_id', window.currentNegotiationId, 'comment-input', 'modal-comments'); }
+
+async function saveProviderContact() {
+  if (!window.currentProviderId) return;
+  const contact_name = document.getElementById('modal-contact-name').value.trim();
+  const contact_phone = document.getElementById('modal-contact-phone').value.trim();
+  const contact_whatsapp = document.getElementById('modal-contact-whatsapp').value.trim();
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, {
+      contact_name: contact_name || null, contact_phone: contact_phone || null, contact_whatsapp: contact_whatsapp || null,
+    });
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) { cached.contact_name = contact_name; cached.contact_phone = contact_phone; cached.contact_whatsapp = contact_whatsapp; }
+  } catch (e) { console.error('saveProviderContact error:', e); }
+}
+
+// Provider identity fields -- gated to admin/manager/deal_breaker client-side
+// (canEditProviderProfile) and backed by migration 041's DB trigger, which
+// blocks non-admin/manager/deal_breaker writes to these columns even via a
+// direct REST call with the caller's own JWT (same defense-in-depth pattern
+// as migration 039's contract-field trigger).
+async function saveProviderProfile() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const provider_name = document.getElementById('modal-profile-name').value.trim();
+  const vertical = document.getElementById('modal-profile-vertical').value;
+  const location = document.getElementById('modal-profile-location').value.trim();
+  if (!provider_name) return;
+  const body = { provider_name, vertical, location: location || null };
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, body);
+    const check = await sbGet(`wein_providers?id=eq.${window.currentProviderId}&select=provider_name,vertical,location`);
+    if (!check.length || check[0].provider_name !== provider_name || check[0].vertical !== vertical) {
+      alert('Profile update did not apply (permissions or migration 041 missing). Nothing changed.');
+      return;
+    }
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) Object.assign(cached, body);
+    document.getElementById('modal-provider-name').textContent = provider_name;
+    // Don't read the pill's textContent -- it may now contain a <select>
+    // whose textContent is every option label concatenated.
+    const negRow = cachedNegotiations.find(n => n.id === window.currentNegotiationId)
+      || (cached ? negotiationFor(cached) : null);
+    document.getElementById('modal-provider-meta').textContent = `${vertical} · ${negRow?.stage || 'new'}`;
+  } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// ── Full provider profile (migration 042 + provider_profiles constraints) ──
+// Everything the Add Provider wizard collects, editable post-creation.
+// wein_providers fields save via saveFullProfile (042's trigger enforces the
+// admin/manager/deal_breaker tier server-side); constraint fields upsert into
+// provider_profiles -- the table the n8n pipeline reads as HARD offer rules.
+const FULL_PROFILE_FIELDS = {
+  'Identity & map': [
+    { key: 'address',   label: 'Exact address', icon: 'ti-map-pin',  ph: 'Street / landmark', table: 'p' },
+    { key: 'latitude',  label: 'Latitude',      icon: 'ti-world',    ph: 'e.g. 27.9158 (paste from Google Maps)', table: 'p' },
+    { key: 'longitude', label: 'Longitude',     icon: 'ti-world',    ph: 'e.g. 34.3300', table: 'p' },
+  ],
+  'Contact & links': [
+    { key: 'email',         label: 'Email',     icon: 'ti-mail',            ph: 'contact@business.com', table: 'p' },
+    { key: 'website_url',   label: 'Website',   icon: 'ti-world-www',       ph: 'https://…', table: 'p' },
+    { key: 'instagram_url', label: 'Instagram', icon: 'ti-brand-instagram', ph: 'https://instagram.com/…', table: 'p' },
+    { key: 'menu_link',        label: 'Menu link',    icon: 'ti-link',               ph: 'https://…', table: 'p' },
+    { key: 'drive_folder_url', label: 'Drive folder', icon: 'ti-brand-google-drive', ph: 'https://drive.google.com/…', table: 'p' },
+  ],
+  'Business intel': [
+    { key: 'view_or_atmosphere', label: 'Atmosphere / view', icon: 'ti-sparkles', table: 'p' },
+    { key: 'peak_moments',       label: 'Peak moments',      icon: 'ti-clock',    table: 'p' },
+    { key: 'tourist_split',      label: 'Tourist split',     icon: 'ti-users',    ph: 'e.g. 70% tourists', table: 'p' },
+    { key: 'location_hook',      label: 'Location hook',     icon: 'ti-anchor',   table: 'p' },
+    { key: 'unique_format',      label: 'Unique format',     icon: 'ti-star',     table: 'p' },
+    { key: 'wein_exclusives',    label: 'WeIN exclusives',   icon: 'ti-diamond',  table: 'p' },
+    { key: 'internal_notes',     label: 'Internal notes',    icon: 'ti-note',     ph: 'Team-only notes', table: 'p' },
+  ],
+  'Offer constraints (pipeline hard rules)': [
+    { key: 'minimum_spend',  label: 'Minimum spend',   icon: 'ti-cash',       ph: 'e.g. EGP 300', table: 'prof' },
+    { key: 'max_group_size', label: 'Max group size',  icon: 'ti-users-group', ph: 'e.g. 8', table: 'prof' },
+    { key: 'peak_hours',     label: 'Peak hours rule', icon: 'ti-clock-bolt', table: 'prof' },
+    { key: 'blackout_dates', label: 'Blackout dates',  icon: 'ti-calendar-x', table: 'prof' },
+    { key: 'excluded_items', label: 'Excluded items',  icon: 'ti-ban',        table: 'prof' },
+    { key: 'special_terms',  label: 'Special terms',   icon: 'ti-file-text',  table: 'prof' },
+  ],
+};
+let currentProviderProfileRow = null; // provider_profiles row for the open provider (null = none yet)
+
+// Switches which modal-pane is visible; Profile is the default on every open (set in openProviderModal).
+function setModalTab(tab) {
+  document.querySelectorAll('#modal-tabs .modal-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.modal-pane').forEach(pane => pane.classList.toggle('active', pane.id === `modal-pane-${tab}`));
+}
+
+// Profile is now a first-class tab (not a collapsed section) -- loads immediately on modal open,
+// same underlying fetch/render toggleFullProfile used to do lazily on click.
+async function loadFullProfile(p) {
+  const wrap = document.getElementById('modal-full-profile');
+  if (!wrap || !p) return;
+  wrap.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:8px 0;">Loading…</div>';
+  try {
+    const rows = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=*`);
+    currentProviderProfileRow = rows[0] || null;
+  } catch (e) { currentProviderProfileRow = null; }
+  renderFullProfile(p, currentProviderProfileRow);
+}
+
+function renderFullProfile(p, prof) {
+  const wrap = document.getElementById('modal-full-profile');
+  if (!wrap) return;
+  const editable = canEditProviderProfile();
+  wrap.innerHTML = Object.entries(FULL_PROFILE_FIELDS).map(([group, fields]) => `
+    <div class="fp-group-title">${group}</div>
+    <div class="fp-grid">
+      ${fields.map(f => {
+        const src = f.table === 'prof' ? (prof || {}) : p;
+        const val = src[f.key] != null ? String(src[f.key]) : '';
+        const saveFn = f.table === 'prof' ? 'saveProviderConstraints()' : 'saveFullProfile()';
+        return `
+        <div class="fp-field">
+          <label class="fp-label"><i class="ti ${f.icon}" style="font-size:11px;"></i>${f.label}</label>
+          <input type="text" class="fp-input" id="fp-${f.key}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" ${editable ? '' : 'disabled'} onblur="${saveFn}">
+        </div>`;
+      }).join('')}
+    </div>`).join('')
+    + (p.geocode_confidence ? `<div style="margin-top:8px;font-size:10px;color:var(--text-tertiary);"><i class="ti ti-map-check"></i> Geocode: ${escapeHtml(p.geocode_source || 'unknown source')} · ${escapeHtml(p.geocode_confidence)} confidence${(p.latitude != null && p.longitude != null) ? ' — shown as an exact pin on the Map' : ''}</div>` : '');
+}
+
+// wein_providers-side fields of the full profile. Setting real coordinates
+// marks them manual/exact so the Map treats them as a true pin (the user's
+// explicit ask: exact location feeding the map).
+async function saveFullProfile() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const get = k => document.getElementById('fp-' + k)?.value.trim() ?? null;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'p').forEach(f => {
+    body[f.key] = get(f.key) || null;
+  });
+  const lat = parseFloat(body.latitude), lng = parseFloat(body.longitude);
+  body.latitude = isNaN(lat) ? null : lat;
+  body.longitude = isNaN(lng) ? null : lng;
+  const coordsChanged = body.latitude !== (p.latitude ?? null) || body.longitude !== (p.longitude ?? null);
+  if (coordsChanged && body.latitude != null && body.longitude != null) {
+    body.geocode_source = 'manual';
+    body.geocode_confidence = 'exact';
+    body.geocoded_at = new Date().toISOString();
+  }
+  try {
+    await sbPatch(`wein_providers?id=eq.${window.currentProviderId}`, body);
+    const check = await sbGet(`wein_providers?id=eq.${window.currentProviderId}&select=address,latitude,email`);
+    if (!check.length || (check[0].address ?? null) !== body.address || (check[0].email ?? null) !== body.email) {
+      alert('Full-profile update did not apply (permissions or migration 042 missing). Nothing changed.');
+      return;
+    }
+    Object.assign(p, body);
+  } catch (e) { alert('Could not save profile: ' + (e.message || e)); }
+}
+
+// provider_profiles-side constraint fields: the pipeline reads these as HARD
+// generation rules. Same get->patch-else-post upsert (keyed by provider_name)
+// the Add Provider wizard uses.
+async function saveProviderConstraints() {
+  if (!window.currentProviderId || !canEditProviderProfile()) return;
+  const p = cachedProviders.find(x => x.id === window.currentProviderId);
+  if (!p) return;
+  const body = {};
+  Object.values(FULL_PROFILE_FIELDS).flat().filter(f => f.table === 'prof').forEach(f => {
+    body[f.key] = document.getElementById('fp-' + f.key)?.value.trim() || null;
+  });
+  try {
+    const existing = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=id`);
+    if (existing.length) {
+      await sbPatch(`provider_profiles?id=eq.${existing[0].id}`, body);
+    } else {
+      await sbPost('provider_profiles', { provider_name: p.provider_name, ...body });
+    }
+    const check = await sbGet(`provider_profiles?provider_name=eq.${encodeURIComponent(p.provider_name)}&select=minimum_spend,excluded_items`);
+    if (!check.length || (check[0].minimum_spend ?? null) !== body.minimum_spend) {
+      alert('Constraints did not save (permissions?). The pipeline will keep using the old rules.');
+      return;
+    }
+    currentProviderProfileRow = { ...(currentProviderProfileRow || {}), ...body };
+  } catch (e) { alert('Could not save constraints: ' + (e.message || e)); }
+}
+
+async function saveDealValue(negotiationId, rawValue) {
+  if (!negotiationId || !canManageDeals()) return;
+  const estimated_value_egp = rawValue === '' ? null : Number(rawValue);
+  try {
+    await sbPatch(`wein_negotiations?id=eq.${negotiationId}`, { estimated_value_egp });
+    const cached = cachedNegotiations.find(n => n.id === negotiationId);
+    if (cached) cached.estimated_value_egp = estimated_value_egp;
+  } catch (e) { console.error('saveDealValue error:', e); alert('Could not save deal value: ' + e.message); }
+}
+
+async function updateContractViaApi(providerId, fields) {
+  const res = await fetch('/api/update-contract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ providerId, callerRole: sessionStorage.getItem('weinRole'), ...fields }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Update failed: ${res.status}`);
+  return data.provider;
+}
+
+async function saveContract() {
+  if (!window.currentProviderId || !canManageDeals()) return;
+  const contract_status = document.getElementById('modal-contract-status').value;
+  const rawCommission = document.getElementById('modal-commission-pct').value;
+  const commission_pct = rawCommission === '' ? null : Number(rawCommission);
+  const contract_start = document.getElementById('modal-contract-start').value || null;
+  const contract_end = document.getElementById('modal-contract-end').value || null;
+  const featured = document.getElementById('modal-featured').checked;
+  try {
+    await updateContractViaApi(window.currentProviderId, { contract_status, commission_pct, contract_start, contract_end, featured });
+    const cached = cachedProviders.find(p => p.id === window.currentProviderId);
+    if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    updateContractPill({ contract_status, featured });
+  } catch (e) { console.error('saveContract error:', e); alert('Could not save contract: ' + e.message); }
+}
+
+const CONTRACT_STATUS_COLORS = {
+  none:       { bg: 'var(--bg-elevated)', border: 'var(--border)',        text: 'var(--text-secondary)' },
+  draft:      { bg: 'var(--blue-tint)',   border: 'var(--border-blue)',   text: 'var(--blue)' },
+  active:     { bg: 'var(--green-tint)',  border: 'var(--green)',         text: 'var(--green)' },
+  expired:    { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+  terminated: { bg: 'var(--red-tint)',    border: 'var(--red)',           text: 'var(--red)' },
+};
+const CONTRACT_STATUS_LABELS = { none: 'No contract', draft: 'Draft', active: 'Active', expired: 'Expired', terminated: 'Terminated' };
+
+function updateContractPill(p) {
+  const pill = document.getElementById('modal-contract-pill');
+  const status = p.contract_status || 'none';
+  const colors = CONTRACT_STATUS_COLORS[status] || CONTRACT_STATUS_COLORS.none;
+  pill.style.background = colors.bg;
+  pill.style.border = `0.5px solid ${colors.border}`;
+  pill.style.color = colors.text;
+  pill.style.cursor = canManageDeals() ? 'pointer' : 'default';
+  pill.innerHTML = `<i class="ti ti-file-text" style="font-size:12px;"></i>${CONTRACT_STATUS_LABELS[status]}${p.featured ? `<i class="ti ti-flame" style="font-size:12px;color:var(--amber);margin-left:2px;"></i>` : ''}`;
+}
+
+function toggleContractPanel() {
+  if (!canManageDeals()) return;
+  const panel = document.getElementById('modal-contract-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function openContractEditor(providerId) {
+  if (!canManageDeals()) return;
+  const p = cachedProviders.find(p => p.id === providerId);
+  if (!p) return;
+  window.contractEditorProviderId = providerId;
+  document.getElementById('ce-provider-name').textContent = p.provider_name || 'Unnamed';
+  document.getElementById('ce-status').value = p.contract_status || 'none';
+  document.getElementById('ce-commission').value = p.commission_pct ?? '';
+  document.getElementById('ce-start').value = p.contract_start || '';
+  document.getElementById('ce-end').value = p.contract_end || '';
+  document.getElementById('ce-featured').checked = !!p.featured;
+  document.getElementById('contract-editor-backdrop').style.display = 'flex';
+}
+
+function closeContractEditor() {
+  document.getElementById('contract-editor-backdrop').style.display = 'none';
+  window.contractEditorProviderId = null;
+}
+
+async function saveContractEditor() {
+  const providerId = window.contractEditorProviderId;
+  if (!providerId || !canManageDeals()) return;
+  const contract_status = document.getElementById('ce-status').value;
+  const rawCommission = document.getElementById('ce-commission').value;
+  const commission_pct = rawCommission === '' ? null : Number(rawCommission);
+  const contract_start = document.getElementById('ce-start').value || null;
+  const contract_end = document.getElementById('ce-end').value || null;
+  const featured = document.getElementById('ce-featured').checked;
+  try {
+    await updateContractViaApi(providerId, { contract_status, commission_pct, contract_start, contract_end, featured });
+    const cached = cachedProviders.find(p => p.id === providerId);
+    if (cached) Object.assign(cached, { contract_status, commission_pct, contract_start, contract_end, featured });
+    closeContractEditor();
+    if (currentView === 'deals') renderDealsSubView();
+  } catch (e) { console.error('saveContractEditor error:', e); alert('Could not save contract: ' + e.message); }
+}
+
+document.getElementById('contract-editor-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeContractEditor();
+});
+
+document.getElementById('add-provider-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeAddProviderWizard();
+});
+
+document.addEventListener('click', function (e) {
+  const panel = document.getElementById('modal-contract-panel');
+  const pill = document.getElementById('modal-contract-pill');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && !pill.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+function closeProviderModal() {
+  document.getElementById('provider-modal-backdrop').style.display = 'none';
+  document.getElementById('modal-contract-panel').style.display = 'none';
+  window.currentNegotiationId = null;
+  window.currentProviderId = null;
+}
+
+document.getElementById('provider-modal-backdrop').addEventListener('click', function (e) {
+  if (e.target === this) closeProviderModal();
+});
+
+// ════════════════════════════════════════════════════════════════════
+// PIPELINE HEALTH (right panel)
+// ════════════════════════════════════════════════════════════════════
+function namesList(providers, max) {
+  const names = providers.map(p => p.provider_name || 'Unnamed');
+  if (names.length <= max) return names.join(', ');
+  return names.slice(0, max).join(', ') + ` +${names.length - max} more`;
+}
+
+async function loadPipelineHealth() {
+  try {
+    const outcomes = await sbGet('offer_outcomes?select=*&order=created_at.desc&limit=100').catch(() => []);
+    const sevenDaysAgo = Date.now() - 7 * 86400000;
+    const activeProviders = cachedProviders.filter(p => p.contract_status === 'active');
+
+    const alerts = [];
+
+    const recentViolationProviderIds = new Set(
+      outcomes.filter(o => o.discount_violations > 0 && new Date(o.created_at).getTime() >= sevenDaysAgo).map(o => o.provider_id)
+    );
+    const violationProviders = activeProviders.filter(p => recentViolationProviderIds.has(p.id));
+    if (violationProviders.length) {
+      alerts.push({ title: 'Discount violations (last 7 days)', body: namesList(violationProviders, 3) });
+    }
+
+    const staleProviders = activeProviders.filter(p => {
+      const recent = outcomes.find(o => o.provider_id === p.id);
+      return !recent || new Date(recent.created_at).getTime() < sevenDaysAgo;
+    });
+    if (staleProviders.length) {
+      alerts.push({ title: `Stale active providers (${staleProviders.length})`, body: namesList(staleProviders, 3) });
+    }
+
+    document.getElementById('rpAlerts').innerHTML = alerts.length
+      ? alerts.map(a => `<div class="rp-alert"><div class="rp-alert-title">${a.title}</div><div class="rp-alert-body">${escapeHtml(a.body)}</div></div>`).join('')
+      : `<div class="rp-alert" style="border-left-color:var(--green)"><div class="rp-alert-title">All clear</div><div class="rp-alert-body">No active alerts</div></div>`;
+  } catch (e) { /* right panel is non-critical -- fail quietly */ }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// Reads wein_notifications directly via the REST helpers above -- same
+// pattern as every other table read in this portal (no Flask session
+// exists server-side to build a real /api/notifications route against).
+// Requires _WeIN_System/supabase/022_notifications.sql to be applied.
+// ════════════════════════════════════════════════════════════════════
+let notifPollInterval = null, lastNotifications = [];
+function notifRecipientFilter() {
+  const role = sessionStorage.getItem('weinRole');
+  const userId = window.WEIN.user && window.WEIN.user.id;
+  const parts = ['recipient_role.is.null', 'recipient_user_id.is.null'];
+  if (role) parts.push(`recipient_role.eq.${role}`);
+  if (userId) parts.push(`recipient_user_id.eq.${userId}`);
+  return `or=(${parts.join(',')})`;
+}
+function initNotifications() {
+  loadNotifications();
+  if (!notifPollInterval) notifPollInterval = setInterval(loadNotifications, 60000);
+  document.addEventListener('click', (e) => {
+    const panel = document.getElementById('notif-panel'), btn = document.getElementById('notif-btn');
+    if (panel.style.display === 'flex' && !panel.contains(e.target) && !btn.contains(e.target)) panel.style.display = 'none';
+  });
+}
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+async function loadNotifications() {
+  try { lastNotifications = await sbGet(`wein_notifications?${notifRecipientFilter()}&order=created_at.desc&limit=20`); }
+  catch (e) { return; }
+  renderNotifications();
+  const unread = lastNotifications.filter(n => !n.is_read).length;
+  document.getElementById('notif-badge').style.display = unread > 0 ? 'block' : 'none';
+}
+// Resolve where a notification leads. Returns null when the target entity
+// no longer exists or the current role can't view that area — those items
+// render as plain text (no pointer, no hover), never as dead buttons.
+function notifTarget(n) {
+  if (!n.entity_id) return null;
+  const hidden = NAV_HIDDEN_FOR_ROLE[sessionStorage.getItem('weinRole')] || [];
+  // Provider/negotiation notifications point into the deal world -- team's
+  // bell must never deep-link there even if the notification itself exists.
+  if (n.entity_type === 'provider') {
+    if (hidden.includes('pipeline')) return null;
+    const p = cachedProviders.find(x => x.id === n.entity_id);
+    return p ? { providerId: p.id, negId: (negotiationFor(p) || {}).id || '' } : null;
+  }
+  if (n.entity_type === 'negotiation') {
+    if (hidden.includes('pipeline')) return null;
+    const neg = cachedNegotiations.find(x => x.id === n.entity_id);
+    return neg ? { providerId: neg.provider_id, negId: neg.id } : null;
+  }
+  if (n.entity_type === 'lead') {
+    if (hidden.includes('leads')) return null;
+    return cachedLeads.find(x => x.id === n.entity_id) ? { leadId: n.entity_id } : null;
+  }
+  if (n.entity_type === 'offer') {
+    if (hidden.includes('offers')) return null;
+    return cachedOffers.find(x => x.id === n.entity_id) ? { view: 'offers' } : null;
+  }
+  if (n.entity_type === 'task') {
+    return cachedTasks.find(x => x.id === n.entity_id) ? { taskId: n.entity_id } : null;
+  }
+  return null;
+}
+function openNotifTarget(idx) {
+  const n = lastNotifications[idx];
+  if (!n) return;
+  const t = notifTarget(n);
+  if (!t) return;
+  document.getElementById('notif-panel').style.display = 'none';
+  if (t.taskId) {
+    showView('tasks');
+    openTaskModal(t.taskId);
+    highlightCard(`[data-task-id="${t.taskId}"]`);
+  } else if (t.leadId) {
+    showView('leads');
+    openLeadDrawer(t.leadId);
+    highlightCard(`[data-lead-id="${t.leadId}"]`);
+  } else if (t.providerId) {
+    // Land on the Pipeline board underneath, so closing the popup leaves
+    // you at the provider's card — then open the detail popup on top.
+    showView('pipeline');
+    openProviderModal(t.providerId, t.negId);
+    highlightCard(`[data-provider-id="${t.providerId}"]`);
+  } else if (t.view === 'offers') {
+    const o = cachedOffers.find(x => x.id === n.entity_id);
+    if (o) offerStatusFilter = offerStatus(o);
+    showView(t.view);
+    if (o) {
+      const sel = document.getElementById('offerProviderFilter');
+      if (sel) { sel.value = o.provider_id; renderOffersGrid(); }
+    }
+  } else if (t.view) { showView(t.view); }
+}
+// Scroll a board card into view and pulse a blue ring on it briefly.
+function highlightCard(selector) {
+  setTimeout(() => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const prev = el.style.boxShadow;
+    el.style.transition = 'box-shadow .3s';
+    el.style.boxShadow = '0 0 0 2px var(--blue)';
+    setTimeout(() => { el.style.boxShadow = prev; }, 2000);
+  }, 200);
+}
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  list.innerHTML = lastNotifications.length ? lastNotifications.map((n, i) => {
+    const clickable = notifTarget(n) !== null;
+    return `
+    <div class="notif-item ${n.is_read ? '' : 'unread'} ${clickable ? 'clickable' : ''}" ${clickable ? `onclick="openNotifTarget(${i})"` : ''}>
+      <div class="notif-dot ${n.is_read ? 'read' : 'unread'}"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="notif-title">${escapeHtml(n.title || '')}</div>
+        ${n.body ? `<div class="notif-body">${escapeHtml(n.body)}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+        <div class="notif-time">${timeAgo(n.created_at)}</div>
+        ${clickable ? '<i class="ti ti-chevron-right" style="font-size:12px;color:var(--text-secondary);"></i>' : ''}
+      </div>
+    </div>`;
+  }).join('') : `<div style="padding:20px;font-size:12px;color:var(--text-tertiary);text-align:center">No notifications yet.</div>`;
+}
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  const opening = panel.style.display !== 'flex';
+  panel.style.display = opening ? 'flex' : 'none';
+  if (opening) markAllRead();
+}
+async function markAllRead() {
+  const unreadIds = lastNotifications.filter(n => !n.is_read).map(n => n.id);
+  if (!unreadIds.length) return;
+  lastNotifications.forEach(n => n.is_read = true);
+  renderNotifications();
+  document.getElementById('notif-badge').style.display = 'none';
+  try { await sbPatch(`wein_notifications?id=in.(${unreadIds.join(',')})`, { is_read: true }); } catch (e) {}
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════
+if (window.location.hash.includes('type=recovery') || window.location.hash.includes('type=invite')) {
+  document.getElementById('loginScreen').style.display = 'flex';
+  if (window.location.hash.includes('type=invite')) {
+    // Invite links sign the invitee in with a SIGNED_IN event (not
+    // PASSWORD_RECOVERY), so without this they'd land in the app with no
+    // password ever set — and be locked out on their next visit. Wait for
+    // supabase-js to consume the hash, then force the set-password step.
+    (async () => {
+      for (let i = 0; i < 20; i++) {
+        const { data: { session } } = await sbAuth.auth.getSession();
+        if (session) { showSetNewPasswordForm(); return; }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      document.getElementById('loginError').textContent = 'Invite link expired or already used — use "Forgot password?" with your email to set one.';
+    })();
+  }
+} else {
+  (async () => {
+    const { data: { session } } = await sbAuth.auth.getSession();
+    if (session) { await loadPortalForSession(session); return; }
+    document.getElementById('loginScreen').style.display = 'flex';
+  })();
+}

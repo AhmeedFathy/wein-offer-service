@@ -3,3 +3,6 @@ __pycache__/
 .env
 *.pdf
 *.xlsx
+node_modules/
+playwright-report/
+test-results/

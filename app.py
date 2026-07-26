@@ -20,7 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 import requests as requests_lib
 from assistant_read_tools import execute_requested_read_tools
 from assistant_runtime import build_system_prompt, normalize_chat_messages, resolve_capability_pack
@@ -215,6 +215,14 @@ def portal():
 @app.route("/portal-new")
 def portal_new():
     return _serve_portal("portal_new.html")
+
+
+@app.route("/portal-dist/<path:filename>")
+def portal_dist(filename):
+    return send_from_directory(
+        os.path.join(os.path.dirname(__file__), "portal", "dist"),
+        filename,
+    )
 
 
 @app.route("/intake")
