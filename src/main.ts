@@ -1,4 +1,7 @@
 import { canDelete, canEditProviderProfile, canManageDeals, defaultViewForRole, navHiddenForRole } from './auth/permissions';
+import { createPortalContext } from './core/portal-context';
+import { getView, mountView, registeredViewIds, registerDummyCleanupProbeView, registerView } from './core/view-registry';
+import { LEGACY_VIEW_IDS, registerLegacyViews } from './legacy/register-legacy-views';
 import { portalApi } from './platform/portal-api';
 import { getAccessToken, getSessionContext, getSupabaseClient } from './platform/supabase-client';
 import { categoryChipsHtml, categoryLabel, catBadgeClass, matchesCategoryFilter } from './shared/category-chips';
@@ -11,8 +14,11 @@ import * as selectors from './state/selectors';
 declare global {
   interface Window {
     WEIN_PORTAL_MODULES?: typeof portalModules;
+    WEIN_PORTAL_MODULES_READY?: Array<(modules: typeof portalModules) => void>;
   }
 }
+
+registerDummyCleanupProbeView();
 
 const portalModules = {
   api: portalApi,
@@ -40,10 +46,23 @@ const portalModules = {
     categoryLabel,
     catBadgeClass,
   },
+  core: {
+    createPortalContext,
+    getView,
+    mountView,
+    registeredViewIds,
+    registerView,
+  },
+  legacy: {
+    LEGACY_VIEW_IDS,
+    registerLegacyViews,
+  },
   store: portalStore,
   selectors,
 };
 
 window.WEIN_PORTAL_MODULES = portalModules;
+for (const callback of window.WEIN_PORTAL_MODULES_READY ?? []) callback(portalModules);
+window.WEIN_PORTAL_MODULES_READY = [];
 
 export { portalModules };

@@ -21,6 +21,19 @@ Object.assign(window.WEIN_PORTAL_LEGACY, {
   delete: sbDelete,
 });
 
+function withPortalModules(callback) {
+  if (window.WEIN_PORTAL_MODULES) {
+    callback(window.WEIN_PORTAL_MODULES);
+    return;
+  }
+  window.WEIN_PORTAL_MODULES_READY = window.WEIN_PORTAL_MODULES_READY || [];
+  window.WEIN_PORTAL_MODULES_READY.push(callback);
+}
+
+function portalModulesReady() {
+  return new Promise((resolve) => withPortalModules(resolve));
+}
+
 // All REST calls carry the signed-in user's JWT — RLS (031) denies the bare
 // anon key everything, so an expired/missing session means empty reads and
 // 403 writes, never silent anon fallback. supabase-js auto-refreshes the
@@ -633,21 +646,34 @@ function renderCurrentView() {
   // near-identical-looking kanban boards are distinguishable at a glance.
   const mainEl = document.getElementById('mainArea');
   if (mainEl) mainEl.dataset.board = (currentView === 'leads' || currentView === 'pipeline') ? currentView : '';
-  if (currentView === 'today') { renderTodayView(); return; }
-  if (currentView === 'tasks') { renderTasksView(); return; }
-  if (currentView === 'team') { renderTeamView(); return; }
-  if (currentView === 'map') { renderMapView(); return; }
-  if (currentView === 'providers') { renderProvidersView(); return; }
-  if (currentView === 'files') { renderFilesView(); return; }
-  if (currentView === 'leads') { renderLeadsView(); return; }
-  if (currentView === 'offers') { renderOffersView(); return; }
-  if (currentView === 'marketing') { renderMarketingView(); return; }
-  if (currentView === 'deals') { renderDealsView(); return; }
-  if (currentView === 'launch') { renderLaunchView(); return; }
-  if (currentView === 'analytics') { renderAnalyticsView(); return; }
-  if (currentView === 'settings') { renderSettingsView(); return; }
-  renderPipelineView();
+  if (!mainEl) return;
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (!modules?.core) throw new Error('Portal view registry is not available.');
+  modules.core.mountView(currentView, mainEl, modules.core.createPortalContext());
 }
+
+function registerPortalLegacyViews() {
+  withPortalModules((modules) => {
+    modules.legacy.registerLegacyViews({
+      today: renderTodayView,
+      tasks: renderTasksView,
+      team: renderTeamView,
+      map: renderMapView,
+      providers: renderProvidersView,
+      files: renderFilesView,
+      leads: renderLeadsView,
+      offers: renderOffersView,
+      marketing: renderMarketingView,
+      deals: renderDealsView,
+      launch: renderLaunchView,
+      analytics: renderAnalyticsView,
+      settings: renderSettingsView,
+      pipeline: renderPipelineView,
+    });
+  });
+}
+
+registerPortalLegacyViews();
 
 function renderSettingsView() {
   const role = sessionStorage.getItem('weinRole') || '—';
@@ -4984,6 +5010,7 @@ if (window.location.hash.includes('type=recovery') || window.location.hash.inclu
   }
 } else {
   (async () => {
+    await portalModulesReady();
     const { data: { session } } = await sbAuth.auth.getSession();
     if (session) { await loadPortalForSession(session); return; }
     document.getElementById('loginScreen').style.display = 'flex';
