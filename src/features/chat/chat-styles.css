@@ -569,6 +569,12 @@
   border-top: .5px solid var(--border);
   background: var(--bg-surface);
   padding-top: 12px;
+  /* The portal's global AI-assistant button (.chat-fab in portal_new.html) is
+     position:fixed at right:20px/bottom:20px, 50px square, on every view. Team
+     chat is the only view whose content reaches all the way to that literal
+     viewport corner (it's the one full-bleed layout), so without this the
+     Send button renders underneath the assistant button and can't be clicked. */
+  padding-right: 92px;
 }
 
 .chat-reply-strip {
@@ -744,7 +750,9 @@
   .chat-composer {
     bottom: 0;
     margin: 0 -14px -14px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    /* Same .chat-fab clearance as the desktop rule above -- its fixed
+       right:20px/50px footprint doesn't move at narrow widths either. */
+    padding: 10px 86px calc(10px + env(safe-area-inset-bottom)) 14px;
     position: sticky;
   }
 
