@@ -8,6 +8,18 @@ const N8N = 'https://weinflow.app.n8n.cloud/webhook';
 
 const sbAuth = supabase.createClient(SB_URL, SB_ANON);
 window.WEIN = window.WEIN || { user: null, role: null, fullName: null };
+window.WEIN_PORTAL_LEGACY = window.WEIN_PORTAL_LEGACY || {};
+Object.assign(window.WEIN_PORTAL_LEGACY, {
+  supabaseClient: sbAuth,
+  getSupabaseUrl: () => SB_URL,
+  getSupabaseAnonKey: () => SB_ANON,
+  getAccessToken: () => SB_TOKEN,
+  headers: sbHeaders,
+  get: sbGet,
+  post: sbPost,
+  patch: sbPatch,
+  delete: sbDelete,
+});
 
 // All REST calls carry the signed-in user's JWT — RLS (031) denies the bare
 // anon key everything, so an expired/missing session means empty reads and
@@ -436,6 +448,35 @@ document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click'
 // ════════════════════════════════════════════════════════════════════
 let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [], cachedOutcomes = [];
 let cachedTasks = [], cachedProfiles = [];
+Object.assign(window.WEIN_PORTAL_LEGACY, {
+  getCaches: () => ({
+    providers: cachedProviders,
+    offers: cachedOffers,
+    negotiations: cachedNegotiations,
+    files: cachedFiles,
+    leads: cachedLeads,
+    outcomes: cachedOutcomes,
+    tasks: cachedTasks,
+    profiles: cachedProfiles,
+    redemptions: cachedRedemptions,
+    campaigns: cachedCampaigns,
+    calendarNotes: cachedCalendarNotes,
+  }),
+  setCache: (name, rows) => {
+    if (name === 'providers') cachedProviders = rows;
+    else if (name === 'offers') cachedOffers = rows;
+    else if (name === 'negotiations') cachedNegotiations = rows;
+    else if (name === 'files') cachedFiles = rows;
+    else if (name === 'leads') cachedLeads = rows;
+    else if (name === 'outcomes') cachedOutcomes = rows;
+    else if (name === 'tasks') cachedTasks = rows;
+    else if (name === 'profiles') cachedProfiles = rows;
+    else if (name === 'redemptions') cachedRedemptions = rows;
+    else if (name === 'campaigns') cachedCampaigns = rows;
+    else if (name === 'calendarNotes') cachedCalendarNotes = rows;
+    else throw new Error(`Unknown portal cache: ${name}`);
+  },
+});
 // True once migration 038 is applied (multi-target comments, assignee uuids,
 // profiles directory). Probed once per session — a 400 on the lead_id column
 // means 038 isn't pasted yet, and all 038-dependent UI stays hidden.
