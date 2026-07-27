@@ -3482,12 +3482,18 @@ async function quickAddTask(prelink) {
   const assigneeName = COLLAB_READY
     ? (profileById(assigneeId)?.full_name || null)
     : (document.getElementById('taskAssigneeText')?.value.trim() || null);
+  const dueDate = document.getElementById('taskDue')?.value || null;
+  if ((assigneeId || assigneeName) && !dueDate) {
+    if (errEl) { errEl.textContent = 'A due date is required when assigning a task.'; errEl.style.display = 'block'; }
+    document.getElementById('taskDue')?.focus();
+    return;
+  }
   const body = {
     title,
     status: 'pending',
     priority: document.getElementById('taskPriority')?.value || 'medium',
     task_type: 'general',
-    due_date: document.getElementById('taskDue')?.value || null,
+    due_date: dueDate,
     created_by: window.WEIN.fullName || sessionStorage.getItem('weinRole') || 'portal',
     assigned_to: assigneeName,
   };
@@ -3605,12 +3611,19 @@ async function saveTask() {
   errEl.style.display = 'none';
 
   const assigneeId = COLLAB_READY ? (document.getElementById('tm-assignee').value || null) : undefined;
+  const dueDate = document.getElementById('tm-due').value || null;
+  if (assigneeId && !dueDate) {
+    errEl.textContent = 'A due date is required when assigning a task.';
+    errEl.style.display = 'block';
+    document.getElementById('tm-due').focus();
+    return;
+  }
   const providerId = document.getElementById('tm-link-provider').value || null;
   const leadId = COLLAB_READY ? (document.getElementById('tm-link-lead').value || null) : undefined;
   const body = {
     title,
     description: document.getElementById('tm-description').value.trim() || null,
-    due_date: document.getElementById('tm-due').value || null,
+    due_date: dueDate,
     priority: document.getElementById('tm-priority').value,
     status: document.getElementById('tm-status').value,
     provider_id: providerId,

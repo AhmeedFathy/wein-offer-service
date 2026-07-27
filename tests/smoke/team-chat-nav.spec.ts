@@ -649,6 +649,26 @@ test('Today only shows tasks assigned to the current user, not everyone else\'s'
   await expect(page.locator('#mainArea')).not.toContainText('Someone elses overdue task');
 });
 
+test('quick Add Task requires a due date once an assignee is selected', async ({ page }) => {
+  await login(page);
+  await page.locator('.nav-item[data-view="tasks"]').click();
+  await page.getByRole('button', { name: 'Add Task' }).click();
+  await page.locator('#taskTitle').fill('Needs a deadline');
+  await page.locator('#taskAssignee').selectOption({ label: profile.full_name });
+  await page.locator('#taskSaveBtn').click();
+  await expect(page.locator('#addTaskError')).toBeVisible();
+  await expect(page.locator('#addTaskError')).toContainText('due date');
+});
+
+test('task modal requires a due date once an assignee is selected', async ({ page }) => {
+  await login(page);
+  await page.evaluate((id) => (window as unknown as { openTaskModal: (id: string) => void }).openTaskModal(id), taskFixture.id);
+  await page.locator('#tm-due').fill('');
+  await page.locator('#tm-save-btn').click();
+  await expect(page.locator('#tm-error')).toBeVisible();
+  await expect(page.locator('#tm-error')).toContainText('due date');
+});
+
 declare global {
   interface Window {
     __WEIN_ACTIVE_INTERVAL_COUNT__?: () => number;
