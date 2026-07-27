@@ -455,6 +455,52 @@ test('opening a DM shows a composer that actually fits on screen and can send a 
   expect(pageErrors).toEqual([]);
 });
 
+test('conversation list items show an avatar', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'dm' });
+  await openTeamChat(page);
+  await expect(page.locator('.chat-conversation').first().locator('.chat-conversation-avatar')).toBeVisible();
+});
+
+test('consecutive messages from the same sender group under one header', async ({ page }) => {
+  await login(page);
+  await openTeamChat(page);
+  await startDmFromCompose(page, otherProfile.full_name);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('First message');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('First message');
+
+  await composer.fill('Second message right after');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('Second message right after');
+
+  const messages = page.locator('.chat-message');
+  await expect(messages).toHaveCount(2);
+  await expect(messages.nth(0)).not.toHaveClass(/chat-message-grouped/);
+  await expect(messages.nth(1)).toHaveClass(/chat-message-grouped/);
+});
+
+test('sending a message scrolls the thread to the bottom', async ({ page }) => {
+  await login(page);
+  await openTeamChat(page);
+  await startDmFromCompose(page, otherProfile.full_name);
+
+  const composer = page.locator('[data-chat-composer]');
+  for (let i = 0; i < 3; i++) {
+    await composer.fill(`Message number ${i}`);
+    await page.locator('[data-chat-send-form] button[type="submit"]').click();
+    await expect(page.locator('.chat-message-body').last()).toHaveText(`Message number ${i}`);
+  }
+
+  const scrollState = await page.locator('.chat-message-list').evaluate((el) => ({
+    scrollTop: el.scrollTop,
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+  }));
+  expect(scrollState.scrollHeight - scrollState.scrollTop - scrollState.clientHeight).toBeLessThan(80);
+});
+
 test('team chat supports edit, delete, quoted reply, and mute actions', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

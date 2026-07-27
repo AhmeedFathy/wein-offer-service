@@ -23,6 +23,32 @@ function roleLabel(role) {
   }[role] || role;
 }
 
+function shortChatTime(timestamp, now = new Date()) {
+  if (!timestamp) return "";
+  const then = new Date(timestamp);
+  if (Number.isNaN(then.getTime())) return "";
+  const diffMs = now.getTime() - then.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const sameWeek = diffMs < 6 * 86400000;
+  if (sameWeek) return then.toLocaleDateString(undefined, { weekday: "short" });
+  return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Consecutive messages from the same sender within this window group under
+// one header instead of repeating the name/timestamp for every message.
+const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function shouldShowMessageHeader(message, previousMessage) {
+  if (!previousMessage) return true;
+  if (message.sender_id !== previousMessage.sender_id) return true;
+  const gap = new Date(message.created_at).getTime() - new Date(previousMessage.created_at).getTime();
+  return !(gap >= 0 && gap < MESSAGE_GROUP_WINDOW_MS);
+}
+
 export function createChatViewModule() {
   return {
     id: "team-chat",
@@ -52,6 +78,23 @@ export function createChatViewModule() {
       let initialConversationPending = context.initialConversationId || null;
       let refreshTimer = null;
       let unsubscribeRealtime = null;
+      let forceScrollBottom = false;
+
+      function wasScrolledNearBottom() {
+        const list = root.querySelector(".chat-message-list");
+        if (!list) return true;
+        return list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+      }
+
+      function scrollMessageListToBottom() {
+        const list = root.querySelector(".chat-message-list");
+        if (list) list.scrollTop = list.scrollHeight;
+      }
+
+      function autoGrowComposer(textarea) {
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+      }
 
       root.classList.add("wein-chat-root");
 
@@ -153,6 +196,7 @@ export function createChatViewModule() {
         state.memberSelectedIds = new Set();
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
+        forceScrollBottom = true;
         if (!disposed) render();
         const lastSeq = state.messages.at(-1)?.message_seq || 0;
         if (lastSeq) {
@@ -186,6 +230,7 @@ export function createChatViewModule() {
         // this point, so a subsequent failure (e.g. markRead) must not hide it from
         // the sender's own view until the next refresh.
         state.messages = [...state.messages, message];
+        forceScrollBottom = true;
         if (!disposed) render();
         try {
           await context.service.markRead(state.selectedConversationId, message.message_seq);
@@ -394,11 +439,19 @@ export function createChatViewModule() {
       function conversationItem(conversation) {
         const selected = conversation.id === state.selectedConversationId ? " selected" : "";
         const unread = conversation.unread_count ? `<span class="chat-count">${conversation.unread_count}</span>` : "";
+        const title = conversationDisplayTitle(conversation, context.currentUser.id);
+        const timestamp = shortChatTime(conversation.last_message?.created_at);
         return `
           <button type="button" class="chat-conversation${selected}" data-chat-select="${escapeHtml(conversation.id)}">
-            <span class="chat-conversation-title">${escapeHtml(conversationDisplayTitle(conversation, context.currentUser.id))}</span>
-            ${unread}
-            <span class="chat-conversation-preview">${escapeHtml(messagePreview(conversation.last_message))}</span>
+            <span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>
+            <span class="chat-conversation-body">
+              <span class="chat-conversation-row">
+                <span class="chat-conversation-title">${escapeHtml(title)}</span>
+                ${timestamp ? `<span class="chat-conversation-timestamp">${escapeHtml(timestamp)}</span>` : ""}
+                ${unread}
+              </span>
+              <span class="chat-conversation-preview">${escapeHtml(messagePreview(conversation.last_message))}</span>
+            </span>
           </button>
         `;
       }
@@ -567,7 +620,7 @@ export function createChatViewModule() {
         `;
       }
 
-      function messageRow(message) {
+      function messageRow(message, showHeader = true) {
         const mine = message.sender_id === context.currentUser.id ? " mine" : "";
         const isDeleted = Boolean(message.deleted_at);
         const canEdit = mine && !isDeleted;
@@ -597,11 +650,13 @@ export function createChatViewModule() {
           ` : ""}
         ` : "";
         return `
-          <div class="chat-message${mine}${isDeleted ? " deleted" : ""}" tabindex="0" data-chat-message-id="${escapeHtml(message.id)}">
-            <div class="chat-message-meta">
-              <span>${escapeHtml(message.sender?.full_name || "Unknown")}</span>
-              <span>#${message.message_seq} ${edited}</span>
-            </div>
+          <div class="chat-message${mine}${isDeleted ? " deleted" : ""}${showHeader ? "" : " chat-message-grouped"}" tabindex="0" data-chat-message-id="${escapeHtml(message.id)}">
+            ${showHeader ? `
+              <div class="chat-message-meta">
+                <span>${escapeHtml(message.sender?.full_name || "Unknown")}</span>
+                <span>#${message.message_seq} ${edited}</span>
+              </div>
+            ` : ""}
             ${quotedReference(message)}
             ${state.editingMessageId === message.id ? editForm(message) : `<div class="chat-message-body">${escapeHtml(isDeleted ? "Message deleted" : message.body)}</div>`}
             ${actions}
@@ -610,6 +665,8 @@ export function createChatViewModule() {
       }
 
       function render() {
+        const shouldScrollAfterRender = forceScrollBottom || wasScrolledNearBottom();
+        forceScrollBottom = false;
         const selected = state.conversations.find((conversation) => conversation.id === state.selectedConversationId) || null;
         const selectableProfiles = state.profiles.filter((profile) => profile.id !== context.currentUser.id);
         const selfMember = selected?.members.find((member) => member.user_id === context.currentUser.id);
@@ -660,12 +717,12 @@ export function createChatViewModule() {
                   ${membersPanel(selected)}
                 </header>
                 <div class="chat-message-list">
-                  ${state.messages.map(messageRow).join("")}
+                  ${state.messages.map((message, index) => messageRow(message, shouldShowMessageHeader(message, state.messages[index - 1]))).join("")}
                   ${!state.messages.length ? `<div class="chat-muted">No messages yet.</div>` : ""}
                 </div>
                 <form class="chat-composer" data-chat-send-form>
                   ${replyStrip()}
-                  <input data-chat-composer type="text" placeholder="Write a message...">
+                  <textarea data-chat-composer rows="1" placeholder="Write a message..."></textarea>
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
               ` : `
@@ -738,9 +795,18 @@ export function createChatViewModule() {
         root.querySelector("[data-chat-create-group]")?.addEventListener("click", () => {
           createGroup(state.composeGroupTitle, [...state.composeSelectedMemberIds]);
         });
-        root.querySelector("[data-chat-send-form]")?.addEventListener("submit", (event) => {
+        const sendForm = root.querySelector("[data-chat-send-form]");
+        sendForm?.addEventListener("submit", (event) => {
           event.preventDefault();
           sendMessage(event.currentTarget);
+        });
+        const composerTextarea = root.querySelector("[data-chat-composer]");
+        composerTextarea?.addEventListener("input", () => autoGrowComposer(composerTextarea));
+        composerTextarea?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendForm?.requestSubmit();
+          }
         });
         root.querySelector("[data-chat-clear-reply]")?.addEventListener("click", () => clearReply());
         root.querySelectorAll("[data-chat-reply]").forEach((button) => {
@@ -781,6 +847,7 @@ export function createChatViewModule() {
         root.querySelectorAll("[data-chat-cancel-edit]").forEach((button) => {
           button.addEventListener("click", () => cancelEdit());
         });
+        if (shouldScrollAfterRender) scrollMessageListToBottom();
       }
 
       refresh();

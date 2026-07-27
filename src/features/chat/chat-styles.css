@@ -290,7 +290,8 @@
 .chat-field select,
 .chat-group-form input,
 .chat-group-form select,
-.chat-composer input {
+.chat-composer input,
+.chat-composer textarea {
   width: 100%;
   box-sizing: border-box;
   border: .5px solid var(--border);
@@ -303,10 +304,19 @@
   outline: none;
 }
 
+.chat-composer textarea {
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
 .chat-field select:focus,
 .chat-group-form input:focus,
 .chat-group-form select:focus,
-.chat-composer input:focus {
+.chat-composer input:focus,
+.chat-composer textarea:focus {
   border-color: var(--border-blue-strong);
 }
 
@@ -343,9 +353,9 @@
 }
 
 .chat-conversation {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 3px 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   width: 100%;
   border: .5px solid var(--border);
   border-radius: 8px;
@@ -363,6 +373,34 @@
   background: var(--blue-tint);
 }
 
+.chat-conversation-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--blue-tint);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chat-conversation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-conversation-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .chat-conversation-title {
   overflow: hidden;
   font-size: 13px;
@@ -370,10 +408,17 @@
   color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-conversation-timestamp {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
 }
 
 .chat-conversation-preview {
-  grid-column: 1 / -1;
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 12px;
@@ -490,6 +535,10 @@
   align-self: flex-end;
   border-color: var(--border-blue-strong);
   background: var(--blue-tint);
+}
+
+.chat-message-grouped {
+  margin-top: -3px;
 }
 
 .chat-message-meta {
@@ -634,6 +683,7 @@
 .chat-composer {
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: end;
   gap: 8px;
   border-top: .5px solid var(--border);
   background: var(--bg-surface);
@@ -832,6 +882,7 @@
   }
 
   .chat-composer input,
+  .chat-composer textarea,
   .chat-composer button {
     min-height: 44px;
   }
