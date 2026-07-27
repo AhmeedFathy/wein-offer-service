@@ -50,6 +50,31 @@ const otherUserTaskFixture = {
   assigned_to_user_id: otherProfile.id,
 };
 
+const providerFixture = {
+  id: 'provider-1',
+  provider_name: 'Smoke Provider',
+  vertical: 'Dining',
+  category: 'Dining',
+  location: 'Naama Bay',
+  contact_name: 'Rana',
+  contact_phone: '+201000000000',
+  created_at: '2026-07-20T10:00:00.000Z',
+  updated_at: '2026-07-24T10:00:00.000Z',
+  contract_status: 'draft',
+  commission_pct: 10,
+  featured: false,
+};
+
+const offerFixture = {
+  id: 'offer-1',
+  provider_id: providerFixture.id,
+  title: 'Smoke Offer',
+  status: 'pending',
+  regular_egp: 1000,
+  promo_egp: 750,
+  created_at: '2026-07-20T10:00:00.000Z',
+};
+
 type PortalMockOptions = {
   initialConversations?: boolean;
   chatKind?: 'dm' | 'group';
@@ -62,8 +87,8 @@ function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   const path = url.pathname.split('/rest/v1/')[1] || '';
   const currentProfile = { ...profile, role: options.currentRole ?? profile.role };
   if (path.startsWith('profiles')) return [currentProfile, otherProfile, extraProfile];
-  if (path.startsWith('wein_providers')) return [];
-  if (path.startsWith('wein_offers')) return [];
+  if (path.startsWith('wein_providers')) return [providerFixture];
+  if (path.startsWith('wein_offers')) return [offerFixture];
   if (path.startsWith('wein_negotiations')) return [];
   if (path.startsWith('wein_files')) return [];
   if (path.startsWith('wein_leads')) return [];
@@ -186,7 +211,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                   // what a live check against the real DB caught and a
                   // schema-blind mock previously missed.
                   if (table === 'wein_comments') {
-                    const allowedColumns = ['negotiation_id', 'lead_id', 'task_id', 'campaign_id', 'body', 'author_role', 'author_name', 'author_id', 'reply_to_id', 'resolved_at', 'resolved_by', 'resolved_note'];
+                    const allowedColumns = ['negotiation_id', 'lead_id', 'task_id', 'campaign_id', 'provider_id', 'offer_id', 'body', 'author_role', 'author_name', 'author_id', 'reply_to_id', 'resolved_at', 'resolved_by', 'resolved_note'];
                     const unknownColumn = Object.keys(payload).find((key) => !allowedColumns.includes(key));
                     if (unknownColumn) {
                       this._insertError = { message: "Could not find the '" + unknownColumn + "' column of 'wein_comments' in the schema cache" };
@@ -250,8 +275,8 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                   else if (table === 'wein_tasks') rows = [taskFixture];
                   else if (table === 'wein_comment_mentions') rows = [mentionFixture];
                   else if (table === 'wein_comments') {
-                    const taskIdFilter = this._filters.find((filter) => filter[1] === 'task_id');
-                    rows = taskIdFilter ? taskComments.filter((row) => row.task_id === taskIdFilter[2]) : taskComments;
+                    const scopeFilter = this._filters.find((filter) => ['task_id', 'provider_id', 'offer_id'].includes(filter[1]));
+                    rows = scopeFilter ? taskComments.filter((row) => row[scopeFilter[1]] === scopeFilter[2]) : taskComments;
                   }
                   else if (table === 'wein_chat_members' && this._updatePayload) {
                     const conversationId = this._filters.find((filter) => filter[1] === 'conversation_id')?.[2] || 'dm-1';
@@ -667,6 +692,27 @@ test('task modal requires a due date once an assignee is selected', async ({ pag
   await page.locator('#tm-save-btn').click();
   await expect(page.locator('#tm-error')).toBeVisible();
   await expect(page.locator('#tm-error')).toContainText('due date');
+});
+
+test('provider modal Discussion tab mounts record-discussion scoped to that provider', async ({ page }) => {
+  await login(page);
+  await page.evaluate((id) => (window as unknown as { openProviderModal: (id: string) => void }).openProviderModal(id), providerFixture.id);
+  await page.evaluate(() => (window as unknown as { setModalTab: (tab: string) => void }).setModalTab('discussion'));
+  await expect(page.locator('#modal-provider-discussion .discussion-shell')).toBeVisible();
+
+  const openIntervals = await page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0);
+  await page.evaluate(() => (window as unknown as { closeProviderModal: () => void }).closeProviderModal());
+  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(openIntervals - 1);
+});
+
+test('offer-edit modal mounts record-discussion scoped to that offer', async ({ page }) => {
+  await login(page);
+  await page.evaluate((id) => (window as unknown as { openOfferEdit: (id: string) => void }).openOfferEdit(id), offerFixture.id);
+  await expect(page.locator('#offer-edit-discussion .discussion-shell')).toBeVisible();
+
+  const openIntervals = await page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0);
+  await page.evaluate(() => (window as unknown as { closeOfferEdit: () => void }).closeOfferEdit());
+  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(openIntervals - 1);
 });
 
 declare global {

@@ -63,7 +63,7 @@ test("supabase adapter posts comments to wein_comments", async () => {
   assert.equal(calls.find((call) => call[0] === "insert")[1].reply_to_id, "parent");
 });
 
-test("supabase adapter never sends provider_id/offer_id keys (columns do not exist on wein_comments)", async () => {
+test("supabase adapter sends only the one target key that's actually set (task scope)", async () => {
   const calls = [];
   const supabase = {
     from(table) {
@@ -74,15 +74,60 @@ test("supabase adapter never sends provider_id/offer_id keys (columns do not exi
   const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
   await service.postComment({ taskId: "task-1", body: "Body" });
   const insertPayload = calls.find((call) => call[0] === "insert")[1];
+  assert.equal(insertPayload.task_id, "task-1");
   assert.equal("provider_id" in insertPayload, false);
   assert.equal("offer_id" in insertPayload, false);
 });
 
-test("supabase adapter rejects provider/offer scope until those columns exist", async () => {
+test("supabase adapter posts a provider-scoped comment with only provider_id set", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: { id: "c2" }, error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.postComment({ providerId: "provider-1", body: "Body" });
+  const insertPayload = calls.find((call) => call[0] === "insert")[1];
+  assert.equal(insertPayload.provider_id, "provider-1");
+  assert.equal("task_id" in insertPayload, false);
+  assert.equal("offer_id" in insertPayload, false);
+});
+
+test("supabase adapter posts an offer-scoped comment with only offer_id set", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: { id: "c3" }, error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.postComment({ offerId: "offer-1", body: "Body" });
+  const insertPayload = calls.find((call) => call[0] === "insert")[1];
+  assert.equal(insertPayload.offer_id, "offer-1");
+  assert.equal("task_id" in insertPayload, false);
+  assert.equal("provider_id" in insertPayload, false);
+});
+
+test("supabase adapter rejects postComment with no target scope at all", async () => {
   const supabase = { from: () => makeBuilder({ data: null, error: null }, []) };
   const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
-  await assert.rejects(() => service.postComment({ providerId: "provider-1", body: "Body" }), /not supported yet/);
-  await assert.rejects(() => service.postComment({ offerId: "offer-1", body: "Body" }), /not supported yet/);
+  await assert.rejects(() => service.postComment({ body: "Body" }), /requires taskId, providerId, or offerId/);
+});
+
+test("supabase adapter lists comments scoped to provider or offer", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: [], error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.listComments({ providerId: "provider-1" });
+  assert.deepEqual(calls.filter((call) => call[0] === "eq"), [["eq", "provider_id", "provider-1"]]);
 });
 
 test("supabase adapter guards zero-row resolve updates", async () => {

@@ -20,17 +20,25 @@ export function createSupabaseDiscussionService({ supabase, currentUserId }) {
   }
 
   async function postComment({ body, taskId = null, providerId = null, offerId = null, replyToId = null }) {
-    // wein_comments has no provider_id/offer_id column yet (only task_id,
-    // lead_id, negotiation_id, campaign_id) -- PostgREST rejects an insert
-    // that names any column not in its schema cache, even with a null value,
-    // so those keys must be omitted entirely rather than sent as null.
-    if (providerId || offerId) {
-      throw new Error("Provider/offer-scoped discussion is not supported yet (wein_comments has no matching column).");
-    }
+    // wein_comments' one-target CHECK constraint requires exactly one of
+    // negotiation_id/lead_id/task_id/campaign_id/provider_id/offer_id to be
+    // non-null -- and PostgREST rejects an insert that names any column
+    // outside its schema cache, even with a null value. So only the one
+    // target key that's actually set gets included in the payload, never
+    // all three as null placeholders (that was a real bug: it broke every
+    // postComment call, including the task-only path, until fixed).
+    const targetField = taskId
+      ? { task_id: taskId }
+      : providerId
+        ? { provider_id: providerId }
+        : offerId
+          ? { offer_id: offerId }
+          : null;
+    if (!targetField) throw new Error("postComment requires taskId, providerId, or offerId");
     const { data, error } = await supabase
       .from("wein_comments")
       .insert({
-        task_id: taskId,
+        ...targetField,
         reply_to_id: replyToId,
         body,
         author_role: "team",

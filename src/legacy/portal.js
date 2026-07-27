@@ -1836,12 +1836,14 @@ function openOfferEdit(offerId) {
   document.getElementById('oe-error').style.display = 'none';
   oeRecalcDiscount();
   document.getElementById('offer-edit-backdrop').style.display = 'flex';
+  mountOfferDiscussion(offerId);
 }
 
 function closeOfferEdit() {
   editingOfferId = null;
   oeItemsState = [];
   document.getElementById('offer-edit-backdrop').style.display = 'none';
+  if (offerDiscussionCleanup) { offerDiscussionCleanup(); offerDiscussionCleanup = null; }
 }
 
 function oeRecalcDiscount() {
@@ -3572,6 +3574,36 @@ function mountTaskDiscussion(taskId) {
   taskDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { taskId } });
 }
 
+let providerDiscussionCleanup = null;
+
+function mountProviderDiscussion(providerId) {
+  if (providerDiscussionCleanup) { providerDiscussionCleanup(); providerDiscussionCleanup = null; }
+  const root = document.getElementById('modal-provider-discussion');
+  if (!root) return;
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (!modules?.features?.createDiscussionViewModule || !window.WEIN.user?.id) {
+    root.innerHTML = '';
+    return;
+  }
+  const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
+  providerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { providerId } });
+}
+
+let offerDiscussionCleanup = null;
+
+function mountOfferDiscussion(offerId) {
+  if (offerDiscussionCleanup) { offerDiscussionCleanup(); offerDiscussionCleanup = null; }
+  const root = document.getElementById('offer-edit-discussion');
+  if (!root) return;
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (!modules?.features?.createDiscussionViewModule || !window.WEIN.user?.id) {
+    root.innerHTML = '';
+    return;
+  }
+  const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
+  offerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { offerId } });
+}
+
 function openTaskModal(taskId, prelink) {
   window.currentTaskId = taskId || null;
   populateTaskModalPickers();
@@ -4438,6 +4470,7 @@ async function openProviderModal(providerUuid, negotiationId, openContract) {
   currentProviderProfileRow = null;
   setModalTab('profile'); // always reset to Profile on open -- previous provider's active tab must never carry over
   loadFullProfile(p); // Profile is now a first-class tab, not a collapsed section -- load immediately, no click needed
+  mountProviderDiscussion(providerId);
   document.getElementById('modal-profile-name').value = p.provider_name || '';
   document.getElementById('modal-profile-name').disabled = !profileEditable;
   document.getElementById('modal-profile-location').disabled = !profileEditable;
@@ -4902,6 +4935,7 @@ function closeProviderModal() {
   document.getElementById('modal-contract-panel').style.display = 'none';
   window.currentNegotiationId = null;
   window.currentProviderId = null;
+  if (providerDiscussionCleanup) { providerDiscussionCleanup(); providerDiscussionCleanup = null; }
 }
 
 document.getElementById('provider-modal-backdrop').addEventListener('click', function (e) {
