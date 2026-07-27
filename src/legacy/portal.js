@@ -2803,6 +2803,7 @@ function todayActionItems() {
   }
   cachedTasks.forEach(t => {
     if (!t.due_date || !taskIsOpen(t)) return;
+    if (t.assigned_to_user_id !== window.WEIN.user?.id) return; // Today shows the assignee's own due tasks, not everyone's
     const d = new Date(t.due_date); d.setHours(0, 0, 0, 0);
     if (d > today) return;
     items.push({ kind: 'task', id: t.id, name: t.title || 'Untitled task', vertical: null, stage: TASK_COLUMNS.find(c => c.id === t.status)?.label || t.status, note: t.description, phone: null, overdue: Math.round((today - d) / 86400000) });

@@ -42,6 +42,14 @@ const taskCommentFixture = {
   created_at: '2026-07-20T11:00:00.000Z',
 };
 
+const otherUserTaskFixture = {
+  id: 'task-2',
+  title: 'Someone elses overdue task',
+  status: 'pending',
+  due_date: '2020-01-01',
+  assigned_to_user_id: otherProfile.id,
+};
+
 type PortalMockOptions = {
   initialConversations?: boolean;
   chatKind?: 'dm' | 'group';
@@ -60,7 +68,7 @@ function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   if (path.startsWith('wein_files')) return [];
   if (path.startsWith('wein_leads')) return [];
   if (path.startsWith('offer_outcomes')) return [];
-  if (path.startsWith('wein_tasks')) return [taskFixture];
+  if (path.startsWith('wein_tasks')) return [taskFixture, otherUserTaskFixture];
   if (path.startsWith('wein_redemptions')) return [];
   if (path.startsWith('wein_campaigns')) return [];
   if (path.startsWith('wein_calendar_notes')) return [];
@@ -632,6 +640,13 @@ test('task board card shows the assignee replied once their comment is the lates
   await page.locator('.nav-item[data-view="tasks"]').click();
   const card = page.locator('.provider-card[data-task-id="task-1"]');
   await expect(card).toContainText('1 replied');
+});
+
+test('Today only shows tasks assigned to the current user, not everyone else\'s', async ({ page }) => {
+  await login(page);
+  await page.locator('.nav-item[data-view="today"]').click();
+  await expect(page.locator('#mainArea')).toContainText('Call Smoke Lead');
+  await expect(page.locator('#mainArea')).not.toContainText('Someone elses overdue task');
 });
 
 declare global {
