@@ -36,6 +36,12 @@ const taskFixture = {
   assigned_to_user_id: mockUser.id,
 };
 
+const taskCommentFixture = {
+  task_id: taskFixture.id,
+  author_name: profile.full_name,
+  created_at: '2026-07-20T11:00:00.000Z',
+};
+
 type PortalMockOptions = {
   initialConversations?: boolean;
   chatKind?: 'dm' | 'group';
@@ -58,7 +64,7 @@ function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   if (path.startsWith('wein_redemptions')) return [];
   if (path.startsWith('wein_campaigns')) return [];
   if (path.startsWith('wein_calendar_notes')) return [];
-  if (path.startsWith('wein_comments')) return [];
+  if (path.startsWith('wein_comments')) return [taskCommentFixture];
   if (path.startsWith('wein_notifications')) return options.notifications ?? [];
   if (path.startsWith('provider_profiles')) return [];
   if (path.startsWith('wein_accepted_offers')) return [];
@@ -619,6 +625,13 @@ test('clicking a task item in the work inbox opens the real task modal', async (
   await page.locator('#today-work-inbox-section [data-inbox-item^="task:"]').click();
   await expect(page.locator('#task-modal-backdrop')).toBeVisible();
   await expect(page.locator('#tm-title')).toHaveValue('Call Smoke Lead');
+});
+
+test('task board card shows the assignee replied once their comment is the latest activity', async ({ page }) => {
+  await login(page);
+  await page.locator('.nav-item[data-view="tasks"]').click();
+  const card = page.locator('.provider-card[data-task-id="task-1"]');
+  await expect(card).toContainText('1 replied');
 });
 
 declare global {

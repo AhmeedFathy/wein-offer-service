@@ -469,6 +469,7 @@ document.querySelectorAll('.nav-parent').forEach(b => b.addEventListener('click'
 // ════════════════════════════════════════════════════════════════════
 let cachedProviders = [], cachedOffers = [], cachedNegotiations = [], cachedFiles = [], cachedLeads = [], cachedOutcomes = [];
 let cachedTasks = [], cachedProfiles = [];
+let cachedTaskDiscussionSummaries = {}; // task_id -> { count, lastAuthorName, lastAt }
 Object.assign(window.WEIN_PORTAL_LEGACY, {
   getCaches: () => ({
     providers: cachedProviders,
@@ -611,6 +612,7 @@ async function loadDashboard() {
     ]);
     cachedProviders = providers; cachedOffers = offers; cachedNegotiations = negotiations; cachedFiles = files; cachedLeads = leads; cachedOutcomes = outcomes;
     cachedTasks = tasks; cachedProfiles = profiles; cachedRedemptions = redemptions; cachedCampaigns = campaigns; cachedCalendarNotes = calNotes;
+    refreshTaskDiscussionSummaries(); // best-effort, re-renders Tasks itself when it resolves
     refreshNavCounts();
     // The Add Lead form renders inline inside the Leads view's own HTML, so
     // a full re-render (background refresh, another tab's action, etc.)
@@ -623,6 +625,30 @@ async function loadDashboard() {
     renderCurrentView();
   } catch (e) {
     document.getElementById('mainArea').innerHTML = `<div style="color:var(--red);font-size:13px;padding:20px">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// Lets a task card show whether the assignee has actually replied, without
+// opening every task's modal to check. Best-effort: on failure the cards
+// just show no discussion indicator, same as before this existed.
+async function refreshTaskDiscussionSummaries() {
+  const taskIds = cachedTasks.map(t => t.id).filter(Boolean);
+  if (!taskIds.length) { cachedTaskDiscussionSummaries = {}; return; }
+  try {
+    const rows = await sbGet(`wein_comments?task_id=in.(${taskIds.join(',')})&select=task_id,author_name,created_at&order=created_at.asc`);
+    const summaries = {};
+    for (const row of rows) {
+      if (!row.task_id) continue;
+      const existing = summaries[row.task_id] || { count: 0, lastAuthorName: null, lastAt: null };
+      existing.count += 1;
+      existing.lastAuthorName = row.author_name || existing.lastAuthorName;
+      existing.lastAt = row.created_at;
+      summaries[row.task_id] = existing;
+    }
+    cachedTaskDiscussionSummaries = summaries;
+    if (currentView === 'tasks' && !taskFormVisible) renderTasksView();
+  } catch (e) {
+    cachedTaskDiscussionSummaries = {};
   }
 }
 
@@ -2964,6 +2990,15 @@ function taskCardHtml(t) {
   const linked = taskLinkedName(t);
   const name = assigneeLabel(t);
   const colIdx = TASK_COLUMNS.findIndex(c => c.id === t.status);
+  const discussion = cachedTaskDiscussionSummaries[t.id];
+  // Answers "has the assignee actually responded" at a glance: green +
+  // "replied" when the most recent comment's author name matches the
+  // assignee's own display name, plain grey count otherwise (still waiting,
+  // or the activity is someone else's note).
+  const assigneeReplied = !!(discussion?.lastAuthorName && name && discussion.lastAuthorName.trim().toLowerCase() === name.trim().toLowerCase());
+  const discussionChip = discussion
+    ? `<span class="pc-meta-date mono" style="color:${assigneeReplied ? 'var(--green)' : 'var(--text-secondary)'};" title="${discussion.count} comment${discussion.count === 1 ? '' : 's'} — last by ${escapeHtml(discussion.lastAuthorName || 'someone')}"><i class="ti ti-message-circle" style="font-size:10px;"></i> ${discussion.count}${assigneeReplied ? ' replied' : ''}</span>`
+    : '';
   return `
     <div class="provider-card" data-task-id="${t.id}" onclick="openTaskModal('${t.id}')">
       <div class="pc-name" style="display:flex;align-items:center;gap:6px;">
@@ -2973,6 +3008,7 @@ function taskCardHtml(t) {
       <div class="pc-meta" style="margin-top:5px;">
         <span class="task-avatar" title="${escapeHtml(name)}">${initialsOf(name)}</span>
         ${dueChip}
+        ${discussionChip}
         ${linked ? `<span class="pc-meta-date mono" style="overflow:hidden;text-overflow:ellipsis;max-width:110px;" title="${escapeHtml(linked)}"><i class="ti ti-link" style="font-size:10px;"></i> ${escapeHtml(linked)}</span>` : ''}
       </div>
       <div class="table-actions" style="margin-top:8px;flex-wrap:nowrap;gap:4px;" onclick="event.stopPropagation()">
@@ -3024,10 +3060,13 @@ function renderTasksList() {
   wrap.innerHTML = `
     <div class="providers-table-wrap">
       <table class="providers-table">
-        <thead><tr>${th('title', 'Task')}${th('assignee', 'Assignee')}${th('due', 'Due')}${th('priority', 'Priority')}${th('status', 'Status')}<th>Linked to</th></tr></thead>
+        <thead><tr>${th('title', 'Task')}${th('assignee', 'Assignee')}${th('due', 'Due')}${th('priority', 'Priority')}${th('status', 'Status')}<th>Linked to</th><th>Activity</th></tr></thead>
         <tbody>${tasks.length ? tasks.map(t => {
           const overdue = taskOverdueDays(t);
           const col = TASK_COLUMNS.find(c => c.id === t.status);
+          const discussion = cachedTaskDiscussionSummaries[t.id];
+          const name = assigneeLabel(t);
+          const assigneeReplied = !!(discussion?.lastAuthorName && name && discussion.lastAuthorName.trim().toLowerCase() === name.trim().toLowerCase());
           return `
           <tr onclick="openTaskModal('${t.id}')" style="cursor:pointer;">
             <td style="color:var(--text-primary);font-weight:600;"><i class="ti ti-flag-filled prio-flag" style="color:${TASK_PRIORITY_COLORS[t.priority] || 'var(--text-tertiary)'};"></i> ${escapeHtml(t.title || 'Untitled')}</td>
@@ -3036,8 +3075,9 @@ function renderTasksList() {
             <td>${escapeHtml(t.priority || 'medium')}</td>
             <td>${col ? col.label : escapeHtml(t.status)}</td>
             <td>${escapeHtml(taskLinkedName(t) || '—')}</td>
+            <td class="mono" style="color:${discussion ? (assigneeReplied ? 'var(--green)' : 'var(--text-secondary)') : 'var(--text-tertiary)'};" title="${discussion ? `${discussion.count} comment${discussion.count === 1 ? '' : 's'} — last by ${escapeHtml(discussion.lastAuthorName || 'someone')}` : 'No comments yet'}">${discussion ? `<i class="ti ti-message-circle" style="font-size:10px;"></i> ${discussion.count}${assigneeReplied ? ' replied' : ''}` : '—'}</td>
           </tr>`;
-        }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary);padding:20px;">No tasks</td></tr>'}</tbody>
+        }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:20px;">No tasks</td></tr>'}</tbody>
       </table>
     </div>`;
 }
