@@ -2833,7 +2833,16 @@ function mountTodayWorkInbox() {
   const modules = window.WEIN_PORTAL_MODULES;
   if (!modules?.features?.createWorkInboxViewModule || !window.WEIN.user?.id) return;
   const service = modules.features.createSupabaseWorkInboxService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
-  todayInboxCleanup = modules.features.createWorkInboxViewModule().mount(root, { service });
+  todayInboxCleanup = modules.features.createWorkInboxViewModule().mount(root, {
+    service,
+    onSelectItem(item) {
+      // Only 'task' items resolve to a real modal today -- mentions and
+      // discussion-reply items point at a comment_id, and there is no
+      // comment-scoped opener yet, so those still fall back to the href.
+      if (item.kind === 'task') { openTaskModal(item.entity_id); return; }
+      if (item.href) window.location.hash = item.href;
+    },
+  });
 }
 
 function renderTodayView() {

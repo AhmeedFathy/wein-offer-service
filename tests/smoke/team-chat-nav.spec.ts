@@ -613,6 +613,14 @@ test('Today mounts the work inbox section with normalized task and mention signa
   await expect(page.locator('#today-work-inbox-section')).toContainText('Mention');
 });
 
+test('clicking a task item in the work inbox opens the real task modal', async ({ page }) => {
+  await login(page);
+  await page.locator('.nav-item[data-view="today"]').click();
+  await page.locator('#today-work-inbox-section [data-inbox-item^="task:"]').click();
+  await expect(page.locator('#task-modal-backdrop')).toBeVisible();
+  await expect(page.locator('#tm-title')).toHaveValue('Call Smoke Lead');
+});
+
 declare global {
   interface Window {
     __WEIN_ACTIVE_INTERVAL_COUNT__?: () => number;
