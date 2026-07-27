@@ -22,6 +22,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="stylesheet" href="/portal-dist/assets/chat-styles.css">
+<link rel="stylesheet" href="/portal-dist/assets/discussion-styles.css">
+<link rel="stylesheet" href="/portal-dist/assets/work-inbox-styles.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -859,14 +861,7 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
       <button class="view-action" type="button" id="tm-save-btn" onclick="saveTask()"><span>Save</span></button>
     </div>
 
-    <div id="tm-comments-section" style="border-top:.5px solid var(--border-subtle);padding-top:12px;">
-      <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Notes</div>
-      <div id="tm-comments" style="display:flex;flex-direction:column;gap:8px;max-height:180px;overflow-y:auto;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:6px;">
-        <input type="text" id="tm-comment-input" placeholder="Add a note…" style="flex:1;background:var(--bg-elevated);border:.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-primary);outline:none;min-width:0;" onkeydown="if(event.key==='Enter')submitThreadComment('task_id', window.currentTaskId, 'tm-comment-input', 'tm-comments')">
-        <button type="button" class="mini-btn" onclick="submitThreadComment('task_id', window.currentTaskId, 'tm-comment-input', 'tm-comments')">Send</button>
-      </div>
-    </div>
+    <div id="tm-comments-section" style="border-top:.5px solid var(--border-subtle);padding-top:12px;"></div>
   </div>
 </div>
 

@@ -18,6 +18,16 @@ export default defineConfig({
           fileName: 'assets/chat-styles.css',
           source: readFileSync(resolve(__dirname, 'src/features/chat/chat-styles.css'), 'utf8'),
         });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'assets/discussion-styles.css',
+          source: readFileSync(resolve(__dirname, 'src/features/record-discussion/discussion-styles.css'), 'utf8'),
+        });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'assets/work-inbox-styles.css',
+          source: readFileSync(resolve(__dirname, 'src/features/work-inbox/work-inbox-styles.css'), 'utf8'),
+        });
       },
     },
   ],

@@ -63,6 +63,28 @@ test("supabase adapter posts comments to wein_comments", async () => {
   assert.equal(calls.find((call) => call[0] === "insert")[1].reply_to_id, "parent");
 });
 
+test("supabase adapter never sends provider_id/offer_id keys (columns do not exist on wein_comments)", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: { id: "c1" }, error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.postComment({ taskId: "task-1", body: "Body" });
+  const insertPayload = calls.find((call) => call[0] === "insert")[1];
+  assert.equal("provider_id" in insertPayload, false);
+  assert.equal("offer_id" in insertPayload, false);
+});
+
+test("supabase adapter rejects provider/offer scope until those columns exist", async () => {
+  const supabase = { from: () => makeBuilder({ data: null, error: null }, []) };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await assert.rejects(() => service.postComment({ providerId: "provider-1", body: "Body" }), /not supported yet/);
+  await assert.rejects(() => service.postComment({ offerId: "offer-1", body: "Body" }), /not supported yet/);
+});
+
 test("supabase adapter guards zero-row resolve updates", async () => {
   const supabase = {
     from() {

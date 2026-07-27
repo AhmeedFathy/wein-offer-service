@@ -2,6 +2,10 @@ import { canDelete, canEditProviderProfile, canManageDeals, defaultViewForRole, 
 import { createPortalContext } from './core/portal-context';
 import { getView, mountView, registeredViewIds, registerDummyCleanupProbeView, registerView } from './core/view-registry';
 import { registerFeatureViews, requestOpenChatConversation } from './features/register-feature-views';
+import { createDiscussionViewModule } from './features/record-discussion/discussion-view.mjs';
+import { createSupabaseDiscussionService } from './features/record-discussion/supabase-discussion-service.mjs';
+import { createWorkInboxViewModule } from './features/work-inbox/work-inbox-view.mjs';
+import { createSupabaseWorkInboxService } from './features/work-inbox/supabase-work-inbox-service.mjs';
 import { LEGACY_VIEW_IDS, registerLegacyViews } from './legacy/register-legacy-views';
 import { portalApi } from './platform/portal-api';
 import { getAccessToken, getSessionContext, getSupabaseClient } from './platform/supabase-client';
@@ -61,6 +65,10 @@ const portalModules = {
   },
   features: {
     requestOpenChatConversation,
+    createDiscussionViewModule,
+    createSupabaseDiscussionService,
+    createWorkInboxViewModule,
+    createSupabaseWorkInboxService,
   },
   store: portalStore,
   selectors,

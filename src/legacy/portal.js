@@ -449,6 +449,7 @@ function showView(name) {
   const role = sessionStorage.getItem('weinRole');
   const hidden = NAV_HIDDEN_FOR_ROLE[role] || [];
   if (hidden.includes(name)) name = defaultViewForRole(role);
+  if (currentView === 'today' && name !== 'today' && todayInboxCleanup) { todayInboxCleanup(); todayInboxCleanup = null; }
   currentView = name;
   document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
@@ -2824,7 +2825,19 @@ function todayOpen(item) {
   else if (it.kind === 'task') { showView('tasks'); openTaskModal(it.id); }
   else { showView('pipeline'); openProviderModal(it.providerId, it.id); }
 }
+let todayInboxCleanup = null;
+
+function mountTodayWorkInbox() {
+  const root = document.getElementById('today-work-inbox-section');
+  if (!root) return;
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (!modules?.features?.createWorkInboxViewModule || !window.WEIN.user?.id) return;
+  const service = modules.features.createSupabaseWorkInboxService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
+  todayInboxCleanup = modules.features.createWorkInboxViewModule().mount(root, { service });
+}
+
 function renderTodayView() {
+  if (todayInboxCleanup) { todayInboxCleanup(); todayInboxCleanup = null; }
   const items = todayActionItems();
   const overdue = items.filter(x => x.overdue > 0);
   const dueToday = items.filter(x => x.overdue === 0);
@@ -2853,7 +2866,9 @@ function renderTodayView() {
     </div>
     ${overdue.length ? `<div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Overdue</div><div class="files-grid" style="margin-bottom:18px;">${overdue.map(row).join('')}</div>` : ''}
     ${dueToday.length ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;">Today</div><div class="files-grid">${dueToday.map(row).join('')}</div>` : ''}
-    ${!items.length ? `<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:40px 0;">Nothing scheduled — open a lead or provider and set a next action date.<br>Pick 3 leads to chase and give each a date.</div>` : ''}`;
+    ${!items.length ? `<div style="text-align:center;color:var(--text-tertiary);font-size:12px;padding:40px 0;">Nothing scheduled — open a lead or provider and set a next action date.<br>Pick 3 leads to chase and give each a date.</div>` : ''}
+    <div id="today-work-inbox-section" style="margin-top:18px;"></div>`;
+  mountTodayWorkInbox();
 }
 
 // ── Tasks view: ClickUp-style board + list (wein_tasks, dormant since 012) ──
@@ -3486,6 +3501,21 @@ function populateTaskModalPickers() {
   leadSel.onchange = () => { if (leadSel.value) provSel.value = ''; };
 }
 
+let taskDiscussionCleanup = null;
+
+function mountTaskDiscussion(taskId) {
+  if (taskDiscussionCleanup) { taskDiscussionCleanup(); taskDiscussionCleanup = null; }
+  const root = document.getElementById('tm-comments-section');
+  if (!root) return;
+  const modules = window.WEIN_PORTAL_MODULES;
+  if (!modules?.features?.createDiscussionViewModule || !window.WEIN.user?.id) {
+    root.innerHTML = '';
+    return;
+  }
+  const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
+  taskDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { taskId } });
+}
+
 function openTaskModal(taskId, prelink) {
   window.currentTaskId = taskId || null;
   populateTaskModalPickers();
@@ -3503,9 +3533,10 @@ function openTaskModal(taskId, prelink) {
   const commentsSection = document.getElementById('tm-comments-section');
   if (t && COLLAB_READY) {
     commentsSection.style.display = 'block';
-    fetchThread('task_id', t.id).then(c => renderThread('tm-comments', c, 'task_id', t.id));
+    mountTaskDiscussion(t.id);
   } else {
     commentsSection.style.display = 'none'; // no thread until the task is saved once, or 038 isn't applied
+    if (taskDiscussionCleanup) { taskDiscussionCleanup(); taskDiscussionCleanup = null; }
   }
   document.getElementById('task-modal-backdrop').style.display = 'flex';
 }
@@ -3513,6 +3544,7 @@ function openTaskModal(taskId, prelink) {
 function closeTaskModal() {
   document.getElementById('task-modal-backdrop').style.display = 'none';
   window.currentTaskId = null;
+  if (taskDiscussionCleanup) { taskDiscussionCleanup(); taskDiscussionCleanup = null; }
 }
 document.getElementById('task-modal-backdrop').addEventListener('click', function (e) { if (e.target === this) closeTaskModal(); });
 

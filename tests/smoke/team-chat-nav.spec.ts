@@ -28,6 +28,14 @@ const extraProfile = {
   email: 'candidate@example.com',
 };
 
+const taskFixture = {
+  id: 'task-1',
+  title: 'Call Smoke Lead',
+  status: 'pending',
+  due_date: '2020-01-01',
+  assigned_to_user_id: mockUser.id,
+};
+
 type PortalMockOptions = {
   initialConversations?: boolean;
   chatKind?: 'dm' | 'group';
@@ -46,7 +54,7 @@ function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
   if (path.startsWith('wein_files')) return [];
   if (path.startsWith('wein_leads')) return [];
   if (path.startsWith('offer_outcomes')) return [];
-  if (path.startsWith('wein_tasks')) return [];
+  if (path.startsWith('wein_tasks')) return [taskFixture];
   if (path.startsWith('wein_redemptions')) return [];
   if (path.startsWith('wein_campaigns')) return [];
   if (path.startsWith('wein_calendar_notes')) return [];
@@ -119,6 +127,27 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
             let dmCreated = false;
             let nextMessageSeq = 1;
             const sentMessages = [];
+            const taskFixture = {
+              id: 'task-1',
+              title: 'Call Smoke Lead',
+              status: 'pending',
+              due_date: '2020-01-01',
+              assigned_to_user_id: ${JSON.stringify(mockUser.id)}
+            };
+            const mentionCommentFixture = {
+              id: 'comment-mention-1',
+              body: 'Please take a look at this',
+              resolved_at: null,
+              created_at: '2026-07-20T10:00:00.000Z'
+            };
+            const mentionFixture = {
+              comment_id: mentionCommentFixture.id,
+              mentioned_user_id: ${JSON.stringify(mockUser.id)},
+              created_at: '2026-07-20T10:00:00.000Z',
+              wein_comments: mentionCommentFixture
+            };
+            let nextCommentSeq = 1;
+            const taskComments = [];
             window.__WEIN_CHAT_NOTIFICATION_CALLS__ = [];
             window.__WEIN_CHAT_DELETE_CALLS__ = [];
             window.__WEIN_CHAT_ADD_MEMBER_CALLS__ = [];
@@ -131,13 +160,47 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 _filters: [],
                 select() { return this; },
                 eq(column, value) { this._filters.push(['eq', column, value]); return this; },
+                neq() { return this; },
                 is() { return this; },
                 order() { return this; },
                 limit() { return this; },
-                insert(payload) { this._insertPayload = payload; return this; },
+                insert(payload) {
+                  // Mimic PostgREST's real schema-cache rejection: an insert
+                  // naming a column the table does not have fails outright,
+                  // even when that column's value is null. wein_comments has
+                  // no provider_id/offer_id column -- catching this here is
+                  // what a live check against the real DB caught and a
+                  // schema-blind mock previously missed.
+                  if (table === 'wein_comments') {
+                    const allowedColumns = ['negotiation_id', 'lead_id', 'task_id', 'campaign_id', 'body', 'author_role', 'author_name', 'author_id', 'reply_to_id', 'resolved_at', 'resolved_by', 'resolved_note'];
+                    const unknownColumn = Object.keys(payload).find((key) => !allowedColumns.includes(key));
+                    if (unknownColumn) {
+                      this._insertError = { message: "Could not find the '" + unknownColumn + "' column of 'wein_comments' in the schema cache" };
+                    }
+                  }
+                  this._insertPayload = payload;
+                  return this;
+                },
                 update(payload) { this._updatePayload = payload; return this; },
                 async single() {
+                  if (this._insertError) return { data: null, error: this._insertError };
                   if (table === 'profiles') return { data: currentProfile, error: null };
+                  if (table === 'wein_comments' && this._insertPayload) {
+                    const row = {
+                      id: 'comment-' + (nextCommentSeq++),
+                      task_id: this._insertPayload.task_id || null,
+                      provider_id: this._insertPayload.provider_id || null,
+                      offer_id: this._insertPayload.offer_id || null,
+                      reply_to_id: this._insertPayload.reply_to_id || null,
+                      body: this._insertPayload.body,
+                      author_role: this._insertPayload.author_role || 'team',
+                      author_name: currentProfile.full_name,
+                      resolved_at: null,
+                      created_at: new Date().toISOString()
+                    };
+                    taskComments.push(row);
+                    return { data: row, error: null };
+                  }
                   if (table === 'wein_chat_messages' && this._insertPayload) {
                     const row = {
                       id: 'msg-' + nextMessageSeq,
@@ -170,6 +233,12 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                   if (table === 'profiles') rows = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}];
                   else if (table === 'wein_chat_conversations') rows = conversations;
                   else if (table === 'wein_chat_messages') rows = sentMessages.filter((message) => !message.deleted_at);
+                  else if (table === 'wein_tasks') rows = [taskFixture];
+                  else if (table === 'wein_comment_mentions') rows = [mentionFixture];
+                  else if (table === 'wein_comments') {
+                    const taskIdFilter = this._filters.find((filter) => filter[1] === 'task_id');
+                    rows = taskIdFilter ? taskComments.filter((row) => row.task_id === taskIdFilter[2]) : taskComments;
+                  }
                   else if (table === 'wein_chat_members' && this._updatePayload) {
                     const conversationId = this._filters.find((filter) => filter[1] === 'conversation_id')?.[2] || 'dm-1';
                     const userId = this._filters.find((filter) => filter[1] === 'user_id')?.[2] || ${JSON.stringify(mockUser.id)};
@@ -304,7 +373,11 @@ test('team chat mounts through a real nav click and cleans up on navigation away
 
   await page.locator('.nav-item[data-view="today"]').click();
   await expect(page.locator('#mainArea')).toContainText('Today');
-  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(baselineIntervals);
+  // Today now mounts the work-inbox module, which holds its own 60s refresh
+  // interval while active (same precedent as chat's own polling) -- so
+  // landing on Today for the first time in this test legitimately adds one,
+  // it does not return to the pre-chat baseline.
+  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(baselineIntervals + 1);
   await expect.poll(() => page.evaluate(() => window.__WEIN_REMOVED_CHAT_CHANNELS__ ?? 0)).toBe(1);
   expect(pageErrors).toEqual([]);
 });
@@ -508,6 +581,36 @@ test('group member panel renders owner badges', async ({ page }) => {
   await page.getByLabel('Manage members').click();
 
   await expect(page.locator('[data-chat-member-row="user-1"] .chat-owner-badge')).toHaveText('Owner');
+});
+
+test('opening a task renders the record-discussion UI and a posted comment appears, with no interval leak on close/reopen', async ({ page }) => {
+  await login(page);
+
+  await page.evaluate((id) => (window as unknown as { openTaskModal: (id: string) => void }).openTaskModal(id), 'task-1');
+  await expect(page.locator('#task-modal-backdrop')).toBeVisible();
+  await expect(page.locator('#tm-comments-section .discussion-shell')).toBeVisible();
+  await expect(page.locator('#tm-comments-section')).toContainText('No comments yet.');
+
+  await page.locator('#tm-comments-section textarea[data-discussion-body]').fill('Checked with the provider.');
+  await page.locator('#tm-comments-section button[type="submit"]').click();
+  await expect(page.locator('#tm-comments-section .discussion-comment-body')).toHaveText('Checked with the provider.');
+
+  const openIntervals = await page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0);
+  await page.locator('#task-modal-backdrop').getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('#task-modal-backdrop')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(openIntervals - 1);
+
+  await page.evaluate((id) => (window as unknown as { openTaskModal: (id: string) => void }).openTaskModal(id), 'task-1');
+  await expect(page.locator('#tm-comments-section .discussion-shell')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__WEIN_ACTIVE_INTERVAL_COUNT__?.() ?? 0)).toBe(openIntervals);
+});
+
+test('Today mounts the work inbox section with normalized task and mention signals', async ({ page }) => {
+  await login(page);
+  await page.locator('.nav-item[data-view="today"]').click();
+  await expect(page.locator('#today-work-inbox-section')).toBeVisible();
+  await expect(page.locator('#today-work-inbox-section')).toContainText('Call Smoke Lead');
+  await expect(page.locator('#today-work-inbox-section')).toContainText('Mention');
 });
 
 declare global {

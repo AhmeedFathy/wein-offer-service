@@ -20,12 +20,17 @@ export function createSupabaseDiscussionService({ supabase, currentUserId }) {
   }
 
   async function postComment({ body, taskId = null, providerId = null, offerId = null, replyToId = null }) {
+    // wein_comments has no provider_id/offer_id column yet (only task_id,
+    // lead_id, negotiation_id, campaign_id) -- PostgREST rejects an insert
+    // that names any column not in its schema cache, even with a null value,
+    // so those keys must be omitted entirely rather than sent as null.
+    if (providerId || offerId) {
+      throw new Error("Provider/offer-scoped discussion is not supported yet (wein_comments has no matching column).");
+    }
     const { data, error } = await supabase
       .from("wein_comments")
       .insert({
         task_id: taskId,
-        provider_id: providerId,
-        offer_id: offerId,
         reply_to_id: replyToId,
         body,
         author_role: "team",
