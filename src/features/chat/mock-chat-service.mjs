@@ -176,7 +176,7 @@ export function createMockChatService(currentUserId) {
       member.membership_role = role;
     },
 
-    async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
+    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [] }) {
       const conversation = requireConversation(conversationId);
       requireActiveMember(conversation);
       const trimmed = (body || "").trim();
@@ -195,13 +195,14 @@ export function createMockChatService(currentUserId) {
         created_at: iso(),
         edited_at: null,
         deleted_at: null,
+        mentioned_user_ids: [...mentionedUserIds],
       };
       list.push(message);
       messages.set(conversationId, list);
       return clone({ ...message, sender: profileById.get(actorId) || null });
     },
 
-    async updateMessage(messageId, body) {
+    async updateMessage(messageId, body, mentionedUserIds = []) {
       const trimmed = (body || "").trim();
       if (!trimmed) throw new Error("Message body is required");
       for (const [conversationId, list] of messages.entries()) {
@@ -210,6 +211,7 @@ export function createMockChatService(currentUserId) {
         if (message.sender_id !== actorId || message.deleted_at) throw new Error("Cannot edit message");
         message.body = trimmed;
         message.edited_at = iso();
+        message.mentioned_user_ids = [...mentionedUserIds];
         return clone({ ...message, sender: profileById.get(actorId) || null });
       }
       throw new Error(`Message not found: ${messageId}`);

@@ -68,6 +68,7 @@ export function createDiscussionViewModule() {
           ...(context.scope || {}),
           body,
           replyToId: state.replyToId,
+          people: context.people || [],
         });
         state.replyToId = null;
         await refresh();

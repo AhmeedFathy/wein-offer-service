@@ -1,3 +1,5 @@
+import { parseMentions } from "../mentions.mjs";
+
 export function displayAuthor(comment, peopleById = {}) {
   if (!comment) return "Unknown";
   if (comment.author_id && peopleById[comment.author_id]?.full_name) {
@@ -36,11 +38,11 @@ export function buildCommentTree(comments = []) {
   return roots;
 }
 
+// Delegates to the shared parser so chat and record-discussion can never
+// drift apart. The old inline version was a bare substring scan, which
+// matched a person named "Ali" inside "@Alice Smith" and did not dedupe.
 export function extractMentionIds(text = "", people = []) {
-  const normalized = String(text).toLowerCase();
-  return people
-    .filter((person) => person.full_name && normalized.includes(`@${person.full_name.toLowerCase()}`))
-    .map((person) => person.id);
+  return parseMentions(text, people);
 }
 
 export function unresolvedCount(comments = []) {

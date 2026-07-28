@@ -454,6 +454,12 @@ function showView(name) {
   document.querySelectorAll('.nav-item[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
   if (!isNavGroupOpen(VIEW_GROUP[name])) setNavGroupOpen(VIEW_GROUP[name], true);
+  // Team chat is a chat surface already -- the floating AI-assistant button
+  // sits in its send-button corner and just competes with it. Hide it (and
+  // close the drawer if it was open) while that view is active.
+  const fab = document.getElementById('chatFab');
+  if (fab) fab.classList.toggle('visible', name !== 'team-chat');
+  if (name === 'team-chat') document.getElementById('chatDrawer')?.classList.remove('open');
   toggleMobileSidebar(false);
   refreshNavCounts();
   renderCurrentView();
@@ -3571,7 +3577,7 @@ function mountTaskDiscussion(taskId) {
     return;
   }
   const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
-  taskDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { taskId } });
+  taskDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { taskId }, people: cachedProfiles });
 }
 
 let providerDiscussionCleanup = null;
@@ -3586,7 +3592,7 @@ function mountProviderDiscussion(providerId) {
     return;
   }
   const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
-  providerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { providerId } });
+  providerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { providerId }, people: cachedProfiles });
 }
 
 let offerDiscussionCleanup = null;
@@ -3601,7 +3607,7 @@ function mountOfferDiscussion(offerId) {
     return;
   }
   const service = modules.features.createSupabaseDiscussionService({ supabase: sbAuth, currentUserId: window.WEIN.user.id });
-  offerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { offerId } });
+  offerDiscussionCleanup = modules.features.createDiscussionViewModule().mount(root, { service, scope: { offerId }, people: cachedProfiles });
 }
 
 function openTaskModal(taskId, prelink) {

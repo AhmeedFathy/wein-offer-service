@@ -63,6 +63,41 @@ test("supabase adapter posts comments to wein_comments", async () => {
   assert.equal(calls.find((call) => call[0] === "insert")[1].reply_to_id, "parent");
 });
 
+test("supabase adapter records @mentions into wein_comment_mentions after posting", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: { id: "c1" }, error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.postComment({
+    taskId: "task-1",
+    body: "please look @Fady Abdo",
+    people: [
+      { id: "u-fady", full_name: "Fady Abdo" },
+      { id: "u-other", full_name: "Someone Else" },
+    ],
+  });
+  const mentionInsert = calls.find((call) => call[0] === "insert" && call[1]?.mentioned_user_id);
+  assert.deepEqual(mentionInsert[1], { comment_id: "c1", mentioned_user_id: "u-fady" });
+  assert.equal(calls.some((call) => call[0] === "from" && call[1] === "wein_comment_mentions"), true);
+});
+
+test("supabase adapter posts a comment with no mentions without touching the mentions table", async () => {
+  const calls = [];
+  const supabase = {
+    from(table) {
+      calls.push(["from", table]);
+      return makeBuilder({ data: { id: "c1" }, error: null }, calls);
+    },
+  };
+  const service = createSupabaseDiscussionService({ supabase, currentUserId: "u1" });
+  await service.postComment({ taskId: "task-1", body: "no names here", people: [{ id: "u-fady", full_name: "Fady Abdo" }] });
+  assert.equal(calls.some((call) => call[0] === "from" && call[1] === "wein_comment_mentions"), false);
+});
+
 test("supabase adapter sends only the one target key that's actually set (task scope)", async () => {
   const calls = [];
   const supabase = {

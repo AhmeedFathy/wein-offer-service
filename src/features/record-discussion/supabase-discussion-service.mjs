@@ -1,3 +1,5 @@
+import { parseMentions } from "../mentions.mjs";
+
 function ensureOk(error) {
   if (error) throw error;
 }
@@ -19,7 +21,7 @@ export function createSupabaseDiscussionService({ supabase, currentUserId }) {
     return data || [];
   }
 
-  async function postComment({ body, taskId = null, providerId = null, offerId = null, replyToId = null }) {
+  async function postComment({ body, taskId = null, providerId = null, offerId = null, replyToId = null, people = [] }) {
     // wein_comments' one-target CHECK constraint requires exactly one of
     // negotiation_id/lead_id/task_id/campaign_id/provider_id/offer_id to be
     // non-null -- and PostgREST rejects an insert that names any column
@@ -46,6 +48,19 @@ export function createSupabaseDiscussionService({ supabase, currentUserId }) {
       .select("*")
       .single();
     ensureOk(error);
+
+    // Record @mentions so the work inbox surfaces them. Until now this was
+    // dead code: nothing ever called addMention and no mount site passed a
+    // people list, so wein_comment_mentions was never written to in production.
+    // A mention failure must not lose an already-posted comment, so it is
+    // logged rather than thrown.
+    for (const mentionedUserId of parseMentions(body, people)) {
+      try {
+        await addMention(data.id, mentionedUserId);
+      } catch (mentionError) {
+        console.error("Failed to record comment mention", mentionError);
+      }
+    }
     return data;
   }
 

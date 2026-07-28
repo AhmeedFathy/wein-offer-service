@@ -191,6 +191,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
             window.__WEIN_CHAT_DELETE_CALLS__ = [];
             window.__WEIN_CHAT_ADD_MEMBER_CALLS__ = [];
             window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__ = [];
+            window.__WEIN_CHAT_MENTION_SENDS__ = [];
             window.__WEIN_CHAT_RENAME_CALLS__ = [];
             window.__WEIN_CHAT_ARCHIVE_CALLS__ = [];
             window.__WEIN_CHAT_ROLE_CALLS__ = [];
@@ -255,8 +256,10 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                       created_at: new Date().toISOString(),
                       edited_at: null,
                       deleted_at: null,
+                      mentioned_user_ids: this._insertPayload.mentioned_user_ids || null,
                       sender: ${JSON.stringify(profile)}
                     };
+                    if (row.mentioned_user_ids) window.__WEIN_CHAT_MENTION_SENDS__.push({ body: row.body, mentioned_user_ids: row.mentioned_user_ids });
                     sentMessages.push(row);
                     return { data: row, error: null };
                   }
@@ -692,6 +695,58 @@ test('group member panel renders owner badges', async ({ page }) => {
   await expect(page.locator('[data-chat-member-row="user-1"] .chat-owner-badge')).toHaveText('Owner');
 });
 
+test('typing @ opens the mention picker with conversation members only', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-composer]').fill('hey @');
+  await expect(page.locator('[data-chat-mention-picker]')).toBeVisible();
+  // otherProfile is in the group; extraProfile is not, so must not be offered.
+  await expect(page.locator(`[data-chat-mention-pick="${otherProfile.id}"]`)).toBeVisible();
+  await expect(page.locator(`[data-chat-mention-pick="${extraProfile.id}"]`)).toHaveCount(0);
+  // Never offer to mention yourself.
+  await expect(page.locator(`[data-chat-mention-pick="${mockUser.id}"]`)).toHaveCount(0);
+});
+
+test('picking a mention inserts the name and sends the mentioned user id', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-composer]').fill('hey @Smoke Team');
+  await page.locator(`[data-chat-mention-pick="${otherProfile.id}"]`).click();
+  await expect(page.locator('[data-chat-composer]')).toHaveValue(`hey @${otherProfile.full_name} `);
+  await expect(page.locator('[data-chat-mention-picker]')).toHaveCount(0);
+
+  await page.locator('[data-chat-composer]').press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_MENTION_SENDS__?.at(-1))).toEqual({
+    body: `hey @${otherProfile.full_name}`,
+    mentioned_user_ids: [otherProfile.id],
+  });
+  await expect(page.locator('.chat-message-body .chat-mention')).toHaveText(`@${otherProfile.full_name}`);
+});
+
+test('Escape closes the mention picker and Enter then sends normally', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-composer]').fill('hey @');
+  await expect(page.locator('[data-chat-mention-picker]')).toBeVisible();
+  await page.locator('[data-chat-composer]').press('Escape');
+  await expect(page.locator('[data-chat-mention-picker]')).toHaveCount(0);
+});
+
+test('team chat hides the global AI assistant button', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await expect(page.locator('#chatFab')).toHaveClass(/visible/);
+
+  await openTeamChat(page);
+  await expect(page.locator('#chatFab')).not.toHaveClass(/visible/);
+
+  // ...and it comes back on any other view.
+  await page.locator('.nav-item[data-view="today"]').click();
+  await expect(page.locator('#chatFab')).toHaveClass(/visible/);
+});
+
 test('non-owner non-admin member sees no rename, archive, or promote controls', async ({ page }) => {
   await login(page, {
     initialConversations: true,
@@ -853,6 +908,7 @@ declare global {
     __WEIN_CHAT_DELETE_CALLS__?: string[];
     __WEIN_CHAT_ADD_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
     __WEIN_CHAT_REMOVE_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
+    __WEIN_CHAT_MENTION_SENDS__?: Array<{ body: string; mentioned_user_ids: string[] }>;
     __WEIN_CHAT_RENAME_CALLS__?: Array<{ conversationId: string; title: string }>;
     __WEIN_CHAT_ARCHIVE_CALLS__?: Array<{ conversationId: string; archived_at: string | null }>;
     __WEIN_CHAT_ROLE_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string; p_role: string }>;

@@ -43,6 +43,7 @@ export interface ChatMessage {
   created_at: string;
   edited_at?: string | null;
   deleted_at?: string | null;
+  mentioned_user_ids?: string[];
   sender?: ChatProfile;
 }
 
@@ -62,8 +63,9 @@ export interface ChatService {
     body: string;
     clientNonce: string;
     replyToId?: string | null;
+    mentionedUserIds?: string[];
   }): Promise<ChatMessage>;
-  updateMessage(messageId: string, body: string): Promise<ChatMessage>;
+  updateMessage(messageId: string, body: string, mentionedUserIds?: string[]): Promise<ChatMessage>;
   deleteMessage(messageId: string): Promise<ChatMessage>;
   markRead(conversationId: string, lastReadSeq: number): Promise<void>;
   setNotificationLevel(conversationId: string, level: ChatNotificationLevel): Promise<void>;

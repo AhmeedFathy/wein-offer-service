@@ -46,6 +46,7 @@ function messageFromRow(row) {
     created_at: row.created_at,
     edited_at: row.edited_at,
     deleted_at: row.deleted_at,
+    mentioned_user_ids: row.mentioned_user_ids || [],
     sender: profileFromRow(row.sender || row.profiles),
   };
 }
@@ -85,7 +86,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
           profile:profiles(id, full_name, role, email)
         ),
         last_message:wein_chat_messages(
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
           sender:profiles(id, full_name, role, email)
         )
       `)
@@ -116,7 +117,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
             profile:profiles(id, full_name, role, email)
           ),
           last_message:wein_chat_messages(
-            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
             sender:profiles(id, full_name, role, email)
           )
         `)
@@ -131,7 +132,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       const result = await supabase
         .from("wein_chat_messages")
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
           sender:profiles(id, full_name, role, email)
         `)
         .eq("conversation_id", conversationId)
@@ -205,7 +206,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       );
     },
 
-    async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
+    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [] }) {
       const result = await supabase
         .from("wein_chat_messages")
         .insert({
@@ -214,9 +215,12 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
           body,
           client_nonce: clientNonce,
           reply_to_id: replyToId,
+          // Set in the same INSERT so the AFTER INSERT notify trigger can see
+          // it -- a second round trip would fire the trigger with no mentions.
+          mentioned_user_ids: mentionedUserIds.length ? mentionedUserIds : null,
         })
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
           sender:profiles(id, full_name, role, email)
         `)
         .single();
@@ -224,13 +228,17 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       return messageFromRow(result.data);
     },
 
-    async updateMessage(messageId, body) {
+    async updateMessage(messageId, body, mentionedUserIds = []) {
       const result = await supabase
         .from("wein_chat_messages")
-        .update({ body, edited_at: new Date().toISOString() })
+        .update({
+          body,
+          edited_at: new Date().toISOString(),
+          mentioned_user_ids: mentionedUserIds.length ? mentionedUserIds : null,
+        })
         .eq("id", messageId)
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
           sender:profiles(id, full_name, role, email)
         `)
         .single();
@@ -244,7 +252,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", messageId)
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
           sender:profiles(id, full_name, role, email)
         `)
         .single();

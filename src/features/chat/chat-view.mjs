@@ -4,6 +4,7 @@ import {
   messagePreview,
   sortConversations,
 } from "./chat-domain.mjs";
+import { activeMentionToken, mentionedNames, parseMentions } from "../mentions.mjs";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -72,6 +73,12 @@ export function createChatViewModule() {
         renameOpen: false,
         renameDraft: "",
         archiveConfirmOpen: false,
+        // Mention typeahead. Lives on state (not the DOM) because render()
+        // rewrites root.innerHTML wholesale on every poll.
+        mentionQuery: null,
+        mentionIndex: 0,
+        mentionStart: 0,
+        mentionDraft: "",
         openMessageMenuId: null,
         confirmingDeleteMessageId: null,
         loading: true,
@@ -97,6 +104,81 @@ export function createChatViewModule() {
       function autoGrowComposer(textarea) {
         textarea.style.height = "auto";
         textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+      }
+
+      // Only people actually in this conversation are mentionable -- state.profiles
+      // is the whole org, and @-ing someone who can't read the thread is noise.
+      function mentionCandidates(conversation) {
+        if (!conversation) return [];
+        return conversation.members
+          .filter((member) => !member.left_at && member.profile)
+          .map((member) => member.profile);
+      }
+
+      function matchingMentionCandidates(conversation) {
+        const query = String(state.mentionQuery || "").trim().toLowerCase();
+        const candidates = mentionCandidates(conversation)
+          .filter((profile) => profile.id !== context.currentUser.id);
+        if (!query) return candidates;
+        return candidates.filter((profile) => (profile.full_name || "").toLowerCase().includes(query));
+      }
+
+      function closeMentionPicker({ rerender = true } = {}) {
+        if (state.mentionQuery === null) return;
+        state.mentionQuery = null;
+        state.mentionIndex = 0;
+        if (rerender) render();
+      }
+
+      function syncMentionPicker(textarea) {
+        state.mentionDraft = textarea.value;
+        const token = activeMentionToken(textarea.value, textarea.selectionStart ?? textarea.value.length);
+        const nextQuery = token ? token.query : null;
+        if (nextQuery === state.mentionQuery) return false;
+        state.mentionQuery = nextQuery;
+        state.mentionStart = token ? token.start : 0;
+        state.mentionIndex = 0;
+        return true;
+      }
+
+      function applyMention(conversation, profile) {
+        const textarea = root.querySelector("[data-chat-composer]");
+        if (!textarea || !profile) return;
+        const caret = textarea.selectionStart ?? textarea.value.length;
+        const before = textarea.value.slice(0, state.mentionStart);
+        const after = textarea.value.slice(caret);
+        const inserted = `@${profile.full_name} `;
+        const nextValue = `${before}${inserted}${after}`;
+        const nextCaret = before.length + inserted.length;
+        state.mentionQuery = null;
+        state.mentionIndex = 0;
+        state.mentionDraft = nextValue;
+        render();
+        // render() replaces the textarea, so value and caret are restored after
+        // the fact -- the same pattern the compose/member search inputs use.
+        const restored = root.querySelector("[data-chat-composer]");
+        if (!restored) return;
+        restored.value = nextValue;
+        autoGrowComposer(restored);
+        restored.focus();
+        restored.setSelectionRange?.(nextCaret, nextCaret);
+      }
+
+      function moveMentionSelection(conversation, delta) {
+        const matches = matchingMentionCandidates(conversation);
+        if (!matches.length) return;
+        const next = (state.mentionIndex + delta + matches.length) % matches.length;
+        state.mentionIndex = next;
+        const value = root.querySelector("[data-chat-composer]")?.value ?? state.mentionDraft;
+        const caret = root.querySelector("[data-chat-composer]")?.selectionStart ?? value.length;
+        state.mentionDraft = value;
+        render();
+        const restored = root.querySelector("[data-chat-composer]");
+        if (!restored) return;
+        restored.value = value;
+        autoGrowComposer(restored);
+        restored.focus();
+        restored.setSelectionRange?.(caret, caret);
       }
 
       root.classList.add("wein-chat-root");
@@ -224,13 +306,19 @@ export function createChatViewModule() {
         const body = input.value.trim();
         if (!body || !state.selectedConversationId) return;
         const replyToId = state.replyToMessageId;
+        const conversation = state.conversations.find((row) => row.id === state.selectedConversationId) || null;
+        // Parse before the input is cleared below.
+        const mentionedUserIds = parseMentions(body, mentionCandidates(conversation));
         input.value = "";
         state.replyToMessageId = null;
+        state.mentionQuery = null;
+        state.mentionDraft = "";
         const message = await context.service.sendMessage({
           conversationId: state.selectedConversationId,
           body,
           clientNonce: makeClientNonce("portal-chat"),
           replyToId,
+          mentionedUserIds,
         });
         // Render the sent message immediately -- it already exists in the database at
         // this point, so a subsequent failure (e.g. markRead) must not hide it from
@@ -374,7 +462,9 @@ export function createChatViewModule() {
         const input = form.querySelector("[data-chat-edit-input]");
         const body = input.value.trim();
         if (!messageId || !body) return;
-        const updated = await context.service.updateMessage(messageId, body);
+        const conversation = state.conversations.find((row) => row.id === state.selectedConversationId) || null;
+        // Re-parse on edit so adding or removing an @name takes effect.
+        const updated = await context.service.updateMessage(messageId, body, parseMentions(body, mentionCandidates(conversation)));
         state.messages = state.messages.map((message) => (message.id === updated.id ? updated : message));
         state.editingMessageId = null;
         state.editDraft = "";
@@ -575,6 +665,32 @@ export function createChatViewModule() {
         `;
       }
 
+      function mentionPicker(conversation) {
+        if (state.mentionQuery === null || !conversation) return "";
+        const matches = matchingMentionCandidates(conversation);
+        if (!matches.length) return "";
+        const activeIndex = Math.min(state.mentionIndex, matches.length - 1);
+        return `
+          <div class="chat-compose-popover chat-mention-picker" data-chat-mention-picker role="listbox" aria-label="Mention someone">
+            ${matches.map((profile, index) => `
+              <button
+                type="button"
+                class="chat-compose-person chat-mention-option${index === activeIndex ? " active" : ""}"
+                data-chat-mention-pick="${escapeHtml(profile.id)}"
+                role="option"
+                aria-selected="${index === activeIndex}"
+              >
+                <span class="chat-compose-avatar">${escapeHtml((profile.full_name || "?").slice(0, 1))}</span>
+                <span class="chat-compose-person-copy">
+                  <strong>${escapeHtml(profile.full_name || "Unknown")}</strong>
+                  <span>${escapeHtml(roleLabel(profile.role))}</span>
+                </span>
+              </button>
+            `).join("")}
+          </div>
+        `;
+      }
+
       function membersPanel(conversation) {
         if (!state.membersOpen || !conversation || conversation.kind !== "group") return "";
         const activeMembers = conversation.members.filter((member) => !member.left_at);
@@ -697,6 +813,31 @@ export function createChatViewModule() {
         `;
       }
 
+      // Highlights @names in a message body. Escapes FIRST and then matches
+      // against escaped names, so no unescaped input can ever reach the DOM.
+      function messageBodyHtml(message) {
+        const escaped = escapeHtml(message.body);
+        const conversation = state.conversations.find((row) => row.id === message.conversation_id)
+          || state.conversations.find((row) => row.id === state.selectedConversationId)
+          || null;
+        const people = mentionCandidates(conversation);
+        const names = mentionedNames(message.body, people);
+        if (!names.length) return escaped;
+
+        const selfNames = new Set(
+          people
+            .filter((profile) => profile.id === context.currentUser.id)
+            .map((profile) => String(profile.full_name)),
+        );
+        let html = escaped;
+        for (const name of names) {
+          const needle = `@${escapeHtml(name)}`;
+          const className = selfNames.has(name) ? "chat-mention chat-mention-self" : "chat-mention";
+          html = html.split(needle).join(`<span class="${className}">${needle}</span>`);
+        }
+        return html;
+      }
+
       function messageRow(message, showHeader = true) {
         const mine = message.sender_id === context.currentUser.id ? " mine" : "";
         const isDeleted = Boolean(message.deleted_at);
@@ -735,7 +876,7 @@ export function createChatViewModule() {
               </div>
             ` : ""}
             ${quotedReference(message)}
-            ${state.editingMessageId === message.id ? editForm(message) : `<div class="chat-message-body">${escapeHtml(isDeleted ? "Message deleted" : message.body)}</div>`}
+            ${state.editingMessageId === message.id ? editForm(message) : `<div class="chat-message-body">${isDeleted ? escapeHtml("Message deleted") : messageBodyHtml(message)}</div>`}
             ${actions}
           </div>
         `;
@@ -821,6 +962,7 @@ export function createChatViewModule() {
                 </div>
                 <form class="chat-composer" data-chat-send-form>
                   ${replyStrip()}
+                  ${mentionPicker(selected)}
                   <textarea data-chat-composer rows="1" placeholder="Write a message..."></textarea>
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
@@ -921,12 +1063,46 @@ export function createChatViewModule() {
           sendMessage(event.currentTarget);
         });
         const composerTextarea = root.querySelector("[data-chat-composer]");
-        composerTextarea?.addEventListener("input", () => autoGrowComposer(composerTextarea));
+        composerTextarea?.addEventListener("input", () => {
+          autoGrowComposer(composerTextarea);
+          if (!syncMentionPicker(composerTextarea)) return;
+          const { value, selectionStart } = composerTextarea;
+          render();
+          const restored = root.querySelector("[data-chat-composer]");
+          if (!restored) return;
+          restored.value = value;
+          autoGrowComposer(restored);
+          restored.focus();
+          restored.setSelectionRange?.(selectionStart, selectionStart);
+        });
         composerTextarea?.addEventListener("keydown", (event) => {
+          // The picker owns these keys while it is open, so Enter must select a
+          // person rather than fall through to the send branch below.
+          if (state.mentionQuery !== null && selected) {
+            const matches = matchingMentionCandidates(selected);
+            if (matches.length) {
+              if (event.key === "ArrowDown") { event.preventDefault(); moveMentionSelection(selected, 1); return; }
+              if (event.key === "ArrowUp") { event.preventDefault(); moveMentionSelection(selected, -1); return; }
+              if (event.key === "Enter" || event.key === "Tab") {
+                event.preventDefault();
+                applyMention(selected, matches[Math.min(state.mentionIndex, matches.length - 1)]);
+                return;
+              }
+            }
+            if (event.key === "Escape") { event.preventDefault(); closeMentionPicker(); return; }
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             sendForm?.requestSubmit();
           }
+        });
+        root.querySelectorAll("[data-chat-mention-pick]").forEach((button) => {
+          button.addEventListener("mousedown", (event) => {
+            // mousedown, not click: the textarea must not lose focus first.
+            event.preventDefault();
+            const profile = mentionCandidates(selected).find((row) => row.id === button.dataset.chatMentionPick);
+            if (profile) applyMention(selected, profile);
+          });
         });
         root.querySelector("[data-chat-clear-reply]")?.addEventListener("click", () => clearReply());
         root.querySelectorAll("[data-chat-reply]").forEach((button) => {

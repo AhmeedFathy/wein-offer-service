@@ -683,6 +683,46 @@
   color: var(--red);
 }
 
+.chat-mention {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.chat-mention-self {
+  background: var(--border-blue-strong);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+/* Anchored to the composer (position:relative) and opening upward, so the
+   list never covers the message the author is replying to. */
+.chat-mention-picker {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: auto;
+  width: min(320px, calc(100% - 16px));
+  max-width: none;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  gap: 2px;
+}
+
+.chat-mention-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-mention-option.active,
+.chat-mention-option:hover {
+  background: var(--bg-elevated);
+}
+
 .chat-rename-form {
   display: flex;
   align-items: center;
@@ -745,12 +785,11 @@
   border-top: .5px solid var(--border);
   background: var(--bg-surface);
   padding-top: 12px;
-  /* The portal's global AI-assistant button (.chat-fab in portal_new.html) is
-     position:fixed at right:20px/bottom:20px, 50px square, on every view. Team
-     chat is the only view whose content reaches all the way to that literal
-     viewport corner (it's the one full-bleed layout), so without this the
-     Send button renders underneath the assistant button and can't be clicked. */
-  padding-right: 92px;
+  position: relative;
+  /* This used to reserve 92px on the right to clear the global AI-assistant
+     button (.chat-fab), which is position:fixed in that exact corner. That
+     button is now hidden on the team-chat view (showView in portal.js), so the
+     reserved gutter is gone too -- it was pure dead whitespace beside Send. */
 }
 
 .chat-reply-strip {
@@ -932,9 +971,8 @@
   .chat-composer {
     bottom: 0;
     margin: 0 -14px -14px;
-    /* Same .chat-fab clearance as the desktop rule above -- its fixed
-       right:20px/50px footprint doesn't move at narrow widths either. */
-    padding: 10px 86px calc(10px + env(safe-area-inset-bottom)) 14px;
+    /* No .chat-fab clearance needed here either -- it's hidden on this view. */
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) 14px;
     position: sticky;
   }
 

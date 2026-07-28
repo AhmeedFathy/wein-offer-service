@@ -226,6 +226,29 @@ async function testSupabaseAdapterContract() {
   const roleCall = fake.calls.find((call) => call.name === "wein_chat_set_membership_role");
   assert.deepEqual(roleCall.args, { p_conversation_id: "group-1", p_user_id: "u-2", p_role: "owner" });
 
+  // Mentions must ride along on the message INSERT itself -- the AFTER INSERT
+  // notify trigger cannot see rows written in a later round trip.
+  await service.sendMessage({
+    conversationId: "group-1",
+    body: "ping @Ahmed",
+    clientNonce: "nonce-mention",
+    mentionedUserIds: ["u-2", "u-3"],
+  });
+  const mentionSend = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.client_nonce === "nonce-mention");
+  assert.deepEqual(mentionSend.payload.mentioned_user_ids, ["u-2", "u-3"]);
+
+  await service.sendMessage({
+    conversationId: "group-1",
+    body: "no mentions",
+    clientNonce: "nonce-plain",
+  });
+  const plainSend = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.client_nonce === "nonce-plain");
+  assert.equal(plainSend.payload.mentioned_user_ids, null);
+
+  await service.updateMessage("m-1", "edited @Ahmed", ["u-2"]);
+  const mentionEdit = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.body === "edited @Ahmed");
+  assert.deepEqual(mentionEdit.payload.mentioned_user_ids, ["u-2"]);
+
   assert.equal(await service.getOrCreateDm("u-2"), "dm-1");
   assert.deepEqual(fake.calls.find((call) => call.name === "wein_chat_get_or_create_dm").args, {
     p_other_user_id: "u-2",
