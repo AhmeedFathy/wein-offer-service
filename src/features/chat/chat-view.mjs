@@ -24,6 +24,28 @@ function roleLabel(role) {
   }[role] || role;
 }
 
+function localId(prefix) {
+  return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now().toString(36)}`;
+}
+
+function isImageMime(mime) {
+  return typeof mime === "string" && mime.startsWith("image/");
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes) || 0;
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileIconClass(mime) {
+  if (mime === "application/pdf") return "ti-file-type-pdf";
+  if (mime?.includes("word")) return "ti-file-type-doc";
+  if (mime?.includes("sheet") || mime?.includes("excel")) return "ti-file-type-xls";
+  return "ti-file";
+}
+
 function shortChatTime(timestamp, now = new Date()) {
   if (!timestamp) return "";
   const then = new Date(timestamp);
@@ -79,11 +101,19 @@ export function createChatViewModule() {
         mentionIndex: 0,
         mentionStart: 0,
         mentionDraft: "",
+        // Attachments picked but not yet sent, keyed by a local id. Each is
+        // { id, name, mime, size, status: "uploading"|"done"|"error", error, uploaded }.
+        pendingAttachments: [],
         openMessageMenuId: null,
         confirmingDeleteMessageId: null,
         loading: true,
         error: null,
       };
+      // Signed URLs for attachments already sent, keyed by storage path.
+      // Lives outside state (not serializable, and losing it on render is fine
+      // -- it just gets re-fetched) but persists across renders within a mount.
+      const signedUrlCache = new Map(); // path -> { url, expiresAt }
+      const signedUrlFetching = new Set();
       let disposed = false;
       let initialConversationPending = context.initialConversationId || null;
       let refreshTimer = null;
@@ -282,6 +312,7 @@ export function createChatViewModule() {
         state.renameOpen = false;
         state.renameDraft = "";
         state.archiveConfirmOpen = false;
+        state.pendingAttachments = [];
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
         forceScrollBottom = true;
@@ -301,10 +332,39 @@ export function createChatViewModule() {
         root.classList.remove("chat-has-selection");
       }
 
+      function addPendingFiles(fileList) {
+        const conversationId = state.selectedConversationId;
+        if (!conversationId) return;
+        const files = [...(fileList || [])];
+        for (const file of files) {
+          const entry = { id: localId("pending"), name: file.name, mime: file.type || "application/octet-stream", size: file.size, status: "uploading", error: null, uploaded: null };
+          state.pendingAttachments = [...state.pendingAttachments, entry];
+          context.service.uploadAttachment(conversationId, file).then((uploaded) => {
+            entry.status = "done";
+            entry.uploaded = uploaded;
+            if (!disposed) render();
+          }).catch((error) => {
+            entry.status = "error";
+            entry.error = error?.message || "Upload failed";
+            if (!disposed) render();
+          });
+        }
+        render();
+      }
+
+      function removePendingAttachment(pendingId) {
+        state.pendingAttachments = state.pendingAttachments.filter((entry) => entry.id !== pendingId);
+        render();
+      }
+
       async function sendMessage(form) {
         const input = form.querySelector("[data-chat-composer]");
         const body = input.value.trim();
-        if (!body || !state.selectedConversationId) return;
+        const uploading = state.pendingAttachments.some((entry) => entry.status === "uploading");
+        const attachments = state.pendingAttachments
+          .filter((entry) => entry.status === "done")
+          .map((entry) => entry.uploaded);
+        if (uploading || (!body && !attachments.length) || !state.selectedConversationId) return;
         const replyToId = state.replyToMessageId;
         const conversation = state.conversations.find((row) => row.id === state.selectedConversationId) || null;
         // Parse before the input is cleared below.
@@ -313,12 +373,14 @@ export function createChatViewModule() {
         state.replyToMessageId = null;
         state.mentionQuery = null;
         state.mentionDraft = "";
+        state.pendingAttachments = [];
         const message = await context.service.sendMessage({
           conversationId: state.selectedConversationId,
           body,
           clientNonce: makeClientNonce("portal-chat"),
           replyToId,
           mentionedUserIds,
+          attachments,
         });
         // Render the sent message immediately -- it already exists in the database at
         // this point, so a subsequent failure (e.g. markRead) must not hide it from
@@ -803,6 +865,76 @@ export function createChatViewModule() {
         `;
       }
 
+      function pendingAttachmentsStrip() {
+        if (!state.pendingAttachments.length) return "";
+        return `
+          <div class="chat-pending-attachments">
+            ${state.pendingAttachments.map((entry) => `
+              <div class="chat-pending-attachment${entry.status === "error" ? " error" : ""}" data-chat-pending-attachment="${escapeHtml(entry.id)}">
+                <i class="ti ${entry.status === "error" ? "ti-alert-triangle" : isImageMime(entry.mime) ? "ti-photo" : fileIconClass(entry.mime)}"></i>
+                <span class="chat-pending-attachment-name">${escapeHtml(entry.name)}</span>
+                ${entry.status === "uploading" ? `<span class="chat-pending-attachment-status">Uploading…</span>` : ""}
+                ${entry.status === "error" ? `<span class="chat-pending-attachment-status">${escapeHtml(entry.error || "Failed")}</span>` : ""}
+                <button type="button" data-chat-remove-pending="${escapeHtml(entry.id)}" aria-label="Remove attachment"><i class="ti ti-x"></i></button>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      function attachmentHtml(attachment) {
+        const cached = signedUrlCache.get(attachment.path);
+        const url = cached && cached.expiresAt > Date.now() ? cached.url : null;
+        if (isImageMime(attachment.mime)) {
+          return url
+            ? `<a class="chat-attachment-image-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">
+                 <img class="chat-attachment-image" src="${escapeHtml(url)}" alt="${escapeHtml(attachment.name)}">
+               </a>`
+            : `<div class="chat-attachment-image chat-attachment-image-loading"><i class="ti ti-photo"></i></div>`;
+        }
+        return `
+          <a class="chat-attachment-file" href="${url ? escapeHtml(url) : "#"}" target="_blank" rel="noopener" data-chat-attachment-path="${escapeHtml(attachment.path)}">
+            <i class="ti ${fileIconClass(attachment.mime)}"></i>
+            <span class="chat-attachment-file-copy">
+              <strong>${escapeHtml(attachment.name)}</strong>
+              <span>${escapeHtml(formatFileSize(attachment.size))}</span>
+            </span>
+            <i class="ti ti-download"></i>
+          </a>
+        `;
+      }
+
+      function attachmentsHtml(message) {
+        if (!message.attachments?.length) return "";
+        return `<div class="chat-message-attachments">${message.attachments.map(attachmentHtml).join("")}</div>`;
+      }
+
+      // Signed URLs expire server-side after an hour; refresh a little early
+      // and cache so render()'s wholesale innerHTML rewrite (every poll)
+      // doesn't re-sign every attachment on every tick.
+      async function ensureAttachmentUrls() {
+        const paths = new Set();
+        for (const message of state.messages) {
+          for (const attachment of message.attachments || []) paths.add(attachment.path);
+        }
+        let fetchedAny = false;
+        for (const path of paths) {
+          const cached = signedUrlCache.get(path);
+          if ((cached && cached.expiresAt > Date.now()) || signedUrlFetching.has(path)) continue;
+          signedUrlFetching.add(path);
+          try {
+            const url = await context.service.getSignedAttachmentUrl(path);
+            signedUrlCache.set(path, { url, expiresAt: Date.now() + 55 * 60 * 1000 });
+            fetchedAny = true;
+          } catch (error) {
+            console.error("Failed to sign chat attachment URL", error);
+          } finally {
+            signedUrlFetching.delete(path);
+          }
+        }
+        if (fetchedAny && !disposed) render();
+      }
+
       function editForm(message) {
         return `
           <form class="chat-edit-form" data-chat-edit-form="${escapeHtml(message.id)}">
@@ -876,7 +1008,10 @@ export function createChatViewModule() {
               </div>
             ` : ""}
             ${quotedReference(message)}
-            ${state.editingMessageId === message.id ? editForm(message) : `<div class="chat-message-body">${isDeleted ? escapeHtml("Message deleted") : messageBodyHtml(message)}</div>`}
+            ${state.editingMessageId === message.id ? editForm(message) : `
+              ${message.body.trim() ? `<div class="chat-message-body">${isDeleted ? escapeHtml("Message deleted") : messageBodyHtml(message)}</div>` : ""}
+              ${!isDeleted ? attachmentsHtml(message) : ""}
+            `}
             ${actions}
           </div>
         `;
@@ -962,7 +1097,12 @@ export function createChatViewModule() {
                 </div>
                 <form class="chat-composer" data-chat-send-form>
                   ${replyStrip()}
+                  ${pendingAttachmentsStrip()}
                   ${mentionPicker(selected)}
+                  <input type="file" data-chat-file-input multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" hidden>
+                  <button type="button" class="chat-attach-btn" data-chat-attach-toggle aria-label="Attach a file" title="Attach a file">
+                    <i class="ti ti-paperclip"></i>
+                  </button>
                   <textarea data-chat-composer rows="1" placeholder="Write a message..."></textarea>
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
@@ -1143,7 +1283,27 @@ export function createChatViewModule() {
         root.querySelectorAll("[data-chat-cancel-edit]").forEach((button) => {
           button.addEventListener("click", () => cancelEdit());
         });
+        const fileInput = root.querySelector("[data-chat-file-input]");
+        root.querySelector("[data-chat-attach-toggle]")?.addEventListener("click", () => fileInput?.click());
+        fileInput?.addEventListener("change", (event) => {
+          addPendingFiles(event.currentTarget.files);
+          event.currentTarget.value = "";
+        });
+        root.querySelectorAll("[data-chat-remove-pending]").forEach((button) => {
+          button.addEventListener("click", () => removePendingAttachment(button.dataset.chatRemovePending));
+        });
+        const dropTarget = root.querySelector("[data-chat-send-form]");
+        dropTarget?.addEventListener("dragover", (event) => event.preventDefault());
+        dropTarget?.addEventListener("drop", (event) => {
+          event.preventDefault();
+          if (event.dataTransfer?.files?.length) addPendingFiles(event.dataTransfer.files);
+        });
+        composerTextarea?.addEventListener("paste", (event) => {
+          const files = [...(event.clipboardData?.files || [])];
+          if (files.length) addPendingFiles(files);
+        });
         if (shouldScrollAfterRender) scrollMessageListToBottom();
+        ensureAttachmentUrls();
       }
 
       refresh();

@@ -104,6 +104,36 @@ async function testGroupOwnerManagementContract() {
   assert.equal(conversation.archived_at, null);
 }
 
+async function testAttachmentContract() {
+  const service = createMockChatService("u-ahmed");
+  const groupId = await service.createGroup("Files room", ["u-fady"]);
+
+  const uploaded = await service.uploadAttachment(groupId, { name: "menu.pdf", type: "application/pdf", size: 4096 });
+  assert.equal(uploaded.name, "menu.pdf");
+  assert.equal(uploaded.mime, "application/pdf");
+  assert.match(uploaded.path, new RegExp(`^${groupId}/`));
+
+  const signedUrl = await service.getSignedAttachmentUrl(uploaded.path);
+  assert.match(signedUrl, /^mock:\/\/chat-attachments\//);
+  await assert.rejects(() => service.getSignedAttachmentUrl("not-a-real-path"), /not found/);
+
+  // Attachment-only messages (empty body) must be allowed.
+  const message = await service.sendMessage({
+    conversationId: groupId,
+    body: "",
+    clientNonce: "n-attach",
+    attachments: [uploaded],
+  });
+  assert.deepEqual(message.attachments, [uploaded]);
+  assert.equal(message.body, "");
+
+  // But a message with neither body nor attachments is still rejected.
+  await assert.rejects(
+    () => service.sendMessage({ conversationId: groupId, body: "  ", clientNonce: "n-empty" }),
+    /Message body is required/,
+  );
+}
+
 function testDomainFormatting() {
   const conversations = [
     { id: "older", created_at: "2026-01-01T00:00:00Z", members: [], last_message: null },
@@ -119,6 +149,7 @@ await testMessageSeqAndNonceIdempotency();
 await testDmIdempotencyAndTitles();
 await testUnreadAndReadState();
 await testGroupOwnerManagementContract();
+await testAttachmentContract();
 testDomainFormatting();
 
 console.log("chat feature tests passed");

@@ -192,6 +192,8 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
             window.__WEIN_CHAT_ADD_MEMBER_CALLS__ = [];
             window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__ = [];
             window.__WEIN_CHAT_MENTION_SENDS__ = [];
+            window.__WEIN_CHAT_UPLOADS__ = [];
+            window.__WEIN_CHAT_SIGN_CALLS__ = [];
             window.__WEIN_CHAT_RENAME_CALLS__ = [];
             window.__WEIN_CHAT_ARCHIVE_CALLS__ = [];
             window.__WEIN_CHAT_ROLE_CALLS__ = [];
@@ -257,6 +259,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                       edited_at: null,
                       deleted_at: null,
                       mentioned_user_ids: this._insertPayload.mentioned_user_ids || null,
+                      attachments: this._insertPayload.attachments || [],
                       sender: ${JSON.stringify(profile)}
                     };
                     if (row.mentioned_user_ids) window.__WEIN_CHAT_MENTION_SENDS__.push({ body: row.body, mentioned_user_ids: row.mentioned_user_ids });
@@ -375,7 +378,21 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                   unsubscribe() { window.__WEIN_REMOVED_CHAT_CHANNELS__ += 1; }
                 };
               },
-              removeChannel() { window.__WEIN_REMOVED_CHAT_CHANNELS__ += 1; }
+              removeChannel() { window.__WEIN_REMOVED_CHAT_CHANNELS__ += 1; },
+              storage: {
+                from(bucket) {
+                  return {
+                    async upload(path, file) {
+                      window.__WEIN_CHAT_UPLOADS__.push({ bucket, path, name: file.name, type: file.type, size: file.size });
+                      return { data: { path }, error: null };
+                    },
+                    async createSignedUrl(path) {
+                      window.__WEIN_CHAT_SIGN_CALLS__.push({ bucket, path });
+                      return { data: { signedUrl: 'https://signed.example/' + bucket + '/' + path }, error: null };
+                    }
+                  };
+                }
+              }
             };
           }
         };
@@ -747,6 +764,61 @@ test('team chat hides the global AI assistant button', async ({ page }) => {
   await expect(page.locator('#chatFab')).toHaveClass(/visible/);
 });
 
+test('attaching an image uploads it and sends as an inline attachment', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-file-input]').setInputFiles({
+    name: 'photo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('fake-image-bytes'),
+  });
+
+  await expect(page.locator('[data-chat-pending-attachment]')).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_UPLOADS__?.length ?? 0)).toBe(1);
+  await expect(page.locator('.chat-pending-attachment-status')).toHaveCount(0);
+
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('[data-chat-pending-attachment]')).toHaveCount(0);
+
+  const lastMessage = page.locator('.chat-message').last();
+  await expect(lastMessage.locator('.chat-attachment-image')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_SIGN_CALLS__?.length ?? 0)).toBeGreaterThan(0);
+});
+
+test('attaching a PDF sends as a downloadable file chip, not an inline image', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-file-input]').setInputFiles({
+    name: 'menu.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 fake'),
+  });
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_UPLOADS__?.length ?? 0)).toBe(1);
+
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+
+  const lastMessage = page.locator('.chat-message').last();
+  await expect(lastMessage.locator('.chat-attachment-file')).toContainText('menu.pdf');
+  await expect(lastMessage.locator('.chat-attachment-image')).toHaveCount(0);
+});
+
+test('removing a pending attachment before sending drops it', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.locator('[data-chat-file-input]').setInputFiles({
+    name: 'photo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('fake-image-bytes'),
+  });
+  await expect(page.locator('[data-chat-pending-attachment]')).toHaveCount(1);
+
+  await page.locator('[data-chat-remove-pending]').click();
+  await expect(page.locator('[data-chat-pending-attachment]')).toHaveCount(0);
+});
+
 test('non-owner non-admin member sees no rename, archive, or promote controls', async ({ page }) => {
   await login(page, {
     initialConversations: true,
@@ -909,6 +981,8 @@ declare global {
     __WEIN_CHAT_ADD_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
     __WEIN_CHAT_REMOVE_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
     __WEIN_CHAT_MENTION_SENDS__?: Array<{ body: string; mentioned_user_ids: string[] }>;
+    __WEIN_CHAT_UPLOADS__?: Array<{ bucket: string; path: string; name: string; type: string; size: number }>;
+    __WEIN_CHAT_SIGN_CALLS__?: Array<{ bucket: string; path: string }>;
     __WEIN_CHAT_RENAME_CALLS__?: Array<{ conversationId: string; title: string }>;
     __WEIN_CHAT_ARCHIVE_CALLS__?: Array<{ conversationId: string; archived_at: string | null }>;
     __WEIN_CHAT_ROLE_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string; p_role: string }>;

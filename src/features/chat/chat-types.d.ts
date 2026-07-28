@@ -44,7 +44,15 @@ export interface ChatMessage {
   edited_at?: string | null;
   deleted_at?: string | null;
   mentioned_user_ids?: string[];
+  attachments?: ChatAttachment[];
   sender?: ChatProfile;
+}
+
+export interface ChatAttachment {
+  path: string;
+  name: string;
+  mime: string;
+  size: number;
 }
 
 export interface ChatService {
@@ -58,12 +66,15 @@ export interface ChatService {
   renameConversation(conversationId: string, title: string): Promise<void>;
   setConversationArchived(conversationId: string, archived: boolean): Promise<void>;
   setMembershipRole(conversationId: string, userId: string, role: ChatMembershipRole): Promise<void>;
+  uploadAttachment(conversationId: string, file: File): Promise<ChatAttachment>;
+  getSignedAttachmentUrl(path: string, expiresInSeconds?: number): Promise<string>;
   sendMessage(input: {
     conversationId: string;
     body: string;
     clientNonce: string;
     replyToId?: string | null;
     mentionedUserIds?: string[];
+    attachments?: ChatAttachment[];
   }): Promise<ChatMessage>;
   updateMessage(messageId: string, body: string, mentionedUserIds?: string[]): Promise<ChatMessage>;
   deleteMessage(messageId: string): Promise<ChatMessage>;

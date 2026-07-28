@@ -24,6 +24,7 @@ export function createMockChatService(currentUserId) {
   const conversations = new Map();
   const messages = new Map();
   const dmPairs = new Map();
+  const storedFiles = new Map(); // path -> { name, mime, size }
 
   function decorateConversation(conversation) {
     const conversationMessages = messages.get(conversation.id) || [];
@@ -176,11 +177,25 @@ export function createMockChatService(currentUserId) {
       member.membership_role = role;
     },
 
-    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [] }) {
+    async uploadAttachment(conversationId, file) {
+      requireActiveMember(requireConversation(conversationId));
+      const safeName = String(file.name || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
+      const path = `${conversationId}/${id("att")}-${safeName}`;
+      const meta = { name: file.name || safeName, mime: file.type || "application/octet-stream", size: file.size || 0 };
+      storedFiles.set(path, meta);
+      return { path, ...meta };
+    },
+
+    async getSignedAttachmentUrl(path) {
+      if (!storedFiles.has(path)) throw new Error(`Attachment not found: ${path}`);
+      return `mock://chat-attachments/${path}`;
+    },
+
+    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [], attachments = [] }) {
       const conversation = requireConversation(conversationId);
       requireActiveMember(conversation);
       const trimmed = (body || "").trim();
-      if (!trimmed) throw new Error("Message body is required");
+      if (!trimmed && !attachments.length) throw new Error("Message body is required");
       const list = messages.get(conversationId) || [];
       const duplicate = list.find((message) => message.sender_id === actorId && message.client_nonce === clientNonce);
       if (duplicate) return clone(duplicate);
@@ -196,6 +211,7 @@ export function createMockChatService(currentUserId) {
         edited_at: null,
         deleted_at: null,
         mentioned_user_ids: [...mentionedUserIds],
+        attachments: [...attachments],
       };
       list.push(message);
       messages.set(conversationId, list);

@@ -1,5 +1,18 @@
 import { unreadCount } from "./chat-domain.mjs";
 
+// Private bucket; object access is enforced by storage.objects RLS keyed off
+// the object path's first folder segment (see 059_chat_attachments.sql).
+const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";
+
+function sanitizeFileName(name) {
+  return String(name || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function attachmentUploadPath(conversationId, fileName) {
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+  return `${conversationId}/${nonce}-${sanitizeFileName(fileName)}`;
+}
+
 function requireRows(result, label) {
   if (result.error) throw new Error(`${label}: ${result.error.message || result.error}`);
   return result.data || [];
@@ -47,6 +60,7 @@ function messageFromRow(row) {
     edited_at: row.edited_at,
     deleted_at: row.deleted_at,
     mentioned_user_ids: row.mentioned_user_ids || [],
+    attachments: row.attachments || [],
     sender: profileFromRow(row.sender || row.profiles),
   };
 }
@@ -86,7 +100,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
           profile:profiles(id, full_name, role, email)
         ),
         last_message:wein_chat_messages(
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
         )
       `)
@@ -117,7 +131,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
             profile:profiles(id, full_name, role, email)
           ),
           last_message:wein_chat_messages(
-            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
             sender:profiles(id, full_name, role, email)
           )
         `)
@@ -132,7 +146,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       const result = await supabase
         .from("wein_chat_messages")
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
         `)
         .eq("conversation_id", conversationId)
@@ -206,7 +220,30 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       );
     },
 
-    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [] }) {
+    async uploadAttachment(conversationId, file) {
+      const path = attachmentUploadPath(conversationId, file.name);
+      const result = await supabase.storage.from(CHAT_ATTACHMENTS_BUCKET).upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+      if (result.error) throw new Error(`upload attachment: ${result.error.message || result.error}`);
+      return {
+        path,
+        name: file.name || sanitizeFileName(file.name),
+        mime: file.type || "application/octet-stream",
+        size: file.size || 0,
+      };
+    },
+
+    async getSignedAttachmentUrl(path, expiresInSeconds = 3600) {
+      const result = await supabase.storage.from(CHAT_ATTACHMENTS_BUCKET).createSignedUrl(path, expiresInSeconds);
+      if (result.error) throw new Error(`sign attachment url: ${result.error.message || result.error}`);
+      const url = result.data?.signedUrl;
+      if (!url) throw new Error("sign attachment url: no signed URL returned");
+      return url;
+    },
+
+    async sendMessage({ conversationId, body, clientNonce, replyToId = null, mentionedUserIds = [], attachments = [] }) {
       const result = await supabase
         .from("wein_chat_messages")
         .insert({
@@ -218,9 +255,10 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
           // Set in the same INSERT so the AFTER INSERT notify trigger can see
           // it -- a second round trip would fire the trigger with no mentions.
           mentioned_user_ids: mentionedUserIds.length ? mentionedUserIds : null,
+          attachments,
         })
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
         `)
         .single();
@@ -238,7 +276,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         })
         .eq("id", messageId)
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
         `)
         .single();
@@ -252,7 +290,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", messageId)
         .select(`
-          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids,
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
         `)
         .single();

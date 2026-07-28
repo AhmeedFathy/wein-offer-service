@@ -21,6 +21,8 @@ export const PORTAL_FEATURE_MANIFEST = [
       "renameConversation",
       "setConversationArchived",
       "setMembershipRole",
+      "uploadAttachment",
+      "getSignedAttachmentUrl",
       "sendMessage",
       "updateMessage",
       "deleteMessage",

@@ -107,6 +107,24 @@ class FakeSupabase {
     this.removedChannels.push(channel.name);
   }
 
+  get storage() {
+    const fake = this;
+    return {
+      from(bucket) {
+        return {
+          async upload(path, file, options) {
+            fake.calls.push({ kind: "storage-upload", bucket, path, contentType: options?.contentType });
+            return { data: { path }, error: null };
+          },
+          async createSignedUrl(path, expiresIn) {
+            fake.calls.push({ kind: "storage-sign", bucket, path, expiresIn });
+            return { data: { signedUrl: `https://signed.example/${bucket}/${path}` }, error: null };
+          },
+        };
+      },
+    };
+  }
+
   async rpc(name, args) {
     this.calls.push({ kind: "rpc", name, args });
     if (name === "wein_chat_create_group") return makeResult("group-1");
@@ -244,6 +262,32 @@ async function testSupabaseAdapterContract() {
   });
   const plainSend = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.client_nonce === "nonce-plain");
   assert.equal(plainSend.payload.mentioned_user_ids, null);
+
+  const uploaded = await service.uploadAttachment("group-1", { name: "photo one.png", type: "image/png", size: 2048 });
+  assert.match(uploaded.path, /^group-1\/.+-photo_one\.png$/);
+  assert.equal(uploaded.name, "photo one.png");
+  assert.equal(uploaded.mime, "image/png");
+  assert.equal(uploaded.size, 2048);
+  const uploadCall = fake.calls.find((call) => call.kind === "storage-upload");
+  assert.equal(uploadCall.bucket, "chat-attachments");
+  assert.equal(uploadCall.path, uploaded.path);
+  assert.equal(uploadCall.contentType, "image/png");
+
+  const signedUrl = await service.getSignedAttachmentUrl(uploaded.path);
+  assert.equal(signedUrl, `https://signed.example/chat-attachments/${uploaded.path}`);
+  const signCall = fake.calls.find((call) => call.kind === "storage-sign");
+  assert.equal(signCall.path, uploaded.path);
+  assert.equal(signCall.expiresIn, 3600);
+
+  await service.sendMessage({
+    conversationId: "group-1",
+    body: "",
+    clientNonce: "nonce-attachment",
+    attachments: [uploaded],
+  });
+  const attachmentSend = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.client_nonce === "nonce-attachment");
+  assert.deepEqual(attachmentSend.payload.attachments, [uploaded]);
+  assert.equal(attachmentSend.payload.body, "");
 
   await service.updateMessage("m-1", "edited @Ahmed", ["u-2"]);
   const mentionEdit = fake.calls.find((call) => call.table === "wein_chat_messages" && call.payload?.body === "edited @Ahmed");
