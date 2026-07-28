@@ -69,6 +69,9 @@ export function createChatViewModule() {
         memberAddOpen: false,
         memberSearch: "",
         memberSelectedIds: new Set(),
+        renameOpen: false,
+        renameDraft: "",
+        archiveConfirmOpen: false,
         openMessageMenuId: null,
         confirmingDeleteMessageId: null,
         loading: true,
@@ -194,6 +197,9 @@ export function createChatViewModule() {
         state.memberAddOpen = false;
         state.memberSearch = "";
         state.memberSelectedIds = new Set();
+        state.renameOpen = false;
+        state.renameDraft = "";
+        state.archiveConfirmOpen = false;
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
         forceScrollBottom = true;
@@ -410,6 +416,72 @@ export function createChatViewModule() {
         await refresh();
       }
 
+      function openRename(conversation) {
+        state.renameOpen = true;
+        state.renameDraft = conversation.title || "";
+        render();
+        root.querySelector("[data-chat-rename-input]")?.focus();
+      }
+
+      function closeRename() {
+        state.renameOpen = false;
+        state.renameDraft = "";
+        render();
+      }
+
+      async function renameConversation(conversation, title) {
+        const trimmed = (title || "").trim();
+        if (!trimmed) return;
+        await context.service.renameConversation(conversation.id, trimmed);
+        state.conversations = state.conversations.map((row) => (
+          row.id === conversation.id ? { ...row, title: trimmed } : row
+        ));
+        state.renameOpen = false;
+        state.renameDraft = "";
+        if (!disposed) render();
+        await refresh();
+      }
+
+      function openArchiveConfirm() {
+        state.archiveConfirmOpen = true;
+        render();
+      }
+
+      function closeArchiveConfirm() {
+        state.archiveConfirmOpen = false;
+        render();
+      }
+
+      async function setConversationArchived(conversation, archived) {
+        await context.service.setConversationArchived(conversation.id, archived);
+        state.archiveConfirmOpen = false;
+        if (archived && state.selectedConversationId === conversation.id) {
+          state.selectedConversationId = null;
+          clearMobileSelection();
+        }
+        state.conversations = state.conversations.map((row) => (
+          row.id === conversation.id ? { ...row, archived_at: archived ? new Date().toISOString() : null } : row
+        ));
+        if (!disposed) render();
+        await refresh();
+      }
+
+      async function setMemberRole(conversationId, userId, role) {
+        if (!conversationId || !userId) return;
+        await context.service.setMembershipRole(conversationId, userId, role);
+        state.conversations = state.conversations.map((conversation) => {
+          if (conversation.id !== conversationId) return conversation;
+          return {
+            ...conversation,
+            members: conversation.members.map((member) => (
+              member.user_id === userId ? { ...member, membership_role: role } : member
+            )),
+          };
+        });
+        if (!disposed) render();
+        await refresh();
+      }
+
       async function startDm(otherUserId) {
         if (!otherUserId) return;
         const conversationId = await context.service.getOrCreateDm(otherUserId);
@@ -534,6 +606,11 @@ export function createChatViewModule() {
                       <span>${escapeHtml(profile.role ? roleLabel(profile.role) : "Member")}</span>
                     </span>
                     ${member.membership_role === "owner" ? `<span class="chat-owner-badge">Owner</span>` : ""}
+                    ${manager ? `
+                      <button type="button" class="chat-member-promote" data-chat-promote-member="${escapeHtml(member.user_id)}" data-chat-role="${member.membership_role === "owner" ? "member" : "owner"}">
+                        <i class="ti ${member.membership_role === "owner" ? "ti-user-minus" : "ti-shield-plus"}"></i><span>${member.membership_role === "owner" ? "Remove owner" : "Make owner"}</span>
+                      </button>
+                    ` : ""}
                     ${canRemove ? `
                       <button type="button" class="chat-member-remove" data-chat-remove-member="${escapeHtml(member.user_id)}">
                         <i class="ti ${isSelf ? "ti-logout" : "ti-user-minus"}"></i><span>${isSelf ? "Leave" : "Remove"}</span>
@@ -672,6 +749,7 @@ export function createChatViewModule() {
         const selfMember = selected?.members.find((member) => member.user_id === context.currentUser.id);
         const muted = selfMember?.notification_level === "muted";
         const activeMembers = selected?.members.filter((member) => !member.left_at) || [];
+        const manager = selected ? canManageMembers(selected) : false;
         root.innerHTML = `
           <section class="chat-shell" aria-label="Team chat">
             <aside class="chat-sidebar">
@@ -699,12 +777,26 @@ export function createChatViewModule() {
                   <button type="button" class="chat-back-btn" data-chat-back aria-label="Back to conversations"><i class="ti ti-arrow-left"></i></button>
                   <div>
                     <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : "Group"}</div>
-                    <h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>
+                    ${state.renameOpen ? `
+                      <form class="chat-rename-form" data-chat-rename-form>
+                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="Group name">
+                        <button type="submit" aria-label="Save name"><i class="ti ti-check"></i></button>
+                        <button type="button" data-chat-rename-cancel aria-label="Cancel rename"><i class="ti ti-x"></i></button>
+                      </form>
+                    ` : `<h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>`}
                   </div>
                   <div class="chat-thread-tools">
                     ${selected.kind === "group" ? `
                       <button type="button" class="chat-icon-btn${state.membersOpen ? " active" : ""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
                         <i class="ti ti-users"></i>
+                      </button>
+                    ` : ""}
+                    ${selected.kind === "group" && manager ? `
+                      <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename group" title="Rename group">
+                        <i class="ti ti-edit"></i>
+                      </button>
+                      <button type="button" class="chat-icon-btn" data-chat-archive-toggle aria-label="Archive conversation" title="Archive conversation">
+                        <i class="ti ti-archive"></i>
                       </button>
                     ` : ""}
                     <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
@@ -715,6 +807,13 @@ export function createChatViewModule() {
                     </div>
                   </div>
                   ${membersPanel(selected)}
+                  ${state.archiveConfirmOpen ? `
+                    <div class="chat-delete-confirm chat-archive-confirm">
+                      <span>Archive this group?</span>
+                      <button type="button" data-chat-confirm-archive>Confirm</button>
+                      <button type="button" data-chat-cancel-archive>Cancel</button>
+                    </div>
+                  ` : ""}
                 </header>
                 <div class="chat-message-list">
                   ${state.messages.map((message, index) => messageRow(message, shouldShowMessageHeader(message, state.messages[index - 1]))).join("")}
@@ -748,6 +847,22 @@ export function createChatViewModule() {
           else openMembers();
         });
         root.querySelector("[data-chat-members-close]")?.addEventListener("click", () => closeMembers({ reset: true }));
+        root.querySelector("[data-chat-rename-toggle]")?.addEventListener("click", () => {
+          if (selected) openRename(selected);
+        });
+        root.querySelector("[data-chat-rename-cancel]")?.addEventListener("click", () => closeRename());
+        root.querySelector("[data-chat-rename-form]")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          if (selected) renameConversation(selected, state.renameDraft);
+        });
+        root.querySelector("[data-chat-rename-input]")?.addEventListener("input", (event) => {
+          state.renameDraft = event.currentTarget.value;
+        });
+        root.querySelector("[data-chat-archive-toggle]")?.addEventListener("click", () => openArchiveConfirm());
+        root.querySelector("[data-chat-confirm-archive]")?.addEventListener("click", () => {
+          if (selected) setConversationArchived(selected, true);
+        });
+        root.querySelector("[data-chat-cancel-archive]")?.addEventListener("click", () => closeArchiveConfirm());
         root.querySelector("[data-chat-member-add-toggle]")?.addEventListener("click", () => toggleMemberAdd());
         root.querySelector("[data-chat-member-search]")?.addEventListener("input", (event) => {
           state.memberSearch = event.currentTarget.value;
@@ -765,6 +880,11 @@ export function createChatViewModule() {
         root.querySelectorAll("[data-chat-remove-member]").forEach((button) => {
           button.addEventListener("click", () => {
             if (selected) removeMember(selected.id, button.dataset.chatRemoveMember);
+          });
+        });
+        root.querySelectorAll("[data-chat-promote-member]").forEach((button) => {
+          button.addEventListener("click", () => {
+            if (selected) setMemberRole(selected.id, button.dataset.chatPromoteMember, button.dataset.chatRole);
           });
         });
         root.querySelector("[data-chat-compose-toggle]")?.addEventListener("click", () => {

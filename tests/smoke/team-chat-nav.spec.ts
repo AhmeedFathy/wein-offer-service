@@ -191,6 +191,9 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
             window.__WEIN_CHAT_DELETE_CALLS__ = [];
             window.__WEIN_CHAT_ADD_MEMBER_CALLS__ = [];
             window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__ = [];
+            window.__WEIN_CHAT_RENAME_CALLS__ = [];
+            window.__WEIN_CHAT_ARCHIVE_CALLS__ = [];
+            window.__WEIN_CHAT_ROLE_CALLS__ = [];
             function query(table) {
               const builder = {
                 table,
@@ -270,6 +273,20 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 then(resolve) {
                   let rows = [];
                   if (table === 'profiles') rows = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}];
+                  else if (table === 'wein_chat_conversations' && this._updatePayload) {
+                    const idFilter = this._filters.find((filter) => filter[1] === 'id');
+                    const target = conversations.find((conversation) => conversation.id === idFilter?.[2]) || groupConversation;
+                    if ('title' in this._updatePayload) {
+                      target.title = this._updatePayload.title;
+                      window.__WEIN_CHAT_RENAME_CALLS__.push({ conversationId: target.id, title: this._updatePayload.title });
+                    }
+                    if ('archived_at' in this._updatePayload) {
+                      target.archived_at = this._updatePayload.archived_at;
+                      window.__WEIN_CHAT_ARCHIVE_CALLS__.push({ conversationId: target.id, archived_at: this._updatePayload.archived_at });
+                      if (this._updatePayload.archived_at) conversations = conversations.filter((conversation) => conversation.id !== target.id);
+                    }
+                    rows = [target];
+                  }
                   else if (table === 'wein_chat_conversations') rows = conversations;
                   else if (table === 'wein_chat_messages') rows = sentMessages.filter((message) => !message.deleted_at);
                   else if (table === 'wein_tasks') rows = [taskFixture];
@@ -336,6 +353,13 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                   window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__.push(args);
                   const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
                   if (member) member.left_at = new Date().toISOString();
+                  conversations = [groupConversation];
+                  return Promise.resolve({ data: null, error: null });
+                }
+                if (fnName === 'wein_chat_set_membership_role') {
+                  window.__WEIN_CHAT_ROLE_CALLS__.push(args);
+                  const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
+                  if (member) member.membership_role = args.p_role;
                   conversations = [groupConversation];
                   return Promise.resolve({ data: null, error: null });
                 }
@@ -668,6 +692,66 @@ test('group member panel renders owner badges', async ({ page }) => {
   await expect(page.locator('[data-chat-member-row="user-1"] .chat-owner-badge')).toHaveText('Owner');
 });
 
+test('non-owner non-admin member sees no rename, archive, or promote controls', async ({ page }) => {
+  await login(page, {
+    initialConversations: true,
+    chatKind: 'group',
+    currentRole: 'team',
+    currentMembershipRole: 'member',
+  });
+  await openTeamChat(page);
+
+  await expect(page.locator('[data-chat-rename-toggle]')).toHaveCount(0);
+  await expect(page.locator('[data-chat-archive-toggle]')).toHaveCount(0);
+
+  await page.getByLabel('Manage members').click();
+  await expect(page.locator('[data-chat-promote-member]')).toHaveCount(0);
+});
+
+test('group owner can rename the conversation', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.getByLabel('Rename group').click();
+  await page.locator('[data-chat-rename-input]').fill('Renamed Group');
+  await page.locator('[data-chat-rename-form] button[type="submit"]').click();
+
+  await expect(page.locator('#mainArea .chat-thread-head h2')).toHaveText('Renamed Group');
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_RENAME_CALLS__?.at(-1))).toEqual({
+    conversationId: 'group-1',
+    title: 'Renamed Group',
+  });
+});
+
+test('group owner can promote a member to owner', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+  await page.getByLabel('Manage members').click();
+
+  await page.locator('[data-chat-member-row="user-2"] [data-chat-promote-member]').click();
+
+  await expect(page.locator('[data-chat-member-row="user-2"] .chat-owner-badge')).toHaveText('Owner');
+  await expect.poll(() => page.evaluate(() => window.__WEIN_CHAT_ROLE_CALLS__?.at(-1))).toEqual({
+    p_conversation_id: 'group-1',
+    p_user_id: 'user-2',
+    p_role: 'owner',
+  });
+});
+
+test('archiving a group removes it from the conversation list', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.getByLabel('Archive conversation').click();
+  await page.locator('[data-chat-confirm-archive]').click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const call = window.__WEIN_CHAT_ARCHIVE_CALLS__?.at(-1);
+    return call ? { conversationId: call.conversationId, archived: typeof call.archived_at === 'string' } : null;
+  })).toEqual({ conversationId: 'group-1', archived: true });
+  await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(0);
+});
+
 test('opening a task renders the record-discussion UI and a posted comment appears, with no interval leak on close/reopen', async ({ page }) => {
   await login(page);
 
@@ -769,5 +853,8 @@ declare global {
     __WEIN_CHAT_DELETE_CALLS__?: string[];
     __WEIN_CHAT_ADD_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
     __WEIN_CHAT_REMOVE_MEMBER_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string }>;
+    __WEIN_CHAT_RENAME_CALLS__?: Array<{ conversationId: string; title: string }>;
+    __WEIN_CHAT_ARCHIVE_CALLS__?: Array<{ conversationId: string; archived_at: string | null }>;
+    __WEIN_CHAT_ROLE_CALLS__?: Array<{ p_conversation_id: string; p_user_id: string; p_role: string }>;
   }
 }

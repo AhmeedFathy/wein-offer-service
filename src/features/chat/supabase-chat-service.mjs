@@ -172,6 +172,39 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       );
     },
 
+    async renameConversation(conversationId, title) {
+      const trimmed = (title || "").trim();
+      if (!trimmed) throw new Error("Group title is required");
+      const result = await supabase
+        .from("wein_chat_conversations")
+        .update({ title: trimmed })
+        .eq("id", conversationId)
+        .select("id, title");
+      const rows = requireRows(result, "rename conversation");
+      if (!rows.length) throw new Error("rename conversation affected zero rows");
+    },
+
+    async setConversationArchived(conversationId, archived) {
+      const result = await supabase
+        .from("wein_chat_conversations")
+        .update({ archived_at: archived ? new Date().toISOString() : null })
+        .eq("id", conversationId)
+        .select("id, archived_at");
+      const rows = requireRows(result, "set conversation archived");
+      if (!rows.length) throw new Error("set conversation archived affected zero rows");
+    },
+
+    async setMembershipRole(conversationId, userId, role) {
+      requireRpc(
+        await supabase.rpc("wein_chat_set_membership_role", {
+          p_conversation_id: conversationId,
+          p_user_id: userId,
+          p_role: role,
+        }),
+        "set membership role",
+      );
+    },
+
     async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
       const result = await supabase
         .from("wein_chat_messages")

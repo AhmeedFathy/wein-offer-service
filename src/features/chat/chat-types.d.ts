@@ -54,6 +54,9 @@ export interface ChatService {
   getOrCreateDm(otherUserId: string): Promise<string>;
   addMember(conversationId: string, userId: string): Promise<void>;
   removeMember(conversationId: string, userId: string): Promise<void>;
+  renameConversation(conversationId: string, title: string): Promise<void>;
+  setConversationArchived(conversationId: string, archived: boolean): Promise<void>;
+  setMembershipRole(conversationId: string, userId: string, role: ChatMembershipRole): Promise<void>;
   sendMessage(input: {
     conversationId: string;
     body: string;

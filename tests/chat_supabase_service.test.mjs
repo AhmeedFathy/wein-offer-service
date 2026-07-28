@@ -203,6 +203,29 @@ async function testSupabaseAdapterContract() {
   const removeMemberCall = fake.calls.find((call) => call.name === "wein_chat_remove_member");
   assert.deepEqual(removeMemberCall.args, { p_conversation_id: "group-1", p_user_id: "u-2" });
 
+  await service.renameConversation("group-1", "  New name  ");
+  const renameCall = fake.calls.find((call) => call.table === "wein_chat_conversations" && call.action === "update" && call.payload?.title);
+  assert.equal(renameCall.payload.title, "New name");
+  assert.deepEqual(renameCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
+    ["id", "group-1"],
+  ]);
+  await assert.rejects(() => service.renameConversation("group-1", "   "), /Group title is required/);
+
+  await service.setConversationArchived("group-1", true);
+  const archiveCall = fake.calls.find((call) => call.table === "wein_chat_conversations" && call.action === "update" && call.payload && "archived_at" in call.payload && call.payload.archived_at);
+  assert.equal(typeof archiveCall.payload.archived_at, "string");
+  assert.deepEqual(archiveCall.filters.filter((filter) => filter[0] === "eq").map((filter) => filter.slice(1)), [
+    ["id", "group-1"],
+  ]);
+
+  await service.setConversationArchived("group-1", false);
+  const unarchiveCall = fake.calls.find((call) => call.table === "wein_chat_conversations" && call.action === "update" && call.payload && call.payload.archived_at === null);
+  assert.equal(unarchiveCall.payload.archived_at, null);
+
+  await service.setMembershipRole("group-1", "u-2", "owner");
+  const roleCall = fake.calls.find((call) => call.name === "wein_chat_set_membership_role");
+  assert.deepEqual(roleCall.args, { p_conversation_id: "group-1", p_user_id: "u-2", p_role: "owner" });
+
   assert.equal(await service.getOrCreateDm("u-2"), "dm-1");
   assert.deepEqual(fake.calls.find((call) => call.name === "wein_chat_get_or_create_dm").args, {
     p_other_user_id: "u-2",

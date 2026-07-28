@@ -154,6 +154,28 @@ export function createMockChatService(currentUserId) {
       if (member) member.left_at = iso();
     },
 
+    async renameConversation(conversationId, title) {
+      const conversation = requireConversation(conversationId);
+      if (!canManageMembers(conversation)) throw new Error("Cannot rename this conversation");
+      const trimmed = (title || "").trim();
+      if (!trimmed) throw new Error("Group title is required");
+      conversation.title = trimmed;
+    },
+
+    async setConversationArchived(conversationId, archived) {
+      const conversation = requireConversation(conversationId);
+      if (!canManageMembers(conversation)) throw new Error("Cannot archive this conversation");
+      conversation.archived_at = archived ? iso() : null;
+    },
+
+    async setMembershipRole(conversationId, userId, role) {
+      const conversation = requireConversation(conversationId);
+      if (!canManageMembers(conversation)) throw new Error("Cannot change member roles");
+      const member = conversation.members.find((row) => row.user_id === userId && !row.left_at);
+      if (!member) throw new Error(`Active member not found: ${userId}`);
+      member.membership_role = role;
+    },
+
     async sendMessage({ conversationId, body, clientNonce, replyToId = null }) {
       const conversation = requireConversation(conversationId);
       requireActiveMember(conversation);

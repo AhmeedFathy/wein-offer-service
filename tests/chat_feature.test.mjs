@@ -78,6 +78,32 @@ async function testUnreadAndReadState() {
   assert.equal(unreadCount(conversation, "u-ahmed"), 0);
 }
 
+async function testGroupOwnerManagementContract() {
+  const service = createMockChatService("u-ahmed");
+  const groupId = await service.createGroup("Ops room", ["u-team"]);
+
+  await service.renameConversation(groupId, "  Ops HQ  ");
+  let conversation = (await service.listConversations()).find((row) => row.id === groupId);
+  assert.equal(conversation.title, "Ops HQ");
+  await assert.rejects(() => service.renameConversation(groupId, "   "), /Group title is required/);
+
+  await service.setMembershipRole(groupId, "u-team", "owner");
+  conversation = (await service.listConversations()).find((row) => row.id === groupId);
+  assert.equal(conversation.members.find((member) => member.user_id === "u-team").membership_role, "owner");
+
+  await service.setMembershipRole(groupId, "u-team", "member");
+  conversation = (await service.listConversations()).find((row) => row.id === groupId);
+  assert.equal(conversation.members.find((member) => member.user_id === "u-team").membership_role, "member");
+
+  await service.setConversationArchived(groupId, true);
+  conversation = (await service.listConversations()).find((row) => row.id === groupId);
+  assert.notEqual(conversation.archived_at, null);
+
+  await service.setConversationArchived(groupId, false);
+  conversation = (await service.listConversations()).find((row) => row.id === groupId);
+  assert.equal(conversation.archived_at, null);
+}
+
 function testDomainFormatting() {
   const conversations = [
     { id: "older", created_at: "2026-01-01T00:00:00Z", members: [], last_message: null },
@@ -92,6 +118,7 @@ await testGroupConversationContract();
 await testMessageSeqAndNonceIdempotency();
 await testDmIdempotencyAndTitles();
 await testUnreadAndReadState();
+await testGroupOwnerManagementContract();
 testDomainFormatting();
 
 console.log("chat feature tests passed");
