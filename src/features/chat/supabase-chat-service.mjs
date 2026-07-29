@@ -3,6 +3,7 @@ import { unreadCount } from "./chat-domain.mjs";
 // Private bucket; object access is enforced by storage.objects RLS keyed off
 // the object path's first folder segment (see 059_chat_attachments.sql).
 const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";
+const LAST_MESSAGE_EMBED_LIMIT = 5;
 
 function sanitizeFileName(name) {
   return String(name || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
@@ -68,8 +69,11 @@ function messageFromRow(row) {
 function conversationFromRow(row, currentUserId) {
   const members = (row.members || row.wein_chat_members || []).map(memberFromRow);
   const lastMessageRows = row.last_message || row.wein_chat_messages || [];
-  const lastMessage = Array.isArray(lastMessageRows) && lastMessageRows.length
-    ? messageFromRow(lastMessageRows[0])
+  const lastVisibleMessage = Array.isArray(lastMessageRows)
+    ? lastMessageRows.find((message) => message.deleted_at == null)
+    : null;
+  const lastMessage = lastVisibleMessage
+    ? messageFromRow(lastVisibleMessage)
     : null;
   const conversation = {
     id: row.id,
@@ -106,7 +110,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       `)
       .eq("id", conversationId)
       .order("message_seq", { referencedTable: "wein_chat_messages", ascending: false })
-      .limit(1, { referencedTable: "wein_chat_messages" })
+      .limit(LAST_MESSAGE_EMBED_LIMIT, { referencedTable: "wein_chat_messages" })
       .single();
     if (result.error) throw new Error(`fetch conversation: ${result.error.message || result.error}`);
     return conversationFromRow(result.data, currentUserId);
@@ -138,7 +142,7 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .is("archived_at", null)
         .order("created_at", { ascending: false })
         .order("message_seq", { referencedTable: "wein_chat_messages", ascending: false })
-        .limit(1, { referencedTable: "wein_chat_messages" });
+        .limit(LAST_MESSAGE_EMBED_LIMIT, { referencedTable: "wein_chat_messages" });
       return requireRows(result, "list conversations").map((row) => conversationFromRow(row, currentUserId));
     },
 

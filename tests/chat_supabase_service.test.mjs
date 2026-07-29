@@ -160,6 +160,19 @@ class FakeSupabase {
         ],
         last_message: [
           {
+            id: "m-2",
+            conversation_id: "group-1",
+            message_seq: 2,
+            sender_id: "u-1",
+            body: "deleted latest",
+            reply_to_id: null,
+            client_nonce: "n-2",
+            created_at: "2026-07-26T00:00:02Z",
+            edited_at: null,
+            deleted_at: "2026-07-26T00:00:03Z",
+            sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          },
+          {
             id: "m-1",
             conversation_id: "group-1",
             message_seq: 1,
@@ -300,8 +313,27 @@ async function testSupabaseAdapterContract() {
 
   const conversations = await service.listConversations();
   assert.equal(conversations[0].id, "group-1");
+  assert.equal(conversations[0].last_message.id, "m-1");
   assert.equal(conversations[0].last_message.message_seq, 1);
   assert.equal(conversations[0].unread_count, 1);
+  const listConversationsCall = fake.calls.find((call) => (
+    call.table === "wein_chat_conversations" && !call.single && call.select?.includes("last_message:wein_chat_messages")
+  ));
+  assert.deepEqual(
+    listConversationsCall.filters.filter((filter) => filter[0] === "limit" && filter[2]?.referencedTable === "wein_chat_messages"),
+    [["limit", 5, { referencedTable: "wein_chat_messages" }]],
+  );
+
+  const fetchedConversation = await service.fetchConversation("group-1");
+  assert.equal(fetchedConversation.last_message.id, "m-1");
+  assert.equal(fetchedConversation.unread_count, 1);
+  const fetchConversationCall = fake.calls.find((call) => (
+    call.table === "wein_chat_conversations" && call.single && call.select?.includes("last_message:wein_chat_messages")
+  ));
+  assert.deepEqual(
+    fetchConversationCall.filters.filter((filter) => filter[0] === "limit" && filter[2]?.referencedTable === "wein_chat_messages"),
+    [["limit", 5, { referencedTable: "wein_chat_messages" }]],
+  );
 
   const messages = await service.listMessages("group-1");
   assert.equal(messages[0].sender.full_name, "Ahmed");

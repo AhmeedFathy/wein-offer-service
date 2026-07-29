@@ -245,3 +245,23 @@ No AI write actions are implemented. Keep it read-only until explicitly approved
 - Do not add a parallel Work Inbox tab.
 - Do not create a second Supabase client inside any feature module.
 - Do not edit legacy renderer bodies to integrate these features before the registry gate.
+
+## Known issues
+
+### Unread badge stuck forever if the latest message in a conversation is deleted (resolved, 2026-07-29)
+
+Found by Claude while building/verifying the global sidebar unread badge (shipped `59dcf72`), not the original task — deliberately not fixed inline since it touches shared, heavily-used chat queries. Assigned to Codex to implement.
+
+Root cause: in `src/features/chat/supabase-chat-service.mjs`, the `last_message` embedded-resource query used by both `fetchConversation()` and `listConversations()` (two near-identical blocks, roughly lines 93-113 and 124-143) has no `deleted_at` filter, unlike `listMessages()` in the same file which correctly does `.is("deleted_at", null)`. It always returns the single latest message by `message_seq` via `.order("message_seq", {referencedTable: "wein_chat_messages", ascending: false}).limit(1, {referencedTable: "wein_chat_messages"})`, regardless of whether that message was soft-deleted.
+
+`unreadCount()` in `chat-domain.mjs` computes `last_message.message_seq - self.last_read_seq`. `markRead()` (called by `selectConversation()` in `chat-view.mjs`) only ever advances `last_read_seq` to `state.messages.at(-1)?.message_seq`, and `state.messages` never contains deleted messages (since `listMessages()` excludes them). Net effect: if the single latest message in a conversation gets deleted, no client can ever advance `last_read_seq` past that deleted message's seq again — the unread count is permanently stuck for anyone who hadn't already read up to that point, even after opening and "reading" the conversation. Affects both the pre-existing in-thread `.chat-count` badges and the new global sidebar badge equally.
+
+Confirmed live on the real "Engineer Team" test group: `last_read_seq` was stuck at 14 while the actual latest (deleted) message was seq 15; opening/reading the conversation through the real UI did not advance it. Manually corrected via a one-off direct `last_read_seq` REST PATCH for that single conversation only — the underlying bug is still live in the codebase.
+
+Recommended fix: widen `.limit(1, {referencedTable: "wein_chat_messages"})` to a small N (e.g. 5) in both `fetchConversation()` and `listConversations()`, keep the same `.order(..., ascending: false)`, then in `conversationFromRow()` pick the first element of that array whose `deleted_at` is null (falling back to `null`/no-last-message only in the vanishingly rare case of 5+ consecutive deletions) instead of blindly taking index 0. This avoids relying on uncertain PostgREST embedded-resource filter syntax — supabase-js v2 has no `referencedTable` option on `.eq()`/`.is()`, only on `.order()`/`.limit()` — and keeps the fix low-risk for the common (zero-deletion) case.
+
+Definition of done:
+1. Completed: fix applied in both query blocks in `supabase-chat-service.mjs`; each embedded `last_message` query now fetches 5 rows ordered by descending `message_seq`, and `conversationFromRow()` picks the first row whose `deleted_at` is null.
+2. Completed: `tests/chat_supabase_service.test.mjs` now proves a deleted latest embedded message is skipped, `last_message` falls back to the next non-deleted message, and `unread_count` is computed from that fallback message.
+3. Completed: full smoke suite passed with `python run_safe_lane_tests.py`; final line was `SAFE-LANE VERIFICATION PASSED`.
+4. Completed: live-verified against the real portal (Claude, with credentials Codex's environment didn't have). Created a temp group, sent two real messages, deleted the newer one through the actual UI, and confirmed via the conversation list preview *and* a direct REST query that the older, non-deleted message correctly became `last_message` (previously this would have shown blank/stuck-unread instead). Temp group and messages cleaned up afterward.

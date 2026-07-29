@@ -57,8 +57,10 @@ NODE_TESTS = [
     "tests/discussion_view_static_contract.test.mjs",
     "tests/chat_feature.test.mjs",
     "tests/chat_supabase_service.test.mjs",
+    "tests/chat_unread_badge.test.mjs",
     "tests/chat_view_lifecycle.test.mjs",
     "tests/chat_mobile_contract.test.mjs",
+    "tests/mentions_shared.test.mjs",
 ]
 
 
