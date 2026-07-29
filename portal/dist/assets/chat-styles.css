@@ -920,6 +920,14 @@
      button (.chat-fab), which is position:fixed in that exact corner. That
      button is now hidden on the team-chat view (showView in portal.js), so the
      reserved gutter is gone too -- it was pure dead whitespace beside Send. */
+  /* .chat-thread has its own 18px padding on every side (shared with the
+     header/message list above), which left a smaller but still-visible gap
+     after Send once the 92px gutter was removed. Cancel it on the right only
+     -- top/bottom/left stay put, matching the message list's alignment --
+     and put back a tighter 12px so Send sits close to the true edge without
+     literally touching it. */
+  margin-right: -18px;
+  padding-right: 12px;
 }
 
 .chat-reply-strip {
