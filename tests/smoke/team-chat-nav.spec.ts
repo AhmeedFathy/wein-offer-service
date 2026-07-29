@@ -937,6 +937,31 @@ test('archiving a group removes it from the conversation list', async ({ page })
   await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(0);
 });
 
+test('admin can archive a DM conversation', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'dm', currentRole: 'admin' });
+  await openTeamChat(page);
+
+  await page.getByLabel('Archive conversation').click();
+  await page.locator('[data-chat-confirm-archive]').click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const call = window.__WEIN_CHAT_ARCHIVE_CALLS__?.at(-1);
+    return call ? { conversationId: call.conversationId, archived: typeof call.archived_at === 'string' } : null;
+  })).toEqual({ conversationId: 'dm-1', archived: true });
+  await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(0);
+});
+
+test('non-admin DM participant sees no archive control', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'dm', currentRole: 'team' });
+  await openTeamChat(page);
+
+  // A DM participant is always membership_role='member' (DMs have no owner
+  // concept), so archiving a DM is gated purely on the global admin/manager
+  // role check -- matching the DB trigger, which relies on the same
+  // wein_chat_can_manage_members() check regardless of conversation kind.
+  await expect(page.locator('[data-chat-archive-toggle]')).toHaveCount(0);
+});
+
 test('opening a task renders the record-discussion UI and a posted comment appears, with no interval leak on close/reopen', async ({ page }) => {
   await login(page);
 

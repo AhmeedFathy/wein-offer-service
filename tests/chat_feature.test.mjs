@@ -104,6 +104,30 @@ async function testGroupOwnerManagementContract() {
   assert.equal(conversation.archived_at, null);
 }
 
+async function testDmArchiveContract() {
+  const service = createMockChatService("u-ahmed");
+  const dmId = await service.getOrCreateDm("u-fady");
+
+  await service.setConversationArchived(dmId, true);
+  let conversation = (await service.listConversations()).find((row) => row.id === dmId);
+  assert.notEqual(conversation.archived_at, null);
+
+  await service.setConversationArchived(dmId, false);
+  conversation = (await service.listConversations()).find((row) => row.id === dmId);
+  assert.equal(conversation.archived_at, null);
+
+  // Archiving a DM (or group) requires ownership or a global admin/manager role --
+  // a plain member of the DM (the only role a DM participant ever has, since DMs
+  // never assign membership_role='owner') must be rejected the same way a
+  // non-owner group member already is.
+  const nonAdminService = createMockChatService("u-team");
+  const otherDmId = await nonAdminService.getOrCreateDm("u-fady");
+  await assert.rejects(
+    () => nonAdminService.setConversationArchived(otherDmId, true),
+    /Cannot archive this conversation/,
+  );
+}
+
 async function testAttachmentContract() {
   const service = createMockChatService("u-ahmed");
   const groupId = await service.createGroup("Files room", ["u-fady"]);
@@ -149,6 +173,7 @@ await testMessageSeqAndNonceIdempotency();
 await testDmIdempotencyAndTitles();
 await testUnreadAndReadState();
 await testGroupOwnerManagementContract();
+await testDmArchiveContract();
 await testAttachmentContract();
 testDomainFormatting();
 

@@ -432,10 +432,19 @@ export function createChatViewModule() {
         render();
       }
 
-      function canManageMembers(conversation) {
-        if (!conversation || conversation.kind !== "group") return false;
+      function hasOwnerOrManagerPrivilege(conversation) {
         const self = conversation.members.find((member) => member.user_id === context.currentUser.id && !member.left_at);
         return self?.membership_role === "owner" || ["admin", "manager"].includes(context.currentUser.role);
+      }
+
+      function canManageMembers(conversation) {
+        if (!conversation || conversation.kind !== "group") return false;
+        return hasOwnerOrManagerPrivilege(conversation);
+      }
+
+      function canArchiveConversation(conversation) {
+        if (!conversation) return false;
+        return hasOwnerOrManagerPrivilege(conversation);
       }
 
       function openMembers() {
@@ -1026,6 +1035,7 @@ export function createChatViewModule() {
         const muted = selfMember?.notification_level === "muted";
         const activeMembers = selected?.members.filter((member) => !member.left_at) || [];
         const manager = selected ? canManageMembers(selected) : false;
+        const canArchive = selected ? canArchiveConversation(selected) : false;
         root.innerHTML = `
           <section class="chat-shell" aria-label="Team chat">
             <aside class="chat-sidebar">
@@ -1071,6 +1081,8 @@ export function createChatViewModule() {
                       <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename group" title="Rename group">
                         <i class="ti ti-edit"></i>
                       </button>
+                    ` : ""}
+                    ${canArchive ? `
                       <button type="button" class="chat-icon-btn" data-chat-archive-toggle aria-label="Archive conversation" title="Archive conversation">
                         <i class="ti ti-archive"></i>
                       </button>
@@ -1085,7 +1097,7 @@ export function createChatViewModule() {
                   ${membersPanel(selected)}
                   ${state.archiveConfirmOpen ? `
                     <div class="chat-delete-confirm chat-archive-confirm">
-                      <span>Archive this group?</span>
+                      <span>Archive this ${selected.kind === "group" ? "group" : "conversation"}?</span>
                       <button type="button" data-chat-confirm-archive>Confirm</button>
                       <button type="button" data-chat-cancel-archive>Cancel</button>
                     </div>
