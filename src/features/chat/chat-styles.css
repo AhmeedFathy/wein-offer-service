@@ -611,6 +611,21 @@
   margin-left: -8px;
 }
 
+.chat-member-count {
+  width: auto;
+  gap: 5px;
+  padding: 0 9px;
+}
+
+.chat-member-count span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chat-thread-head-empty {
+  margin-bottom: 0;
+}
+
 .chat-message-list {
   display: flex;
   flex-direction: column;

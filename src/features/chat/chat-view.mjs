@@ -1154,7 +1154,6 @@ export function createChatViewModule() {
                 </div>
                 <div class="chat-sidebar-tools">
                   <span class="chat-user-pill">${escapeHtml(roleLabel(context.currentUser.role))}</span>
-                  <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages"><i class="ti ti-search"></i></button>
                   <button type="button" class="chat-icon-btn" data-chat-compose-toggle aria-label="New conversation" title="New conversation"><i class="ti ti-pencil-plus"></i></button>
                 </div>
               </div>
@@ -1184,10 +1183,16 @@ export function createChatViewModule() {
                   </div>
                   <div class="chat-thread-tools">
                     ${selected.kind === "group" ? `
-                      <button type="button" class="chat-icon-btn${state.membersOpen ? " active" : ""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
-                        <i class="ti ti-users"></i>
+                      <button type="button" class="chat-icon-btn chat-member-count${state.membersOpen ? " active" : ""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
+                        <i class="ti ti-users"></i><span>${activeMembers.length}</span>
                       </button>
                     ` : ""}
+                    <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
+                      <i class="ti ti-search"></i>
+                    </button>
+                    <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
+                      <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
+                    </button>
                     ${selected.kind === "group" && manager ? `
                       <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename group" title="Rename group">
                         <i class="ti ti-edit"></i>
@@ -1198,12 +1203,6 @@ export function createChatViewModule() {
                         <i class="ti ti-archive"></i>
                       </button>
                     ` : ""}
-                    <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
-                      <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
-                    </button>
-                    <div class="chat-member-stack">
-                      ${activeMembers.map((member) => `<span title="${escapeHtml(member.profile?.full_name || member.user_id)}">${escapeHtml((member.profile?.full_name || "?").slice(0, 1))}</span>`).join("")}
-                    </div>
                   </div>
                   ${membersPanel(selected)}
                   ${state.archiveConfirmOpen ? `
@@ -1230,6 +1229,14 @@ export function createChatViewModule() {
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
               ` : `
+                <header class="chat-thread-head chat-thread-head-empty">
+                  <div></div>
+                  <div class="chat-thread-tools">
+                    <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
+                      <i class="ti ti-search"></i>
+                    </button>
+                  </div>
+                </header>
                 <div class="chat-empty-panel">
                   <i class="ti ti-messages"></i>
                   <h2>No conversation selected</h2>

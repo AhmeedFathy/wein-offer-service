@@ -219,7 +219,6 @@ function De(e){return typeof e=="object"&&e!==null?e.role:e}function de(e){const
                 </div>
                 <div class="chat-sidebar-tools">
                   <span class="chat-user-pill">${m(H(n.currentUser.role))}</span>
-                  <button type="button" class="chat-icon-btn${t.searchOpen?" active":""}" data-chat-search-toggle aria-label="Search messages" title="Search messages"><i class="ti ti-search"></i></button>
                   <button type="button" class="chat-icon-btn" data-chat-compose-toggle aria-label="New conversation" title="New conversation"><i class="ti ti-pencil-plus"></i></button>
                 </div>
               </div>
@@ -249,10 +248,16 @@ function De(e){return typeof e=="object"&&e!==null?e.role:e}function de(e){const
                   </div>
                   <div class="chat-thread-tools">
                     ${s.kind==="group"?`
-                      <button type="button" class="chat-icon-btn${t.membersOpen?" active":""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
-                        <i class="ti ti-users"></i>
+                      <button type="button" class="chat-icon-btn chat-member-count${t.membersOpen?" active":""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
+                        <i class="ti ti-users"></i><span>${S.length}</span>
                       </button>
                     `:""}
+                    <button type="button" class="chat-icon-btn${t.searchOpen?" active":""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
+                      <i class="ti ti-search"></i>
+                    </button>
+                    <button type="button" class="chat-icon-btn${h?" active":""}" data-chat-toggle-mute aria-label="${h?"Unmute conversation":"Mute conversation"}" title="${h?"Unmute conversation":"Mute conversation"}">
+                      <i class="ti ${h?"ti-bell-off":"ti-bell"}"></i>
+                    </button>
                     ${s.kind==="group"&&k?`
                       <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename group" title="Rename group">
                         <i class="ti ti-edit"></i>
@@ -263,12 +268,6 @@ function De(e){return typeof e=="object"&&e!==null?e.role:e}function de(e){const
                         <i class="ti ti-archive"></i>
                       </button>
                     `:""}
-                    <button type="button" class="chat-icon-btn${h?" active":""}" data-chat-toggle-mute aria-label="${h?"Unmute conversation":"Mute conversation"}" title="${h?"Unmute conversation":"Mute conversation"}">
-                      <i class="ti ${h?"ti-bell-off":"ti-bell"}"></i>
-                    </button>
-                    <div class="chat-member-stack">
-                      ${S.map(o=>`<span title="${m(o.profile?.full_name||o.user_id)}">${m((o.profile?.full_name||"?").slice(0,1))}</span>`).join("")}
-                    </div>
                   </div>
                   ${Lt(s)}
                   ${t.archiveConfirmOpen?`
@@ -295,6 +294,14 @@ function De(e){return typeof e=="object"&&e!==null?e.role:e}function de(e){const
                   <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
               `:`
+                <header class="chat-thread-head chat-thread-head-empty">
+                  <div></div>
+                  <div class="chat-thread-tools">
+                    <button type="button" class="chat-icon-btn${t.searchOpen?" active":""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
+                      <i class="ti ti-search"></i>
+                    </button>
+                  </div>
+                </header>
                 <div class="chat-empty-panel">
                   <i class="ti ti-messages"></i>
                   <h2>No conversation selected</h2>
