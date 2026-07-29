@@ -1036,6 +1036,29 @@ test('search shows no results for a query that matches nothing', async ({ page }
   await expect(page.locator('[data-chat-search-result]')).toHaveCount(0);
 });
 
+test('create channel option is hidden for a non-admin/manager role', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group', currentRole: 'team' });
+  await openTeamChat(page);
+
+  await page.getByLabel('New conversation').click();
+  // "Create group" (invite-only, anyone can make one) stays visible; "Create
+  // channel" is the admin/manager-only action Fady asked to restrict.
+  await expect(page.locator('[data-chat-group-title]')).toBeVisible();
+  await expect(page.locator('[data-chat-channel-title]')).toHaveCount(0);
+});
+
+test('admin sees create channel option and can open browse channels', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group', currentRole: 'admin' });
+  await openTeamChat(page);
+
+  await page.getByLabel('New conversation').click();
+  await expect(page.locator('[data-chat-channel-title]')).toBeVisible();
+  await page.getByLabel('Close new conversation').click();
+
+  await page.getByLabel('Browse channels').click();
+  await expect(page.locator('.chat-search-panel')).toContainText('Browse channels');
+});
+
 test('opening a task renders the record-discussion UI and a posted comment appears, with no interval leak on close/reopen', async ({ page }) => {
   await login(page);
 

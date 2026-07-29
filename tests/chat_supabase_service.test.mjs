@@ -133,6 +133,8 @@ class FakeSupabase {
   async rpc(name, args) {
     this.calls.push({ kind: "rpc", name, args });
     if (name === "wein_chat_create_group") return makeResult("group-1");
+    if (name === "wein_chat_create_channel") return makeResult("channel-1");
+    if (name === "wein_chat_join_channel") return makeResult(null);
     if (name === "wein_chat_get_or_create_dm") return makeResult("dm-1");
     if (name === "wein_chat_add_member") return makeResult(null);
     if (name === "wein_chat_remove_member") return makeResult(null);
@@ -261,6 +263,23 @@ async function testSupabaseAdapterContract() {
   await service.setMembershipRole("group-1", "u-2", "owner");
   const roleCall = fake.calls.find((call) => call.name === "wein_chat_set_membership_role");
   assert.deepEqual(roleCall.args, { p_conversation_id: "group-1", p_user_id: "u-2", p_role: "owner" });
+
+  const channelId = await service.createChannel("announcements");
+  assert.equal(channelId, "channel-1");
+  const createChannelCall = fake.calls.find((call) => call.name === "wein_chat_create_channel");
+  assert.deepEqual(createChannelCall.args, { p_title: "announcements" });
+
+  await service.joinChannel("channel-1");
+  const joinChannelCall = fake.calls.find((call) => call.name === "wein_chat_join_channel");
+  assert.deepEqual(joinChannelCall.args, { p_conversation_id: "channel-1" });
+
+  await service.listChannels();
+  const listChannelsCall = fake.calls.find((call) => (
+    call.table === "wein_chat_conversations"
+    && call.filters.some((filter) => filter[0] === "eq" && filter[1] === "kind" && filter[2] === "channel")
+  ));
+  assert.ok(listChannelsCall, "listChannels() should query wein_chat_conversations filtered to kind=channel");
+  assert.ok(listChannelsCall.filters.some((filter) => filter[0] === "is" && filter[1] === "archived_at" && filter[2] === null));
 
   // Mentions must ride along on the message INSERT itself -- the AFTER INSERT
   // notify trigger cannot see rows written in a later round trip.

@@ -194,6 +194,37 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       return conversationId;
     },
 
+    async createChannel(title) {
+      return requireRpc(
+        await supabase.rpc("wein_chat_create_channel", { p_title: title }),
+        "create channel",
+      );
+    },
+
+    async joinChannel(conversationId) {
+      requireRpc(
+        await supabase.rpc("wein_chat_join_channel", { p_conversation_id: conversationId }),
+        "join channel",
+      );
+    },
+
+    async listChannels() {
+      // Deliberately separate from listConversations(): the relaxed
+      // chat_conversations_select_member policy (061) makes every channel
+      // visible to any authenticated user regardless of membership, which is
+      // exactly what "browse channels I haven't joined" needs -- but members/
+      // last_message still come back empty for a channel you're not in
+      // (wein_chat_members / wein_chat_messages RLS is unchanged), so there's
+      // nothing useful to embed here beyond the bare conversation row.
+      const result = await supabase
+        .from("wein_chat_conversations")
+        .select("id, kind, title, created_by, created_at, archived_at")
+        .eq("kind", "channel")
+        .is("archived_at", null)
+        .order("title", { ascending: true });
+      return requireRows(result, "list channels");
+    },
+
     async getOrCreateDm(otherUserId) {
       return requireRpc(
         await supabase.rpc("wein_chat_get_or_create_dm", { p_other_user_id: otherUserId }),

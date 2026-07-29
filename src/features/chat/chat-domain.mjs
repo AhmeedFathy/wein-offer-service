@@ -5,6 +5,7 @@ export function makeClientNonce(prefix = "chat") {
 
 export function conversationDisplayTitle(conversation, currentUserId) {
   if (conversation.kind === "group") return conversation.title || "Untitled group";
+  if (conversation.kind === "channel") return conversation.title || "Untitled channel";
   const other = (conversation.members || [])
     .map((member) => member.profile)
     .find((profile) => profile && profile.id !== currentUserId);

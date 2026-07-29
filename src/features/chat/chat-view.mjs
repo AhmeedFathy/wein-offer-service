@@ -87,7 +87,12 @@ export function createChatViewModule() {
         composeOpen: false,
         composeSearch: "",
         composeGroupTitle: "",
+        composeChannelTitle: "",
         composeSelectedMemberIds: new Set(),
+        browseChannelsOpen: false,
+        browseChannelsList: [],
+        browseChannelsLoading: false,
+        browseChannelsError: null,
         membersOpen: false,
         memberAddOpen: false,
         memberSearch: "",
@@ -420,6 +425,8 @@ export function createChatViewModule() {
 
       function openCompose() {
         state.composeOpen = true;
+        state.searchOpen = false;
+        state.browseChannelsOpen = false;
         render();
         root.querySelector("[data-chat-compose-search]")?.focus();
       }
@@ -429,6 +436,7 @@ export function createChatViewModule() {
         if (reset) {
           state.composeSearch = "";
           state.composeGroupTitle = "";
+          state.composeChannelTitle = "";
           state.composeSelectedMemberIds = new Set();
         }
         render();
@@ -437,6 +445,7 @@ export function createChatViewModule() {
       function openSearch() {
         state.searchOpen = true;
         state.composeOpen = false;
+        state.browseChannelsOpen = false;
         render();
         root.querySelector("[data-chat-search-input]")?.focus();
       }
@@ -510,7 +519,7 @@ export function createChatViewModule() {
       }
 
       function canManageMembers(conversation) {
-        if (!conversation || conversation.kind !== "group") return false;
+        if (!conversation || !["group", "channel"].includes(conversation.kind)) return false;
         return hasOwnerOrManagerPrivilege(conversation);
       }
 
@@ -736,6 +745,48 @@ export function createChatViewModule() {
         await selectConversation(conversationId);
       }
 
+      async function createChannel(title) {
+        title = title.trim();
+        if (!title) return;
+        const conversationId = await context.service.createChannel(title);
+        state.composeOpen = false;
+        state.composeChannelTitle = "";
+        await selectConversation(conversationId);
+      }
+
+      async function openBrowseChannels() {
+        state.browseChannelsOpen = true;
+        state.composeOpen = false;
+        state.searchOpen = false;
+        state.browseChannelsError = null;
+        state.browseChannelsLoading = true;
+        render();
+        try {
+          const allChannels = await context.service.listChannels();
+          const joinedIds = new Set(state.conversations.map((conversation) => conversation.id));
+          state.browseChannelsList = allChannels.filter((channel) => !joinedIds.has(channel.id));
+          state.browseChannelsLoading = false;
+          if (!disposed) render();
+        } catch (error) {
+          state.browseChannelsError = error instanceof Error ? error.message : String(error);
+          state.browseChannelsLoading = false;
+          if (!disposed) render();
+        }
+      }
+
+      function closeBrowseChannels() {
+        state.browseChannelsOpen = false;
+        state.browseChannelsList = [];
+        state.browseChannelsError = null;
+        render();
+      }
+
+      async function joinChannel(conversationId) {
+        await context.service.joinChannel(conversationId);
+        closeBrowseChannels();
+        await selectConversation(conversationId);
+      }
+
       function scheduleRefresh() {
         if (disposed) return;
         refresh();
@@ -745,13 +796,16 @@ export function createChatViewModule() {
         const selected = conversation.id === state.selectedConversationId ? " selected" : "";
         const unread = conversation.unread_count ? `<span class="chat-count">${conversation.unread_count}</span>` : "";
         const title = conversationDisplayTitle(conversation, context.currentUser.id);
-        const isGroup = conversation.kind === "group";
-        // Slack-style compact row: groups get a "#" prefix and no avatar (they're
-        // the closest thing this app has to a channel), DMs keep a small avatar --
-        // matching how a real Slack sidebar tells the two kinds apart at a glance.
-        const marker = isGroup
+        // Slack-style markers: a real channel (browsable, self-join) gets "#",
+        // a group (invite-only, closer to Slack's private channel) gets a lock,
+        // a DM keeps a small avatar -- three different trust/visibility models,
+        // three different glyphs, matching how Slack's own sidebar reads at a
+        // glance without needing to open anything.
+        const marker = conversation.kind === "channel"
           ? `<span class="chat-conversation-hash" aria-hidden="true">#</span>`
-          : `<span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>`;
+          : conversation.kind === "group"
+            ? `<span class="chat-conversation-hash" aria-hidden="true"><i class="ti ti-lock"></i></span>`
+            : `<span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>`;
         return `
           <button type="button" class="chat-conversation${selected}" data-chat-select="${escapeHtml(conversation.id)}">
             ${marker}
@@ -839,6 +893,36 @@ export function createChatViewModule() {
                 <input data-chat-group-title type="text" placeholder="Group name" value="${escapeHtml(state.composeGroupTitle)}">
                 <button type="button" data-chat-create-group${state.composeGroupTitle.trim() ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Create group</span></button>
               </div>
+              ${canModerateDelete() ? `
+                <div class="chat-compose-group">
+                  <input data-chat-channel-title type="text" placeholder="Channel name" value="${escapeHtml(state.composeChannelTitle)}">
+                  <button type="button" data-chat-create-channel${state.composeChannelTitle.trim() ? "" : " disabled"}><i class="ti ti-hash"></i><span>Create channel</span></button>
+                </div>
+              ` : ""}
+            </div>
+          </div>
+        `;
+      }
+
+      function browseChannelsPanel() {
+        return `
+          <div class="chat-search-panel">
+            <div class="chat-compose-popover-head">
+              <strong>Browse channels</strong>
+              <button type="button" class="chat-icon-btn" data-chat-browse-channels-close aria-label="Close browse channels"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="chat-search-results">
+              ${state.browseChannelsLoading ? `<div class="chat-muted">Loading...</div>` : ""}
+              ${state.browseChannelsError ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.browseChannelsError)}</span></div>` : ""}
+              ${!state.browseChannelsLoading && !state.browseChannelsError && !state.browseChannelsList.length ? `<div class="chat-muted">No channels to join -- you're already in every one that exists.</div>` : ""}
+              ${state.browseChannelsList.map((channel) => `
+                <div class="chat-search-result">
+                  <span class="chat-search-result-row">
+                    <span class="chat-search-result-title">#${escapeHtml(channel.title || "Untitled channel")}</span>
+                    <button type="button" class="chat-member-add-toggle" data-chat-join-channel="${escapeHtml(channel.id)}"><i class="ti ti-plus"></i><span>Join</span></button>
+                  </span>
+                </div>
+              `).join("")}
             </div>
           </div>
         `;
@@ -871,7 +955,7 @@ export function createChatViewModule() {
       }
 
       function membersPanel(conversation) {
-        if (!state.membersOpen || !conversation || conversation.kind !== "group") return "";
+        if (!state.membersOpen || !conversation || !["group", "channel"].includes(conversation.kind)) return "";
         const activeMembers = conversation.members.filter((member) => !member.left_at);
         const manager = canManageMembers(conversation);
         const activeMemberIds = new Set(activeMembers.map((member) => member.user_id));
@@ -1154,10 +1238,11 @@ export function createChatViewModule() {
                 </div>
                 <div class="chat-sidebar-tools">
                   <span class="chat-user-pill">${escapeHtml(roleLabel(context.currentUser.role))}</span>
+                  <button type="button" class="chat-icon-btn${state.browseChannelsOpen ? " active" : ""}" data-chat-browse-channels-toggle aria-label="Browse channels" title="Browse channels"><i class="ti ti-hash"></i></button>
                   <button type="button" class="chat-icon-btn" data-chat-compose-toggle aria-label="New conversation" title="New conversation"><i class="ti ti-pencil-plus"></i></button>
                 </div>
               </div>
-              ${state.searchOpen ? searchPanel() : `
+              ${state.searchOpen ? searchPanel() : state.browseChannelsOpen ? browseChannelsPanel() : `
                 ${composePopover(selectableProfiles)}
                 <div class="chat-conversation-list">
                   ${state.loading ? `<div class="chat-muted">Loading...</div>` : ""}
@@ -1172,17 +1257,17 @@ export function createChatViewModule() {
                 <header class="chat-thread-head">
                   <button type="button" class="chat-back-btn" data-chat-back aria-label="Back to conversations"><i class="ti ti-arrow-left"></i></button>
                   <div>
-                    <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : "Group"}</div>
+                    <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : selected.kind === "channel" ? "Channel" : "Group"}</div>
                     ${state.renameOpen ? `
                       <form class="chat-rename-form" data-chat-rename-form>
-                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="Group name">
+                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="${selected.kind === "channel" ? "Channel name" : "Group name"}">
                         <button type="submit" aria-label="Save name"><i class="ti ti-check"></i></button>
                         <button type="button" data-chat-rename-cancel aria-label="Cancel rename"><i class="ti ti-x"></i></button>
                       </form>
                     ` : `<h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>`}
                   </div>
                   <div class="chat-thread-tools">
-                    ${selected.kind === "group" ? `
+                    ${["group", "channel"].includes(selected.kind) ? `
                       <button type="button" class="chat-icon-btn chat-member-count${state.membersOpen ? " active" : ""}" data-chat-members-toggle aria-label="Manage members" title="Manage members">
                         <i class="ti ti-users"></i><span>${activeMembers.length}</span>
                       </button>
@@ -1193,8 +1278,8 @@ export function createChatViewModule() {
                     <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
                       <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
                     </button>
-                    ${selected.kind === "group" && manager ? `
-                      <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename group" title="Rename group">
+                    ${["group", "channel"].includes(selected.kind) && manager ? `
+                      <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename ${selected.kind === "channel" ? "channel" : "group"}" title="Rename ${selected.kind === "channel" ? "channel" : "group"}">
                         <i class="ti ti-edit"></i>
                       </button>
                     ` : ""}
@@ -1207,7 +1292,7 @@ export function createChatViewModule() {
                   ${membersPanel(selected)}
                   ${state.archiveConfirmOpen ? `
                     <div class="chat-delete-confirm chat-archive-confirm">
-                      <span>Archive this ${selected.kind === "group" ? "group" : "conversation"}?</span>
+                      <span>Archive this ${selected.kind === "channel" ? "channel" : selected.kind === "group" ? "group" : "conversation"}?</span>
                       <button type="button" data-chat-confirm-archive>Confirm</button>
                       <button type="button" data-chat-cancel-archive>Cancel</button>
                     </div>
@@ -1315,6 +1400,24 @@ export function createChatViewModule() {
           button.addEventListener("click", () => {
             jumpToSearchResult(button.dataset.chatSearchResult, button.dataset.chatSearchMessage);
           });
+        });
+        root.querySelector("[data-chat-browse-channels-toggle]")?.addEventListener("click", () => {
+          if (state.browseChannelsOpen) closeBrowseChannels();
+          else openBrowseChannels();
+        });
+        root.querySelector("[data-chat-browse-channels-close]")?.addEventListener("click", () => closeBrowseChannels());
+        root.querySelectorAll("[data-chat-join-channel]").forEach((button) => {
+          button.addEventListener("click", () => joinChannel(button.dataset.chatJoinChannel));
+        });
+        root.querySelector("[data-chat-channel-title]")?.addEventListener("input", (event) => {
+          state.composeChannelTitle = event.currentTarget.value;
+          render();
+          const input = root.querySelector("[data-chat-channel-title]");
+          input?.focus();
+          input?.setSelectionRange?.(input.value.length, input.value.length);
+        });
+        root.querySelector("[data-chat-create-channel]")?.addEventListener("click", () => {
+          createChannel(state.composeChannelTitle);
         });
         root.querySelector("[data-chat-compose-toggle]")?.addEventListener("click", () => {
           if (state.composeOpen) closeCompose();

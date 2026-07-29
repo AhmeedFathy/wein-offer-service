@@ -6,7 +6,7 @@ import {
   sortConversations,
   unreadCount,
 } from "../src/features/chat/chat-domain.mjs";
-import { createMockChatService } from "../src/features/chat/mock-chat-service.mjs";
+import { createMockChatService, createSharedChatStore } from "../src/features/chat/mock-chat-service.mjs";
 
 async function testGroupConversationContract() {
   const service = createMockChatService("u-ahmed");
@@ -104,8 +104,67 @@ async function testGroupOwnerManagementContract() {
   assert.equal(conversation.archived_at, null);
 }
 
+async function testChannelContract() {
+  // A single shared store so these three services actually represent three
+  // people in the same workspace -- without it, each createMockChatService()
+  // call gets its own empty, disconnected data, and cross-user assertions
+  // (the entire point of a channel vs. a group) would pass or fail for the
+  // wrong reason regardless of the real logic being tested.
+  const store = createSharedChatStore();
+  const adminService = createMockChatService("u-ahmed", store);
+
+  // Only admin/manager may create a channel -- u-team is a plain "team" role.
+  const teamService = createMockChatService("u-team", store);
+  await assert.rejects(
+    () => teamService.createChannel("announcements"),
+    /only an admin or manager may create a channel/,
+  );
+
+  const channelId = await adminService.createChannel("announcements");
+  const adminConversations = await adminService.listConversations();
+  assert.ok(adminConversations.some((conversation) => conversation.id === channelId));
+
+  // A channel is discoverable by anyone -- u-fady never got added by u-ahmed,
+  // but the channel must not appear in their regular list until they join.
+  // listChannels() itself always returns every channel regardless of
+  // membership (matching the real service -- filtering out ones already
+  // joined is the browse-UI's job in chat-view.mjs, not the service's), so
+  // it's asserted here only as "the channel is visible to browse", not as
+  // "it disappears once joined".
+  const otherAdminService = createMockChatService("u-fady", store);
+  let otherConversations = await otherAdminService.listConversations();
+  assert.ok(!otherConversations.some((conversation) => conversation.id === channelId));
+  let discoverable = await otherAdminService.listChannels();
+  assert.ok(discoverable.some((channel) => channel.id === channelId));
+
+  await otherAdminService.joinChannel(channelId);
+  otherConversations = await otherAdminService.listConversations();
+  assert.ok(otherConversations.some((conversation) => conversation.id === channelId));
+
+  // Leaving reuses the same self-removal path a group member already has --
+  // no channel-specific "leave" method needed.
+  await otherAdminService.removeMember(channelId, "u-fady");
+  otherConversations = await otherAdminService.listConversations();
+  assert.ok(!otherConversations.some((conversation) => conversation.id === channelId));
+  discoverable = await otherAdminService.listChannels();
+  assert.ok(discoverable.some((channel) => channel.id === channelId));
+
+  // joinChannel is a channel-only door -- it must not become a backdoor into
+  // a group someone was never invited to.
+  const groupId = await adminService.createGroup("Private ops", []);
+  await assert.rejects(
+    () => otherAdminService.joinChannel(groupId),
+    /only channels can be joined this way/,
+  );
+}
+
 async function testMessageSearchContract() {
-  const service = createMockChatService("u-ahmed");
+  // Shared store: the outsider check below needs u-team to be a REAL member
+  // of groupB (in the same workspace as u-ahmed) for its empty result to mean
+  // anything -- against two disconnected per-instance stores it would come
+  // back empty regardless of membership logic, proving nothing.
+  const store = createSharedChatStore();
+  const service = createMockChatService("u-ahmed", store);
   const groupAId = await service.createGroup("Ops room", ["u-fady"]);
   const groupBId = await service.createGroup("Sales room", ["u-team"]);
 
@@ -119,10 +178,12 @@ async function testMessageSearchContract() {
   const results = await service.searchMessages("ottoman");
   assert.deepEqual(results.map((message) => message.body), ["check the Ottoman menu"]);
 
-  // A user who isn't a member of groupA must never see its messages, even
-  // ones that match -- searchMessages relies on the same membership scoping
-  // as every other read (RLS does this for real in supabase-chat-service).
-  const outsiderService = createMockChatService("u-team");
+  // u-team is a real member of groupB (in the same shared workspace) but not
+  // groupA -- their search for "ottoman" must come back empty because
+  // groupB's only matching message was deleted above, not because they can't
+  // see anything at all. This is the actual membership-scoping guarantee;
+  // without the shared store this assertion would trivially pass either way.
+  const outsiderService = createMockChatService("u-team", store);
   const outsiderResults = await outsiderService.searchMessages("ottoman");
   assert.deepEqual(outsiderResults.map((message) => message.conversation_id), []);
 
@@ -199,6 +260,7 @@ await testDmIdempotencyAndTitles();
 await testUnreadAndReadState();
 await testGroupOwnerManagementContract();
 await testDmArchiveContract();
+await testChannelContract();
 await testMessageSearchContract();
 await testAttachmentContract();
 testDomainFormatting();

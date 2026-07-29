@@ -12,7 +12,25 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-export function createMockChatService(currentUserId) {
+// Two independent createMockChatService() calls never see each other's data
+// by default -- each gets its own fresh Maps. That's fine for single-actor
+// tests, but silently wrong for anything that needs to prove a multi-user
+// invariant (e.g. "a channel one admin creates is visible to a different
+// user who never touched it"): without a shared store, a second actor's
+// service is just an empty workspace, and any "they can/can't see it"
+// assertion against it passes or fails for the wrong reason. Pass the same
+// object (from createSharedChatStore()) to multiple createMockChatService()
+// calls to put them in one shared workspace.
+export function createSharedChatStore() {
+  return {
+    conversations: new Map(),
+    messages: new Map(),
+    dmPairs: new Map(),
+    storedFiles: new Map(),
+  };
+}
+
+export function createMockChatService(currentUserId, sharedStore = null) {
   const profiles = [
     { id: "u-ahmed", full_name: "Ahmed Fathy", role: "admin", email: "af8847492@gmail.com" },
     { id: "u-fady", full_name: "Fady Abdo", role: "admin", email: "fady@wein.local" },
@@ -21,10 +39,10 @@ export function createMockChatService(currentUserId) {
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const actorId = currentUserId || profiles[0].id;
 
-  const conversations = new Map();
-  const messages = new Map();
-  const dmPairs = new Map();
-  const storedFiles = new Map(); // path -> { name, mime, size }
+  const conversations = sharedStore?.conversations || new Map();
+  const messages = sharedStore?.messages || new Map();
+  const dmPairs = sharedStore?.dmPairs || new Map();
+  const storedFiles = sharedStore?.storedFiles || new Map(); // path -> { name, mime, size }
 
   function decorateConversation(conversation) {
     const conversationMessages = messages.get(conversation.id) || [];
@@ -99,6 +117,46 @@ export function createMockChatService(currentUserId) {
     return conversation.id;
   }
 
+  // Unlike a group (invite-only, an owner has to add you), a channel is
+  // discoverable and self-service joinable by anyone -- creating one is the
+  // only part that's restricted, matching the real wein_chat_create_channel
+  // RPC's admin/manager-only check (061_chat_channels.sql).
+  async function createChannel(title) {
+    const actor = profileById.get(actorId);
+    if (!["admin", "manager"].includes(actor?.role)) throw new Error("only an admin or manager may create a channel");
+    if (!title || !title.trim()) throw new Error("Channel name is required");
+    const conversation = {
+      id: id("channel"),
+      kind: "channel",
+      title: title.trim(),
+      created_by: actorId,
+      created_at: iso(),
+      archived_at: null,
+      members: [],
+    };
+    addMemberRow(conversation, actorId, "owner");
+    conversations.set(conversation.id, conversation);
+    messages.set(conversation.id, []);
+    return conversation.id;
+  }
+
+  async function joinChannel(conversationId) {
+    const conversation = requireConversation(conversationId);
+    if (conversation.kind !== "channel") throw new Error("only channels can be joined this way");
+    addMemberRow(conversation, actorId, "member");
+  }
+
+  async function listChannels() {
+    return clone(
+      [...conversations.values()]
+        .filter((conversation) => conversation.kind === "channel" && !conversation.archived_at)
+        .map(({ id: channelId, kind, title, created_by, created_at, archived_at }) => (
+          { id: channelId, kind, title, created_by, created_at, archived_at }
+        ))
+        .sort((a, b) => (a.title || "").localeCompare(b.title || "")),
+    );
+  }
+
   async function getOrCreateDm(otherUserId) {
     if (!otherUserId || otherUserId === actorId) throw new Error("Choose another person");
     const pair = [actorId, otherUserId].sort().join(":");
@@ -126,7 +184,16 @@ export function createMockChatService(currentUserId) {
     },
 
     async listConversations() {
-      return clone([...conversations.values()].map(decorateConversation));
+      // Matches the real chat_conversations_select_member RLS policy: only
+      // conversations the caller is an active member of. This matters now
+      // that channels exist -- a channel someone else created must not show
+      // up here until the actor actually joins it (listChannels() is the
+      // separate "discover, not yet a member" view).
+      return clone(
+        [...conversations.values()]
+          .filter((conversation) => conversation.members.some((member) => member.user_id === actorId && !member.left_at))
+          .map(decorateConversation),
+      );
     },
 
     async listMessages(conversationId) {
@@ -157,6 +224,12 @@ export function createMockChatService(currentUserId) {
     },
 
     createGroup,
+
+    createChannel,
+
+    joinChannel,
+
+    listChannels,
 
     getOrCreateDm,
 
