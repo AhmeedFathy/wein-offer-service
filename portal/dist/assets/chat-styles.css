@@ -924,10 +924,10 @@
      header/message list above), which left a smaller but still-visible gap
      after Send once the 92px gutter was removed. Cancel it on the right only
      -- top/bottom/left stay put, matching the message list's alignment --
-     and put back a tighter 12px so Send sits close to the true edge without
-     literally touching it. */
+     so Send sits fully flush against the panel's true edge, matching a
+     typical Slack/WhatsApp composer (confirmed live: a 12px compromise gap
+     still read as "there" to the user, so this goes all the way to 0). */
   margin-right: -18px;
-  padding-right: 12px;
 }
 
 .chat-reply-strip {
