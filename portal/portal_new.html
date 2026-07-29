@@ -165,6 +165,12 @@ a { color: var(--blue); text-decoration: none; }
   padding: 0 6px; min-width: 18px; text-align: center; font-family:'JetBrains Mono',monospace;
 }
 .nav-item.active .nav-count { color: var(--blue); background: var(--blue-tint); border-color: var(--border-blue); }
+.chat-unread-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--blue); color: #fff;
+  font-size: 11px; font-weight: 700; text-align: center;
+  align-items: center; justify-content: center;
+}
 .nav-item i { font-size: 15px; flex-shrink: 0; }
 .nav-item:hover { background: var(--bg-elevated); color: var(--text-secondary); }
 .nav-item.active { background: var(--blue-tint); color: var(--blue); }
@@ -639,7 +645,7 @@ html.is-mobile #modal-tabs { overflow-x: auto; }
     <div class="nav-subitems" data-group-items="system">
       <div class="nav-item" data-view="files"><i class="ti ti-files"></i><span>Files</span></div>
       <div class="nav-item" data-view="team"><i class="ti ti-users"></i><span>Team</span></div>
-      <div class="nav-item" data-view="team-chat"><i class="ti ti-message-circle"></i><span>Team Chat</span></div>
+      <div class="nav-item" data-view="team-chat"><i class="ti ti-message-circle"></i><span>Team Chat</span><span class="chat-unread-badge" data-chat-unread-badge style="display:none"></span></div>
     </div>
   </div>
 </aside>

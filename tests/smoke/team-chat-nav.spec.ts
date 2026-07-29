@@ -81,6 +81,7 @@ type PortalMockOptions = {
   currentRole?: 'admin' | 'manager' | 'deal_breaker' | 'team';
   currentMembershipRole?: 'owner' | 'member';
   notifications?: unknown[];
+  unreadMessageSeq?: number;
 };
 
 function restRows(url: URL, options: PortalMockOptions = {}): unknown[] {
@@ -127,6 +128,32 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
   const currentProfile = { ...profile, role: options.currentRole ?? profile.role };
   const currentMembershipRole = options.currentMembershipRole ?? 'owner';
   const chatKind = options.chatKind ?? 'dm';
+  // Baked into the fixture at construction time (not mutated after login)
+  // so it survives being read by main.ts's global unread-badge poller,
+  // which shares this same mocked client instance with the chat view.
+  const unreadLastMessage = options.unreadMessageSeq
+    ? JSON.stringify([{ id: 'seed-msg', message_seq: options.unreadMessageSeq, created_at: '2026-07-27T10:00:00.000Z' }])
+    : '[]';
+  // listMessages() must return a real row at the same seq, or markRead()
+  // (which reads state.messages.at(-1).message_seq, not last_message
+  // directly) would advance last_read_seq to the wrong number and the
+  // "read it, badge clears" test would never actually clear.
+  const seededSentMessages = options.unreadMessageSeq
+    ? JSON.stringify([{
+        id: 'seed-msg',
+        conversation_id: chatKind === 'group' ? 'group-1' : 'dm-1',
+        message_seq: options.unreadMessageSeq,
+        sender_id: otherProfile.id,
+        body: 'Seeded unread message',
+        reply_to_id: null,
+        client_nonce: 'seed-nonce',
+        created_at: '2026-07-27T10:00:00.000Z',
+        edited_at: null,
+        deleted_at: null,
+        mentioned_user_ids: null,
+        attachments: [],
+      }])
+    : '[]';
   await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', async (route) => {
     await route.fulfill({
       contentType: 'application/javascript',
@@ -146,7 +173,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 { conversation_id: 'dm-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: currentProfile },
                 { conversation_id: 'dm-1', user_id: ${JSON.stringify(otherProfile.id)}, membership_role: 'member', joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(otherProfile)} }
               ],
-              last_message: []
+              last_message: ${unreadLastMessage}
             };
             const groupConversation = {
               id: 'group-1',
@@ -159,13 +186,13 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 { conversation_id: 'group-1', user_id: ${JSON.stringify(mockUser.id)}, membership_role: ${JSON.stringify(currentMembershipRole)}, joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: currentProfile },
                 { conversation_id: 'group-1', user_id: ${JSON.stringify(otherProfile.id)}, membership_role: ${JSON.stringify(currentMembershipRole === 'owner' ? 'member' : 'owner')}, joined_at: '2026-07-20T10:00:00.000Z', left_at: null, last_read_seq: 0, notification_level: 'all', profile: ${JSON.stringify(otherProfile)} }
               ],
-              last_message: []
+              last_message: ${unreadLastMessage}
             };
             const initialConversations = ${JSON.stringify(Boolean(options.initialConversations))};
             let conversations = initialConversations ? [${JSON.stringify(chatKind)} === 'group' ? groupConversation : dmConversation] : [];
             let dmCreated = false;
-            let nextMessageSeq = 1;
-            const sentMessages = [];
+            let nextMessageSeq = ${options.unreadMessageSeq ? options.unreadMessageSeq + 1 : 1};
+            const sentMessages = ${seededSentMessages};
             const taskFixture = {
               id: 'task-1',
               title: 'Call Smoke Lead',
@@ -314,7 +341,10 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                         level: this._updatePayload.notification_level
                       });
                     }
-                    rows = [{ conversation_id: conversationId, user_id: userId, last_read_seq: this._updatePayload.last_read_seq || 0, notification_level: this._updatePayload.notification_level || self?.notification_level || 'all' }];
+                    if (self && typeof this._updatePayload.last_read_seq === 'number') {
+                      self.last_read_seq = this._updatePayload.last_read_seq;
+                    }
+                    rows = [{ conversation_id: conversationId, user_id: userId, last_read_seq: self?.last_read_seq ?? (this._updatePayload.last_read_seq || 0), notification_level: this._updatePayload.notification_level || self?.notification_level || 'all' }];
                   }
                   return Promise.resolve({ data: rows, error: null }).then(resolve);
                 }
@@ -762,6 +792,34 @@ test('team chat hides the global AI assistant button', async ({ page }) => {
   // ...and it comes back on any other view.
   await page.locator('.nav-item[data-view="today"]').click();
   await expect(page.locator('#chatFab')).toHaveClass(/visible/);
+});
+
+test('sidebar badge and tab title show a global unread chat count before Team Chat is ever opened', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group', unreadMessageSeq: 3 });
+
+  // Never calls openTeamChat -- the poller in main.ts is independent of the view.
+  await expect.poll(
+    () => page.locator('[data-chat-unread-badge]').textContent(),
+    { timeout: 10000 },
+  ).toBe('3');
+  await expect(page.locator('[data-chat-unread-badge]')).toBeVisible();
+  await expect.poll(() => page.title(), { timeout: 10000 }).toBe('(3) WeIN OS — Pipeline');
+});
+
+test('reading the unread conversation clears the sidebar badge and tab title', async ({ page }) => {
+  // Once the initial post-login catch-up poll fires, the badge settles onto
+  // the same 30s steady-state cadence as every other nav refresh in this
+  // app -- clearing after a read is correctly slow, not broken. This test
+  // waits out that real interval rather than shortening it artificially.
+  test.setTimeout(45000);
+  await login(page, { initialConversations: true, chatKind: 'group', unreadMessageSeq: 2 });
+  await expect.poll(() => page.locator('[data-chat-unread-badge]').textContent(), { timeout: 10000 }).toBe('2');
+
+  await openTeamChat(page);
+  await page.locator('.chat-conversation').first().click();
+
+  await expect(page.locator('[data-chat-unread-badge]')).toBeHidden({ timeout: 35000 });
+  await expect.poll(() => page.title(), { timeout: 5000 }).toBe('WeIN OS — Pipeline');
 });
 
 test('attaching an image uploads it and sends as an inline attachment', async ({ page }) => {
