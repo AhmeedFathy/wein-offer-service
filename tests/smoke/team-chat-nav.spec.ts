@@ -495,6 +495,36 @@ test('team chat mounts through a real nav click and cleans up on navigation away
   expect(pageErrors).toEqual([]);
 });
 
+test('team chat suppresses the page-level scrollbar while mounted, restores it on navigation away', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+
+  // #mainArea's margin-top: 52px (clearing the fixed topbar) collapses through
+  // body when nothing blocks it, adding a phantom 52px to body's scrollable
+  // overflow with nothing actually rendered there -- the visible symptom is a
+  // permanent vertical scrollbar down the true right edge of the window, even
+  // though team chat itself is meant to be a self-contained, non-scrolling
+  // full-bleed view. Confirmed by comparing clientWidth (excludes a real
+  // scrollbar's width) against window.innerWidth (includes it): equal means
+  // no scrollbar is actually rendered.
+  const noScrollbarBefore = await page.evaluate(() => document.documentElement.clientWidth === window.innerWidth);
+  expect(noScrollbarBefore).toBe(true);
+
+  await openTeamChat(page);
+  const bodyState = await page.evaluate(() => ({
+    hasClass: document.body.classList.contains('wein-chat-root'),
+    overflow: getComputedStyle(document.body).overflow,
+    noScrollbar: document.documentElement.clientWidth === window.innerWidth,
+  }));
+  expect(bodyState).toEqual({ hasClass: true, overflow: 'hidden', noScrollbar: true });
+
+  await page.locator('.nav-item[data-view="today"]').click();
+  const bodyStateAfter = await page.evaluate(() => ({
+    hasClass: document.body.classList.contains('wein-chat-root'),
+    overflow: getComputedStyle(document.body).overflow,
+  }));
+  expect(bodyStateAfter).toEqual({ hasClass: false, overflow: 'visible' });
+});
+
 test('opening a DM shows a composer that actually fits on screen and can send a message', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

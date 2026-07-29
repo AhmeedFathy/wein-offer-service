@@ -106,6 +106,18 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg-base); color: var(--text-primary); font-family: 'Instrument Sans', sans-serif; min-height: 100vh; }
+/* Team Chat is the one view that is genuinely self-contained (#mainArea gets
+   a fixed height + overflow: hidden for it, chat-view.mjs's own mount/unmount
+   toggles this same class on body -- see chat-view.mjs). Every other view
+   relies on #mainArea's min-height (not height) growing past the viewport and
+   body itself scrolling to reveal it, so this must stay scoped to Team Chat
+   only: #mainArea's margin-top: 52px (clearing the fixed topbar) has nothing
+   to collapse into once Team Chat's own overflow: hidden is active, so the
+   fixed 52px scrollable-overflow this rule blocks would otherwise show up as
+   a permanent, empty vertical scrollbar down the window's true right edge --
+   visible behind the chat panel and the composer -- even though Team Chat
+   itself needs no page-level scroll at all. */
+body.wein-chat-root { overflow: hidden; }
 button, input { font-family: inherit; }
 button { cursor: pointer; }
 /* Native <select> popups always render on the OS's own white/light

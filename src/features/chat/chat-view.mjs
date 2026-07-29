@@ -212,6 +212,9 @@ export function createChatViewModule() {
       }
 
       root.classList.add("wein-chat-root");
+      if (typeof document !== "undefined") {
+        document.body?.classList.add("wein-chat-root");
+      }
 
       function handleRootClick(event) {
         const target = event.target;
@@ -1331,6 +1334,7 @@ export function createChatViewModule() {
         root.removeEventListener?.("click", handleRootClick);
         if (typeof document !== "undefined") {
           document.removeEventListener("keydown", handleDocumentKeydown);
+          document.body?.classList.remove("wein-chat-root");
         }
         root.classList.remove("wein-chat-root");
         root.classList.remove("chat-has-selection");
