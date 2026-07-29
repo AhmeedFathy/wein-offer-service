@@ -745,18 +745,18 @@ export function createChatViewModule() {
         const selected = conversation.id === state.selectedConversationId ? " selected" : "";
         const unread = conversation.unread_count ? `<span class="chat-count">${conversation.unread_count}</span>` : "";
         const title = conversationDisplayTitle(conversation, context.currentUser.id);
-        const timestamp = shortChatTime(conversation.last_message?.created_at);
+        const isGroup = conversation.kind === "group";
+        // Slack-style compact row: groups get a "#" prefix and no avatar (they're
+        // the closest thing this app has to a channel), DMs keep a small avatar --
+        // matching how a real Slack sidebar tells the two kinds apart at a glance.
+        const marker = isGroup
+          ? `<span class="chat-conversation-hash" aria-hidden="true">#</span>`
+          : `<span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>`;
         return `
           <button type="button" class="chat-conversation${selected}" data-chat-select="${escapeHtml(conversation.id)}">
-            <span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>
-            <span class="chat-conversation-body">
-              <span class="chat-conversation-row">
-                <span class="chat-conversation-title">${escapeHtml(title)}</span>
-                ${timestamp ? `<span class="chat-conversation-timestamp">${escapeHtml(timestamp)}</span>` : ""}
-                ${unread}
-              </span>
-              <span class="chat-conversation-preview">${escapeHtml(messagePreview(conversation.last_message))}</span>
-            </span>
+            ${marker}
+            <span class="chat-conversation-title">${escapeHtml(title)}</span>
+            ${unread}
           </button>
         `;
       }

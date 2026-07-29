@@ -457,28 +457,42 @@
 
 .chat-conversation-list {
   display: grid;
-  gap: 7px;
+  gap: 1px;
 }
 
+/* Slack-style compact row: flat/borderless with a hover highlight instead of
+   a bordered card, single line instead of name+preview -- this is what makes
+   a long conversation list actually scan quickly instead of feeling chunky. */
 .chat-conversation {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  border: .5px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: 6px;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  min-height: 58px;
-  padding: 10px 12px;
+  min-height: 30px;
+  padding: 5px 8px;
   text-align: left;
 }
 
-.chat-conversation:hover,
+.chat-conversation:hover {
+  background: var(--bg-elevated);
+}
+
 .chat-conversation.selected {
-  border-color: var(--border-blue-strong);
   background: var(--blue-tint);
+}
+
+.chat-conversation-hash {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .chat-conversation-avatar {
@@ -486,52 +500,28 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: var(--blue-tint);
   color: var(--blue);
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 700;
-}
-
-.chat-conversation-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.chat-conversation-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .chat-conversation-title {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: var(--text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
 }
 
-.chat-conversation-timestamp {
-  flex-shrink: 0;
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.chat-conversation-preview {
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.chat-conversation.selected .chat-conversation-title {
+  color: var(--text-primary);
 }
 
 .chat-count {
