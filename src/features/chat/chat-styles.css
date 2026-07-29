@@ -144,6 +144,112 @@
   overflow: auto;
 }
 
+.chat-search-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: .5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: 8px 10px;
+}
+
+.chat-search-input-row i {
+  color: var(--text-tertiary);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.chat-search-input-row input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.chat-search-input-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.chat-search-input-row button:hover {
+  color: var(--text-primary);
+}
+
+.chat-search-results {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-search-result {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  border: .5px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 8px 9px;
+  font: inherit;
+}
+
+.chat-search-result:hover {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+
+.chat-search-result-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-search-result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-search-result-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.chat-search-result-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-search-result-snippet strong {
+  color: var(--text-primary);
+}
+
 .chat-members-panel {
   top: 42px;
   left: auto;
@@ -537,6 +643,15 @@
   align-self: flex-end;
   border-color: var(--border-blue-strong);
   background: var(--blue-tint);
+}
+
+@keyframes chat-message-jumped-flash {
+  0%, 100% { box-shadow: none; }
+  25% { box-shadow: 0 0 0 2px var(--blue); }
+}
+
+.chat-message-jumped {
+  animation: chat-message-jumped-flash 1.6s ease;
 }
 
 .chat-message-grouped {

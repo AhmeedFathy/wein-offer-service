@@ -234,6 +234,7 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                 eq(column, value) { this._filters.push(['eq', column, value]); return this; },
                 neq() { return this; },
                 is() { return this; },
+                ilike(column, value) { this._filters.push(['ilike', column, value]); return this; },
                 order() { return this; },
                 limit() { return this; },
                 insert(payload) {
@@ -321,7 +322,14 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
                     rows = [target];
                   }
                   else if (table === 'wein_chat_conversations') rows = conversations;
-                  else if (table === 'wein_chat_messages') rows = sentMessages.filter((message) => !message.deleted_at);
+                  else if (table === 'wein_chat_messages') {
+                    rows = sentMessages.filter((message) => !message.deleted_at);
+                    const ilikeFilter = this._filters.find((filter) => filter[0] === 'ilike');
+                    if (ilikeFilter) {
+                      const needle = ilikeFilter[2].slice(1, -1).replace(/\\\\(.)/g, '$1').toLowerCase();
+                      rows = rows.filter((message) => message.body.toLowerCase().includes(needle));
+                    }
+                  }
                   else if (table === 'wein_tasks') rows = [taskFixture];
                   else if (table === 'wein_comment_mentions') rows = [mentionFixture];
                   else if (table === 'wein_comments') {
@@ -990,6 +998,42 @@ test('non-admin DM participant sees no archive control', async ({ page }) => {
   // role check -- matching the DB trigger, which relies on the same
   // wein_chat_can_manage_members() check regardless of conversation kind.
   await expect(page.locator('[data-chat-archive-toggle]')).toHaveCount(0);
+});
+
+test('searching finds a message and jumps to it, replacing the conversation list', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('discussing the ottoman menu deal');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('discussing the ottoman menu deal');
+  await composer.fill('second message');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('second message');
+
+  await page.getByLabel('Search messages').click();
+  await expect(page.locator('.chat-conversation-list')).toHaveCount(0);
+  await page.locator('[data-chat-search-input]').fill('ottoman');
+
+  const result = page.locator('[data-chat-search-result]');
+  await expect(result).toHaveCount(1);
+  await expect(result).toContainText('discussing the ottoman menu deal');
+
+  await result.click();
+  await expect(page.locator('.chat-search-panel')).toHaveCount(0);
+  await expect(page.locator('.chat-message-jumped')).toContainText('discussing the ottoman menu deal');
+});
+
+test('search shows no results for a query that matches nothing', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  await page.getByLabel('Search messages').click();
+  await page.locator('[data-chat-search-input]').fill('nonexistent phrase');
+
+  await expect(page.locator('.chat-search-results')).toContainText('No messages found.');
+  await expect(page.locator('[data-chat-search-result]')).toHaveCount(0);
 });
 
 test('opening a task renders the record-discussion UI and a posted comment appears, with no interval leak on close/reopen', async ({ page }) => {

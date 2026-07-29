@@ -44,6 +44,11 @@ class FakeQuery {
     return this;
   }
 
+  ilike(column, pattern) {
+    this.filters.push(["ilike", column, pattern]);
+    return this;
+  }
+
   order(column, options) {
     this.filters.push(["order", column, options || null]);
     return this;
@@ -291,6 +296,35 @@ async function testSupabaseAdapterContract() {
   const signCall = fake.calls.find((call) => call.kind === "storage-sign");
   assert.equal(signCall.path, uploaded.path);
   assert.equal(signCall.expiresIn, 3600);
+
+  const searchResults = await service.searchMessages("50% off");
+  assert.deepEqual(searchResults, [
+    {
+      id: "m-1",
+      conversation_id: "group-1",
+      message_seq: 1,
+      sender_id: "u-1",
+      body: "hello",
+      reply_to_id: null,
+      client_nonce: "n-1",
+      created_at: "2026-07-26T00:00:01Z",
+      edited_at: null,
+      deleted_at: null,
+      mentioned_user_ids: [],
+      attachments: [],
+      sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+    },
+  ]);
+  const searchCall = fake.calls.find((call) => call.table === "wein_chat_messages" && call.filters.some((filter) => filter[0] === "ilike"));
+  const ilikeFilter = searchCall.filters.find((filter) => filter[0] === "ilike");
+  // "%" and other ILIKE wildcard chars in the raw query must be escaped so a
+  // literal search for e.g. "50% off" doesn't get reinterpreted as a pattern.
+  assert.deepEqual(ilikeFilter, ["ilike", "body", "%50\\% off%"]);
+  assert.ok(searchCall.filters.some((filter) => filter[0] === "is" && filter[1] === "deleted_at" && filter[2] === null));
+  assert.ok(searchCall.filters.some((filter) => filter[0] === "order" && filter[1] === "created_at" && filter[2]?.ascending === false));
+  assert.ok(searchCall.filters.some((filter) => filter[0] === "limit" && filter[1] === 50));
+
+  assert.deepEqual(await service.searchMessages("   "), []);
 
   await service.sendMessage({
     conversationId: "group-1",

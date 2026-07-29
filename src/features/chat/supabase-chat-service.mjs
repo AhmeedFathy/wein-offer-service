@@ -14,6 +14,12 @@ function attachmentUploadPath(conversationId, fileName) {
   return `${conversationId}/${nonce}-${sanitizeFileName(fileName)}`;
 }
 
+function escapeIlikePattern(value) {
+  // %, _, and \ are ILIKE wildcards/escape chars -- a literal search for e.g.
+  // "50%" or "file_name" must not have those reinterpreted as pattern syntax.
+  return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 function requireRows(result, label) {
   if (result.error) throw new Error(`${label}: ${result.error.message || result.error}`);
   return result.data || [];
@@ -157,6 +163,24 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .is("deleted_at", null)
         .order("message_seq", { ascending: true });
       return requireRows(result, "list messages").map(messageFromRow);
+    },
+
+    async searchMessages(query) {
+      const trimmed = (query || "").trim();
+      if (!trimmed) return [];
+      const result = await supabase
+        .from("wein_chat_messages")
+        .select(`
+          id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
+          sender:profiles(id, full_name, role, email)
+        `)
+        .is("deleted_at", null)
+        .ilike("body", `%${escapeIlikePattern(trimmed)}%`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      // RLS (chat_messages_select_member) already scopes rows to conversations
+      // the current user is an active member of -- no extra filtering needed.
+      return requireRows(result, "search messages").map(messageFromRow);
     },
 
     async createGroup(title, memberIds = []) {

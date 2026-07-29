@@ -106,6 +106,11 @@ export function createChatViewModule() {
         pendingAttachments: [],
         openMessageMenuId: null,
         confirmingDeleteMessageId: null,
+        searchOpen: false,
+        searchQuery: "",
+        searchResults: [],
+        searchLoading: false,
+        searchError: null,
         loading: true,
         error: null,
       };
@@ -119,6 +124,8 @@ export function createChatViewModule() {
       let refreshTimer = null;
       let unsubscribeRealtime = null;
       let forceScrollBottom = false;
+      let searchDebounceTimer = null;
+      let searchRequestId = 0;
 
       function wasScrolledNearBottom() {
         const list = root.querySelector(".chat-message-list");
@@ -427,6 +434,68 @@ export function createChatViewModule() {
         render();
       }
 
+      function openSearch() {
+        state.searchOpen = true;
+        state.composeOpen = false;
+        render();
+        root.querySelector("[data-chat-search-input]")?.focus();
+      }
+
+      function closeSearch() {
+        state.searchOpen = false;
+        state.searchQuery = "";
+        state.searchResults = [];
+        state.searchLoading = false;
+        state.searchError = null;
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        render();
+      }
+
+      async function runSearch(query) {
+        const trimmed = query.trim();
+        if (!trimmed) {
+          state.searchResults = [];
+          state.searchLoading = false;
+          state.searchError = null;
+          if (!disposed) render();
+          return;
+        }
+        const requestId = ++searchRequestId;
+        state.searchLoading = true;
+        state.searchError = null;
+        if (!disposed) render();
+        try {
+          const results = await context.service.searchMessages(trimmed);
+          if (disposed || requestId !== searchRequestId) return;
+          state.searchResults = results;
+          state.searchLoading = false;
+          render();
+        } catch (error) {
+          if (disposed || requestId !== searchRequestId) return;
+          state.searchError = error instanceof Error ? error.message : String(error);
+          state.searchLoading = false;
+          render();
+        }
+      }
+
+      function scheduleSearch(query) {
+        state.searchQuery = query;
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => runSearch(query), 300);
+      }
+
+      async function jumpToSearchResult(conversationId, messageId) {
+        closeSearch();
+        await selectConversation(conversationId);
+        if (disposed) return;
+        const node = Array.from(root.querySelectorAll("[data-chat-message-id]"))
+          .find((candidate) => candidate.dataset.chatMessageId === messageId);
+        if (!node) return;
+        node.scrollIntoView({ block: "center" });
+        node.classList.add("chat-message-jumped");
+        setTimeout(() => node.classList.remove("chat-message-jumped"), 1600);
+      }
+
       function toggleComposeMember(userId, checked) {
         const next = new Set(state.composeSelectedMemberIds);
         if (checked) next.add(userId);
@@ -689,6 +758,42 @@ export function createChatViewModule() {
               <span class="chat-conversation-preview">${escapeHtml(messagePreview(conversation.last_message))}</span>
             </span>
           </button>
+        `;
+      }
+
+      function searchResultItem(message) {
+        const conversation = state.conversations.find((row) => row.id === message.conversation_id);
+        const title = conversation ? conversationDisplayTitle(conversation, context.currentUser.id) : "Archived conversation";
+        const timestamp = shortChatTime(message.created_at);
+        const senderName = message.sender?.full_name || "Unknown";
+        return `
+          <button type="button" class="chat-search-result" data-chat-search-result="${escapeHtml(message.conversation_id)}" data-chat-search-message="${escapeHtml(message.id)}">
+            <span class="chat-search-result-row">
+              <span class="chat-search-result-title">${escapeHtml(title)}</span>
+              ${timestamp ? `<span class="chat-search-result-time">${escapeHtml(timestamp)}</span>` : ""}
+            </span>
+            <span class="chat-search-result-snippet"><strong>${escapeHtml(senderName)}:</strong> ${escapeHtml(messagePreview(message))}</span>
+          </button>
+        `;
+      }
+
+      function searchPanel() {
+        const trimmed = state.searchQuery.trim();
+        return `
+          <div class="chat-search-panel">
+            <div class="chat-search-input-row">
+              <i class="ti ti-search"></i>
+              <input data-chat-search-input type="search" placeholder="Search messages..." value="${escapeHtml(state.searchQuery)}" autocomplete="off">
+              <button type="button" data-chat-search-close aria-label="Close search"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="chat-search-results">
+              ${state.searchLoading ? `<div class="chat-muted">Searching...</div>` : ""}
+              ${state.searchError ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.searchError)}</span></div>` : ""}
+              ${!state.searchLoading && !state.searchError && trimmed && !state.searchResults.length ? `<div class="chat-muted">No messages found.</div>` : ""}
+              ${!state.searchLoading && !trimmed ? `<div class="chat-muted">Type to search across every conversation you're in.</div>` : ""}
+              ${!state.searchLoading ? state.searchResults.map(searchResultItem).join("") : ""}
+            </div>
+          </div>
         `;
       }
 
@@ -1049,15 +1154,18 @@ export function createChatViewModule() {
                 </div>
                 <div class="chat-sidebar-tools">
                   <span class="chat-user-pill">${escapeHtml(roleLabel(context.currentUser.role))}</span>
+                  <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages"><i class="ti ti-search"></i></button>
                   <button type="button" class="chat-icon-btn" data-chat-compose-toggle aria-label="New conversation" title="New conversation"><i class="ti ti-pencil-plus"></i></button>
                 </div>
               </div>
-              ${composePopover(selectableProfiles)}
-              <div class="chat-conversation-list">
-                ${state.loading ? `<div class="chat-muted">Loading...</div>` : ""}
-                ${state.conversations.map(conversationItem).join("")}
-                ${!state.loading && !state.conversations.length ? `<div class="chat-muted">No conversations yet.</div>` : ""}
-              </div>
+              ${state.searchOpen ? searchPanel() : `
+                ${composePopover(selectableProfiles)}
+                <div class="chat-conversation-list">
+                  ${state.loading ? `<div class="chat-muted">Loading...</div>` : ""}
+                  ${state.conversations.map(conversationItem).join("")}
+                  ${!state.loading && !state.conversations.length ? `<div class="chat-muted">No conversations yet.</div>` : ""}
+                </div>
+              `}
             </aside>
             <main class="chat-thread">
               ${state.error ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.error)}</span></div>` : ""}
@@ -1182,6 +1290,23 @@ export function createChatViewModule() {
         root.querySelectorAll("[data-chat-promote-member]").forEach((button) => {
           button.addEventListener("click", () => {
             if (selected) setMemberRole(selected.id, button.dataset.chatPromoteMember, button.dataset.chatRole);
+          });
+        });
+        root.querySelector("[data-chat-search-toggle]")?.addEventListener("click", () => {
+          if (state.searchOpen) closeSearch();
+          else openSearch();
+        });
+        root.querySelector("[data-chat-search-close]")?.addEventListener("click", () => closeSearch());
+        root.querySelector("[data-chat-search-input]")?.addEventListener("input", (event) => {
+          scheduleSearch(event.currentTarget.value);
+          render();
+          const input = root.querySelector("[data-chat-search-input]");
+          input?.focus();
+          input?.setSelectionRange?.(input.value.length, input.value.length);
+        });
+        root.querySelectorAll("[data-chat-search-result]").forEach((button) => {
+          button.addEventListener("click", () => {
+            jumpToSearchResult(button.dataset.chatSearchResult, button.dataset.chatSearchMessage);
           });
         });
         root.querySelector("[data-chat-compose-toggle]")?.addEventListener("click", () => {
@@ -1330,6 +1455,7 @@ export function createChatViewModule() {
       return () => {
         disposed = true;
         if (refreshTimer) clearInterval(refreshTimer);
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
         if (unsubscribeRealtime) unsubscribeRealtime();
         root.removeEventListener?.("click", handleRootClick);
         if (typeof document !== "undefined") {

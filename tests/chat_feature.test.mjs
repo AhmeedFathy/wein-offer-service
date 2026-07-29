@@ -104,6 +104,31 @@ async function testGroupOwnerManagementContract() {
   assert.equal(conversation.archived_at, null);
 }
 
+async function testMessageSearchContract() {
+  const service = createMockChatService("u-ahmed");
+  const groupAId = await service.createGroup("Ops room", ["u-fady"]);
+  const groupBId = await service.createGroup("Sales room", ["u-team"]);
+
+  await service.sendMessage({ conversationId: groupAId, body: "check the Ottoman menu", clientNonce: "n-a1" });
+  const toDelete = await service.sendMessage({ conversationId: groupBId, body: "OTTOMAN discount draft", clientNonce: "n-b1" });
+  await service.sendMessage({ conversationId: groupBId, body: "unrelated update", clientNonce: "n-b2" });
+  await service.deleteMessage(toDelete.id);
+
+  // Case-insensitive, and finds hits across every conversation the searching
+  // user belongs to (both groupA and groupB here).
+  const results = await service.searchMessages("ottoman");
+  assert.deepEqual(results.map((message) => message.body), ["check the Ottoman menu"]);
+
+  // A user who isn't a member of groupA must never see its messages, even
+  // ones that match -- searchMessages relies on the same membership scoping
+  // as every other read (RLS does this for real in supabase-chat-service).
+  const outsiderService = createMockChatService("u-team");
+  const outsiderResults = await outsiderService.searchMessages("ottoman");
+  assert.deepEqual(outsiderResults.map((message) => message.conversation_id), []);
+
+  assert.deepEqual(await service.searchMessages("   "), []);
+}
+
 async function testDmArchiveContract() {
   const service = createMockChatService("u-ahmed");
   const dmId = await service.getOrCreateDm("u-fady");
@@ -174,6 +199,7 @@ await testDmIdempotencyAndTitles();
 await testUnreadAndReadState();
 await testGroupOwnerManagementContract();
 await testDmArchiveContract();
+await testMessageSearchContract();
 await testAttachmentContract();
 testDomainFormatting();
 

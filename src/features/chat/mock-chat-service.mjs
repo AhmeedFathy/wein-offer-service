@@ -138,6 +138,24 @@ export function createMockChatService(currentUserId) {
       })));
     },
 
+    async searchMessages(query) {
+      const trimmed = (query || "").trim();
+      if (!trimmed) return [];
+      const needle = trimmed.toLowerCase();
+      const hits = [];
+      for (const conversation of conversations.values()) {
+        const isActiveMember = conversation.members.some((row) => row.user_id === actorId && !row.left_at);
+        if (!isActiveMember) continue;
+        for (const message of messages.get(conversation.id) || []) {
+          if (message.deleted_at) continue;
+          if (!message.body?.toLowerCase().includes(needle)) continue;
+          hits.push({ ...message, sender: profileById.get(message.sender_id) || null });
+        }
+      }
+      hits.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      return clone(hits.slice(0, 50));
+    },
+
     createGroup,
 
     getOrCreateDm,
