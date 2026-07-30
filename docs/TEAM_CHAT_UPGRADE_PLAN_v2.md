@@ -33,6 +33,8 @@ are **not** a second source of truth — `conversation.unread_count` is set by t
 | Sidebar is a **flat** recency sort, no sections | confirmed (`chat-domain.mjs:15`) |
 | Playwright suite mocks Supabase entirely (fabricated session, baked fixtures) | confirmed (`tests/smoke/team-chat-nav.spec.ts:364`) |
 | `npm run typecheck` / `npm run build` / `npm run test:smoke` all exist | confirmed (`package.json`) |
+| A second, **non-admin** Supabase account already exists | confirmed — `WEIN_TEAM_TEST_EMAIL` in `workflow/.env`, profile "Portal Chat Team Test", role `team` |
+| `scripts/apply_supabase_sql.py` cannot connect — **known broken** | `SUPABASE_DB_URL`'s password is wrapped in literal `[...]`; `resolve_db_url()` strips brackets from the host only, so auth fails. This is why migrations are hand-pasted. |
 
 ---
 
@@ -138,9 +140,19 @@ END IF;
 
 `mock-chat-service.mjs`'s `joinChannel()` throws the same message.
 
-### Verification before anything else starts
+### Verification before anything else starts — ✅ DONE, all green
 
-Paste `060`, then `061`, then confirm against live Supabase:
+`060` then `061` were pasted 2026-07-30 and verified against live Supabase: **15/15
+structural checks** (pg_catalog: constraints, policies, function bodies, grants) and
+**16/16 behavioral checks** run as real users inside a rolled-back transaction. Zero test
+data persisted — the channel count was back to 0 immediately after.
+
+Notable structural confirmations: `wein_chat_conversations` now carries exactly two check
+constraints, both explicitly named, with no orphaned 047 duplicates left behind — so the
+narrowed drop loop (§1b) behaved correctly on a real apply. Message SELECT RLS is unchanged
+and still membership-gated; channels did not loosen it.
+
+The checklist, all passing:
 
 - Admin and manager can create public channels; a regular team member cannot.
 - Every authenticated user can discover active public channels.
@@ -481,9 +493,34 @@ cannot read a channel's messages, that a regular user genuinely cannot create a 
 that search genuinely cannot cross a membership boundary. Those are RLS properties and are
 only provable against live Supabase.
 
-**Prerequisite, currently unmet:** real cross-user verification needs a second Supabase
-account with a non-admin role. Only one test account exists today. Create it during Slice 0
-— not at rollout step 6, where discovering the gap blocks the release.
+**Prerequisite — already met.** Real cross-user verification needs a second Supabase account
+with a non-admin role, and one already exists: `WEIN_TEAM_TEST_EMAIL` in `workflow/.env`,
+profile "Portal Chat Team Test", role `team`. (An earlier draft of this plan claimed only
+one test account existed and made creating a second a Slice 0 prerequisite. That was wrong.)
+The live roster is two `admin` profiles and that one `team` profile — enough for every
+permission split this release introduces, since all of them are admin/manager-vs-everyone.
+
+### The verification technique to reuse: rolled-back transaction against live Supabase
+
+There is no separate staging Supabase project, so "verify in staging" has no literal
+referent. The substitute used to verify 060/061 works well and should be reused for
+062–064:
+
+Connect over the transaction pooler with `autocommit=False`, impersonate a real user with
+
+```sql
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"<uuid>","role":"authenticated"}', true);
+```
+
+(which is exactly what `auth.uid()` reads), exercise the RPCs and RLS for real, wrap each
+expected-failure case in a `SAVEPOINT`, then `conn.rollback()` at the end. RLS and
+`SECURITY DEFINER` behave normally inside a transaction, so the results are genuine — but
+nothing persists, so no test channel ever appears in a real user's sidebar.
+
+This is the only way to get true RLS proof here without either a staging project or leaving
+debris in production. It is strictly better than the mocked Playwright layer for permission
+questions, and strictly better than manual clicking for repeatability.
 
 ---
 
