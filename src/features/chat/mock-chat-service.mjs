@@ -143,7 +143,13 @@ export function createMockChatService(currentUserId, sharedStore = null) {
   async function joinChannel(conversationId) {
     const conversation = requireConversation(conversationId);
     if (conversation.kind !== "channel") throw new Error("only channels can be joined this way");
-    addMemberRow(conversation, actorId, "member");
+    if (conversation.archived_at) throw new Error("this channel has been archived");
+    // Rejoining must not demote the channel's owner: leaving keeps the
+    // membership_role and only sets left_at, so passing a flat "member" here
+    // would strip ownership from a creator who left and came back. Mirrors the
+    // CASE in wein_chat_join_channel's ON CONFLICT (061_chat_channels.sql).
+    const existing = conversation.members.find((member) => member.user_id === actorId);
+    addMemberRow(conversation, actorId, existing?.membership_role === "owner" ? "owner" : "member");
   }
 
   async function listChannels() {

@@ -156,6 +156,39 @@ async function testChannelContract() {
     () => otherAdminService.joinChannel(groupId),
     /only channels can be joined this way/,
   );
+
+  // Rejoining must not demote the channel's owner. Leaving only sets left_at
+  // and keeps membership_role, so a flat "member" on rejoin would silently
+  // strip ownership from the creator -- losing them the owner badge and
+  // canManageMembers() rights on a channel they made.
+  const ownerRole = (conversations) => conversations
+    .find((conversation) => conversation.id === channelId)
+    .members.find((member) => member.user_id === "u-ahmed")
+    .membership_role;
+
+  assert.equal(ownerRole(await adminService.listConversations()), "owner");
+  await adminService.removeMember(channelId, "u-ahmed");
+  await adminService.joinChannel(channelId);
+  assert.equal(ownerRole(await adminService.listConversations()), "owner");
+
+  // A plain member rejoining stays a plain member -- the owner-preserving
+  // branch must not promote anyone.
+  await otherAdminService.joinChannel(channelId);
+  const rejoined = (await otherAdminService.listConversations())
+    .find((conversation) => conversation.id === channelId)
+    .members.find((member) => member.user_id === "u-fady");
+  assert.equal(rejoined.membership_role, "member");
+
+  // An archived channel is gone from the directory, but a stale client could
+  // still hold its id -- joining one would hand back a membership row that
+  // grants nothing, so it fails loudly instead.
+  await adminService.setConversationArchived(channelId, true);
+  assert.ok(!(await otherAdminService.listChannels()).some((channel) => channel.id === channelId));
+  await otherAdminService.removeMember(channelId, "u-fady");
+  await assert.rejects(
+    () => otherAdminService.joinChannel(channelId),
+    /this channel has been archived/,
+  );
 }
 
 async function testMessageSearchContract() {
