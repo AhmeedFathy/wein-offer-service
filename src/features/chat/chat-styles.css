@@ -651,6 +651,50 @@
   color: var(--blue);
 }
 
+/* Filled pin state -- the button itself doubles as the "is this pinned"
+   indicator, so it needs to read as active/on rather than just hovered. */
+.chat-message-pin-btn.pinned {
+  border-color: var(--border-blue-strong);
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+
+.chat-pinned-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-bottom: .5px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px 18px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.chat-pinned-strip:hover {
+  color: var(--text-primary);
+}
+
+.chat-pinned-strip .ti-pin {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.chat-pinned-strip-count {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.chat-pinned-strip-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .chat-member-stack span {
   width: 28px;
   height: 28px;

@@ -143,6 +143,11 @@ const KNOWN_CHAT_ERRORS = [
   ["only the channel owner, an admin, or a manager may edit channel details", "Only the channel owner, an admin, or a manager can edit channel details."],
   ["channel topic must be 160 characters or fewer", "Topic must be 160 characters or fewer."],
   ["channel description must be 1000 characters or fewer", "Description must be 1000 characters or fewer."],
+  ["active membership required to pin a message", "You need to be a member of this conversation to pin a message."],
+  ["active membership required to unpin a message", "You need to be a member of this conversation to unpin a message."],
+  ["this message is already pinned", "That message is already pinned."],
+  ["message does not belong to this conversation", "That message can't be pinned here."],
+  ["message not found", "This message no longer exists."],
 ];
 
 export function mapChatActionError(error) {

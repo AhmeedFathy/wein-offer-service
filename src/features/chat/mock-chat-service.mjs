@@ -27,6 +27,7 @@ export function createSharedChatStore() {
     messages: new Map(),
     dmPairs: new Map(),
     storedFiles: new Map(),
+    pinnedMessages: new Map(), // conversationId -> array of pin rows
   };
 }
 
@@ -43,6 +44,15 @@ export function createMockChatService(currentUserId, sharedStore = null) {
   const messages = sharedStore?.messages || new Map();
   const dmPairs = sharedStore?.dmPairs || new Map();
   const storedFiles = sharedStore?.storedFiles || new Map(); // path -> { name, mime, size }
+  const pinnedMessages = sharedStore?.pinnedMessages || new Map(); // conversationId -> array of pin rows
+
+  function findMessage(messageId) {
+    for (const list of messages.values()) {
+      const message = list.find((row) => row.id === messageId);
+      if (message) return message;
+    }
+    return null;
+  }
 
   function decorateConversation(conversation) {
     const conversationMessages = messages.get(conversation.id) || [];
@@ -385,6 +395,47 @@ export function createMockChatService(currentUserId, sharedStore = null) {
         return clone({ ...message, sender: profileById.get(message.sender_id) || null });
       }
       throw new Error(`Message not found: ${messageId}`);
+    },
+
+    async listPinnedMessages(conversationId) {
+      requireConversation(conversationId);
+      const pins = pinnedMessages.get(conversationId) || [];
+      // Deleted messages disappear from the pinned panel by filtering here --
+      // the same read-time filter the real service applies, not a trigger
+      // racing the soft delete.
+      return clone(
+        pins
+          .map((pin) => {
+            const message = findMessage(pin.message_id);
+            return message
+              ? { ...pin, pinner: profileById.get(pin.pinned_by) || null, message: { ...message, sender: profileById.get(message.sender_id) || null } }
+              : null;
+          })
+          .filter((pin) => pin && pin.message.deleted_at == null)
+          .sort((a, b) => new Date(b.pinned_at).getTime() - new Date(a.pinned_at).getTime()),
+      );
+    },
+
+    async pinMessage(conversationId, messageId) {
+      const conversation = requireConversation(conversationId);
+      const member = conversation.members.find((row) => row.user_id === actorId && !row.left_at);
+      if (!member) throw new Error("active membership required to pin a message");
+      const message = findMessage(messageId);
+      if (!message) throw new Error("message not found");
+      if (message.conversation_id !== conversationId) throw new Error("message does not belong to this conversation");
+      const existing = pinnedMessages.get(conversationId) || [];
+      if (existing.some((pin) => pin.message_id === messageId)) throw new Error("this message is already pinned");
+      const pin = { id: id("pin"), conversation_id: conversationId, message_id: messageId, pinned_by: actorId, pinned_at: iso() };
+      pinnedMessages.set(conversationId, [...existing, pin]);
+      return pin.id;
+    },
+
+    async unpinMessage(conversationId, messageId) {
+      const conversation = requireConversation(conversationId);
+      const member = conversation.members.find((row) => row.user_id === actorId && !row.left_at);
+      if (!member) throw new Error("active membership required to unpin a message");
+      const existing = pinnedMessages.get(conversationId) || [];
+      pinnedMessages.set(conversationId, existing.filter((pin) => pin.message_id !== messageId));
     },
 
     async markRead(conversationId, lastReadSeq) {

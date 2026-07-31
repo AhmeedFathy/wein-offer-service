@@ -697,6 +697,42 @@ test('message delete requires an inline confirmation step', async ({ page }) => 
   await expect(page.locator('.chat-message-list')).toContainText('No messages yet.');
 });
 
+test('pinning a message shows the pinned strip and panel; unpinning your own pin needs no confirmation', async ({ page }) => {
+  await login(page);
+  await openTeamChat(page);
+  await startDmFromCompose(page, otherProfile.full_name);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('Read this first');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body')).toHaveText('Read this first');
+
+  const message = page.locator('.chat-message').first();
+  await message.hover();
+  await message.getByLabel('Pin message').click();
+
+  // Pinning triggers a full render() (a new DOM node for this message), so
+  // :hover from before the click no longer applies -- re-hover before
+  // checking anything inside the hover-only .chat-message-actions toolbar.
+  await message.hover();
+  // Pinning is the current user's own pin -- the button flips straight to
+  // the filled/"Unpin" state with no confirmation step in between.
+  await expect(message.getByLabel('Unpin message')).toBeVisible();
+  await expect(page.locator('.chat-pinned-strip')).toContainText('1 pinned');
+  await expect(page.locator('.chat-pinned-strip')).toContainText('Read this first');
+
+  await page.getByLabel('Pinned messages').click();
+  await expect(page.locator('.chat-search-panel')).toContainText('Pinned messages');
+  await expect(page.locator('.chat-search-panel')).toContainText('Read this first');
+  await page.getByLabel('Close pinned messages').click();
+
+  await message.hover();
+  await message.getByLabel('Unpin message').click();
+  await message.hover();
+  await expect(message.getByLabel('Pin message')).toBeVisible();
+  await expect(page.locator('.chat-pinned-strip')).toHaveCount(0);
+});
+
 test('clicking a chat notification opens team chat on the notified conversation', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

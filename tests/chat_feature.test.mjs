@@ -364,6 +364,60 @@ async function testChannelMetadataAndDirectoryContract() {
   assert.equal(afterLeave.member_count, 1);
 }
 
+async function testPinnedMessagesContract() {
+  const store = createSharedChatStore();
+  const adminService = createMockChatService("u-ahmed", store);
+  const teamService = createMockChatService("u-team", store);
+  const outsiderService = createMockChatService("u-fady", store);
+
+  const groupId = await adminService.createGroup("Ops room", ["u-team"]);
+  const message = await adminService.sendMessage({ conversationId: groupId, body: "Read this first", clientNonce: "n-pin-1" });
+
+  // A non-member cannot pin -- u-fady was never added to this group.
+  await assert.rejects(
+    () => outsiderService.pinMessage(groupId, message.id),
+    /active membership required to pin a message/,
+  );
+
+  await adminService.pinMessage(groupId, message.id);
+  let pins = await adminService.listPinnedMessages(groupId);
+  assert.equal(pins.length, 1);
+  assert.equal(pins[0].message.id, message.id);
+  assert.equal(pins[0].pinned_by, "u-ahmed");
+  assert.equal(pins[0].pinner.full_name, "Ahmed Fathy");
+
+  // Any active member sees the same pin, not just the one who created it.
+  pins = await teamService.listPinnedMessages(groupId);
+  assert.equal(pins.length, 1);
+
+  // Pinning the same message twice is a named, clean error -- not a raw
+  // constraint-violation string.
+  await assert.rejects(
+    () => teamService.pinMessage(groupId, message.id),
+    /this message is already pinned/,
+  );
+
+  // A message from a DIFFERENT conversation cannot be pinned into this one.
+  const otherGroupId = await adminService.createGroup("Other room", []);
+  const otherMessage = await adminService.sendMessage({ conversationId: otherGroupId, body: "elsewhere", clientNonce: "n-pin-2" });
+  await assert.rejects(
+    () => adminService.pinMessage(groupId, otherMessage.id),
+    /message does not belong to this conversation/,
+  );
+
+  // Any active member can unpin -- not just the original pinner. u-team
+  // unpins something u-ahmed pinned.
+  await teamService.unpinMessage(groupId, message.id);
+  pins = await adminService.listPinnedMessages(groupId);
+  assert.equal(pins.length, 0);
+
+  // Deleted messages disappear from the pinned panel automatically.
+  await adminService.pinMessage(groupId, message.id);
+  await adminService.deleteMessage(message.id);
+  pins = await adminService.listPinnedMessages(groupId);
+  assert.equal(pins.length, 0);
+}
+
 function testDomainFormatting() {
   const conversations = [
     { id: "older", created_at: "2026-01-01T00:00:00Z", members: [], last_message: null },
@@ -383,6 +437,7 @@ await testDmArchiveContract();
 await testChannelContract();
 await testChannelMetadataAndDirectoryContract();
 await testMessageSearchContract();
+await testPinnedMessagesContract();
 await testAttachmentContract();
 testDomainFormatting();
 

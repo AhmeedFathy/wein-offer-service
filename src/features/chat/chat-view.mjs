@@ -125,6 +125,17 @@ export function createChatViewModule() {
         channelDetailsTopicDraft: "",
         channelDetailsDescriptionDraft: "",
         leaveChannelConfirmOpen: false,
+        // Pinned messages for the currently selected conversation. Reloaded
+        // whenever that conversation changes and after any pin/unpin.
+        pinnedMessages: [],
+        pinnedMessagesLoading: false,
+        pinnedMessagesError: null,
+        pinnedMessagesPanelOpen: false,
+        // A pin belonging to someone else needs a confirm step before
+        // unpinning (a UI courtesy per the plan, not a permission gate --
+        // the RPC itself allows any active member to unpin any pin). Holds
+        // the message id awaiting that confirmation, or null.
+        unpinConfirmMessageId: null,
         // Mention typeahead. Lives on state (not the DOM) because render()
         // rewrites root.innerHTML wholesale on every poll.
         mentionQuery: null,
@@ -384,6 +395,9 @@ export function createChatViewModule() {
         state.renameDraft = "";
         state.archiveConfirmOpen = false;
         state.pendingAttachments = [];
+        state.pinnedMessages = [];
+        state.pinnedMessagesPanelOpen = false;
+        state.unpinConfirmMessageId = null;
         root.classList.add("chat-has-selection");
         state.messages = await context.service.listMessages(conversationId);
         forceScrollBottom = true;
@@ -396,11 +410,100 @@ export function createChatViewModule() {
             console.error("Failed to mark chat messages as read", error);
           }
         }
+        // Independent of the messages/markRead sequence above -- a slow or
+        // failed pin fetch must never block the thread itself from opening.
+        loadPinnedMessages(conversationId);
         await refresh();
       }
 
       function clearMobileSelection() {
         root.classList.remove("chat-has-selection");
+      }
+
+      async function loadPinnedMessages(conversationId) {
+        state.pinnedMessagesError = null;
+        state.pinnedMessagesLoading = true;
+        render();
+        try {
+          const pins = await context.service.listPinnedMessages(conversationId);
+          if (disposed || state.selectedConversationId !== conversationId) return;
+          state.pinnedMessages = pins;
+          state.pinnedMessagesLoading = false;
+          render();
+        } catch (error) {
+          if (disposed || state.selectedConversationId !== conversationId) return;
+          state.pinnedMessagesError = mapChatActionError(error);
+          state.pinnedMessagesLoading = false;
+          render();
+        }
+      }
+
+      function isMessagePinned(messageId) {
+        return state.pinnedMessages.some((pin) => pin.message_id === messageId);
+      }
+
+      function findPinByMessageId(messageId) {
+        return state.pinnedMessages.find((pin) => pin.message_id === messageId) || null;
+      }
+
+      async function pinMessage(conversationId, messageId) {
+        const pinId = await context.service.pinMessage(conversationId, messageId);
+        state.pinnedMessages = [
+          {
+            id: pinId,
+            conversation_id: conversationId,
+            message_id: messageId,
+            pinned_by: context.currentUser.id,
+            pinned_at: new Date().toISOString(),
+            pinner: context.currentUser,
+            message: state.messages.find((row) => row.id === messageId) || null,
+          },
+          ...state.pinnedMessages,
+        ];
+        state.openMessageMenuId = null;
+        if (!disposed) render();
+      }
+
+      async function unpinMessage(conversationId, messageId) {
+        await context.service.unpinMessage(conversationId, messageId);
+        state.pinnedMessages = state.pinnedMessages.filter((pin) => pin.message_id !== messageId);
+        state.unpinConfirmMessageId = null;
+        state.openMessageMenuId = null;
+        if (!disposed) render();
+      }
+
+      function requestUnpin(conversationId, messageId) {
+        const pin = findPinByMessageId(messageId);
+        // Unpinning your own pin needs no confirmation. Unpinning someone
+        // else's is a UI courtesy step, not a permission gate -- the RPC
+        // itself allows any active member to unpin any pin.
+        if (pin && pin.pinned_by !== context.currentUser.id) {
+          state.unpinConfirmMessageId = messageId;
+          render();
+          return;
+        }
+        runChatAction(`unpin-message:${messageId}`, () => unpinMessage(conversationId, messageId));
+      }
+
+      function cancelUnpinConfirm() {
+        state.unpinConfirmMessageId = null;
+        render();
+      }
+
+      function togglePinnedMessagesPanel() {
+        state.pinnedMessagesPanelOpen = !state.pinnedMessagesPanelOpen;
+        render();
+      }
+
+      function jumpToPinnedMessage(messageId) {
+        state.pinnedMessagesPanelOpen = false;
+        render();
+        const node = Array.from(root.querySelectorAll("[data-chat-message-id]"))
+          .find((candidate) => candidate.dataset.chatMessageId === messageId);
+        if (!node) return;
+        node.scrollIntoView({ block: "center" });
+        node.classList.add("chat-message-jumped");
+        setTimeout(() => node.classList.remove("chat-message-jumped"), 1600);
       }
 
       function addPendingFiles(fileList) {
@@ -1155,6 +1258,52 @@ export function createChatViewModule() {
         `;
       }
 
+      function pinnedMessageRow(pin) {
+        const attachmentCount = pin.message?.attachments?.length || 0;
+        return `
+          <button type="button" class="chat-search-result" data-chat-pinned-jump="${escapeHtml(pin.message_id)}">
+            <span class="chat-search-result-row">
+              <span class="chat-search-result-title">${escapeHtml(pin.message?.sender?.full_name || "Unknown")}</span>
+              <span class="chat-search-result-time">${escapeHtml(shortChatTime(pin.pinned_at))}</span>
+            </span>
+            <span class="chat-search-result-snippet">${escapeHtml(messageSnippet(pin.message || {}))}</span>
+            <span class="chat-channel-directory-meta">
+              ${attachmentCount ? `<i class="ti ti-paperclip"></i> ${attachmentCount} &middot; ` : ""}pinned by ${escapeHtml(pin.pinner?.full_name || "Unknown")}
+            </span>
+          </button>
+        `;
+      }
+
+      function pinnedMessagesPanel() {
+        if (!state.pinnedMessagesPanelOpen) return "";
+        return `
+          <div class="chat-search-panel">
+            <div class="chat-compose-popover-head">
+              <strong>Pinned messages</strong>
+              <button type="button" class="chat-icon-btn" data-chat-pinned-close aria-label="Close pinned messages"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="chat-search-results">
+              ${state.pinnedMessagesLoading ? `<div class="chat-muted">Loading...</div>` : ""}
+              ${state.pinnedMessagesError ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.pinnedMessagesError)}</span></div>` : ""}
+              ${!state.pinnedMessagesLoading && !state.pinnedMessagesError && !state.pinnedMessages.length ? `<div class="chat-muted">No pinned messages yet.</div>` : ""}
+              ${state.pinnedMessages.map(pinnedMessageRow).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      function pinnedMessagesStrip() {
+        if (state.pinnedMessagesPanelOpen || !state.pinnedMessages.length) return "";
+        const latest = state.pinnedMessages[0];
+        return `
+          <button type="button" class="chat-pinned-strip" data-chat-pinned-jump="${escapeHtml(latest.message_id)}">
+            <i class="ti ti-pin"></i>
+            <span class="chat-pinned-strip-count">${state.pinnedMessages.length} pinned</span>
+            <span class="chat-pinned-strip-snippet">${escapeHtml(messageSnippet(latest.message || {}))}</span>
+          </button>
+        `;
+      }
+
       function membersPanel(conversation) {
         if (!state.membersOpen || !conversation || !["group", "channel"].includes(conversation.kind)) return "";
         const activeMembers = conversation.members.filter((member) => !member.left_at);
@@ -1402,9 +1551,15 @@ export function createChatViewModule() {
         const isDeleted = Boolean(message.deleted_at);
         const canEdit = mine && !isDeleted;
         const canDelete = !isDeleted && (mine || canModerateDelete());
+        const pinned = isMessagePinned(message.id);
+        const pinPending = isChatActionPending(state.actionState, `pin-message:${message.id}`)
+          || isChatActionPending(state.actionState, `unpin-message:${message.id}`);
+        const pinError = chatActionError(state.actionState, `pin-message:${message.id}`)
+          || chatActionError(state.actionState, `unpin-message:${message.id}`);
         const edited = message.edited_at && !isDeleted ? `<span class="chat-edited">(edited)</span>` : "";
         const actionButtons = !isDeleted ? `
             <button type="button" data-chat-reply="${escapeHtml(message.id)}" aria-label="Reply"><i class="ti ti-corner-up-left"></i></button>
+            <button type="button" class="chat-message-pin-btn${pinned ? " pinned" : ""}" data-chat-toggle-pin="${escapeHtml(message.id)}" aria-label="${pinned ? "Unpin message" : "Pin message"}" title="${pinned ? "Unpin message" : "Pin message"}"${pinPending ? " disabled" : ""}><i class="ti ${pinned ? "ti-pinned" : "ti-pin"}"></i></button>
             ${canEdit ? `<button type="button" data-chat-edit="${escapeHtml(message.id)}" aria-label="Edit message"><i class="ti ti-pencil"></i></button>` : ""}
             ${canDelete ? `<button type="button" data-chat-delete="${escapeHtml(message.id)}" aria-label="Delete message"><i class="ti ti-trash"></i></button>` : ""}
         ` : "";
@@ -1426,6 +1581,14 @@ export function createChatViewModule() {
               ${chatActionError(state.actionState, `delete-message:${message.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `delete-message:${message.id}`))}</span>` : ""}
             </div>
           ` : ""}
+          ${state.unpinConfirmMessageId === message.id ? `
+            <div class="chat-delete-confirm">
+              <span>Unpin this message? ${escapeHtml(findPinByMessageId(message.id)?.pinner?.full_name || "Someone else")} pinned it.</span>
+              <button type="button" data-chat-confirm-unpin="${escapeHtml(message.id)}"${pinPending ? " disabled" : ""}>Confirm</button>
+              <button type="button" data-chat-cancel-unpin="${escapeHtml(message.id)}">Cancel</button>
+            </div>
+          ` : ""}
+          ${pinError ? `<span class="chat-action-error">${escapeHtml(pinError)}</span>` : ""}
         ` : "";
         return `
           <div class="chat-message${mine}${isDeleted ? " deleted" : ""}${showHeader ? "" : " chat-message-grouped"}" tabindex="0" data-chat-message-id="${escapeHtml(message.id)}">
@@ -1503,6 +1666,9 @@ export function createChatViewModule() {
                         <i class="ti ti-users"></i><span>${activeMembers.length}</span>
                       </button>
                     ` : ""}
+                    <button type="button" class="chat-icon-btn${state.pinnedMessagesPanelOpen ? " active" : ""}${state.pinnedMessages.length ? " chat-member-count" : ""}" data-chat-pinned-toggle aria-label="Pinned messages" title="Pinned messages">
+                      <i class="ti ti-pin"></i>${state.pinnedMessages.length ? `<span>${state.pinnedMessages.length}</span>` : ""}
+                    </button>
                     <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
                       <i class="ti ti-search"></i>
                     </button>
@@ -1526,6 +1692,7 @@ export function createChatViewModule() {
                     ` : ""}
                   </div>
                   ${membersPanel(selected)}
+                  ${pinnedMessagesPanel()}
                   ${state.archiveConfirmOpen ? `
                     <div class="chat-delete-confirm chat-archive-confirm">
                       <span>Archive this ${selected.kind === "channel" ? "channel" : selected.kind === "group" ? "group" : "conversation"}?</span>
@@ -1543,6 +1710,7 @@ export function createChatViewModule() {
                     </div>
                   ` : ""}
                 </header>
+                ${pinnedMessagesStrip()}
                 <div class="chat-message-list">
                   ${state.messages.map((message, index) => messageRow(message, shouldShowMessageHeader(message, state.messages[index - 1]))).join("")}
                   ${!state.messages.length ? `<div class="chat-muted">No messages yet.</div>` : ""}
@@ -1659,6 +1827,11 @@ export function createChatViewModule() {
             const role = button.dataset.chatRole;
             runChatAction(`set-role:${selected.id}:${userId}`, () => setMemberRole(selected.id, userId, role));
           });
+        });
+        root.querySelector("[data-chat-pinned-toggle]")?.addEventListener("click", () => togglePinnedMessagesPanel());
+        root.querySelector("[data-chat-pinned-close]")?.addEventListener("click", () => togglePinnedMessagesPanel());
+        root.querySelectorAll("[data-chat-pinned-jump]").forEach((button) => {
+          button.addEventListener("click", () => jumpToPinnedMessage(button.dataset.chatPinnedJump));
         });
         root.querySelector("[data-chat-search-toggle]")?.addEventListener("click", () => {
           if (state.searchOpen) closeSearch();
@@ -1794,6 +1967,29 @@ export function createChatViewModule() {
         root.querySelector("[data-chat-clear-reply]")?.addEventListener("click", () => clearReply());
         root.querySelectorAll("[data-chat-reply]").forEach((button) => {
           button.addEventListener("click", () => startReply(button.dataset.chatReply));
+        });
+        root.querySelectorAll("[data-chat-toggle-pin]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const messageId = button.dataset.chatTogglePin;
+            const conversationId = state.selectedConversationId;
+            if (!conversationId) return;
+            if (isMessagePinned(messageId)) {
+              requestUnpin(conversationId, messageId);
+            } else {
+              runChatAction(`pin-message:${messageId}`, () => pinMessage(conversationId, messageId));
+            }
+          });
+        });
+        root.querySelectorAll("[data-chat-confirm-unpin]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const messageId = button.dataset.chatConfirmUnpin;
+            const conversationId = state.selectedConversationId;
+            if (!conversationId) return;
+            runChatAction(`unpin-message:${messageId}`, () => unpinMessage(conversationId, messageId));
+          });
+        });
+        root.querySelectorAll("[data-chat-cancel-unpin]").forEach((button) => {
+          button.addEventListener("click", () => cancelUnpinConfirm());
         });
         root.querySelectorAll("[data-chat-edit]").forEach((button) => {
           button.addEventListener("click", () => startEdit(button.dataset.chatEdit));

@@ -177,7 +177,7 @@ Slice 0 is a hard prerequisite for the rest; Slices 2–5 could reorder if prior
 | 1 | Reliability / async-action state | none | Front-loaded — see below | ✅ done, verified live |
 | 2 | Channel metadata + directory | `062` | Highest user-visible value | ⚠️ code done; 062 not yet pasted |
 | 3 | Sidebar sections | none | Client-only; independent | ✅ done, verified live |
-| 4 | Pinned messages | `063` | Self-contained | pending |
+| 4 | Pinned messages | `063` | Self-contained | ⚠️ code done; 063 not yet pasted |
 | 5 | Advanced search | `064` | Replaces a working feature — go last | pending |
 
 **Why the reliability refactor moves to the front.** v1 put it last (§7), applied to every
@@ -429,7 +429,28 @@ Grouping and sorting go in `chat-domain.mjs` as pure functions so they get direc
 
 ---
 
-## Slice 4 — Pinned messages (`063_chat_pinned_messages.sql`)
+## Slice 4 — Pinned messages (`063_chat_pinned_messages.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+
+**Status:** `063_chat_pinned_messages.sql` is written and SQL-contract-tested (45/45, 4 new).
+Every application-layer piece is built and passing (44/44 unit tests including a full
+two-user pin/unpin/duplicate/cross-conversation/deleted-message contract in the mock, 44/44
+Playwright smoke — 1 new: pin → strip → panel → unpin, exercised through the real optimistic
+client-side state update, not the mock Supabase harness), `npm run typecheck` clean. **063
+has not been pasted into Supabase yet** — confirmed the same graceful-degradation property as
+Slice 2: opening the Pinned Messages panel against the pre-063 schema shows the generic
+mapped error, not a crash or a raw Postgres error.
+
+**One access-control decision worth recording explicitly, since it wasn't spelled out this
+precisely in the original plan text:** pinned messages get **no** table-level INSERT/DELETE
+grant to `authenticated` at all — not even the "grant broadly, restrict via RLS" pattern
+`wein_chat_messages`/`wein_chat_conversations` use. Those two tables have genuine
+direct-client-mutation call sites already in this codebase (`sendMessage()` inserts
+directly, `renameConversation()`/`setConversationArchived()` update directly), so RLS is the
+real enforcement layer for them. Pins have no such call site — every pin/unpin goes through
+`wein_chat_pin_message`/`wein_chat_unpin_message`, which are `SECURITY DEFINER` and need no
+table grant to succeed. Granting INSERT/DELETE anyway would only widen the attack surface for
+no client benefit, so this is the tighter of the two established access patterns in this
+schema, chosen deliberately rather than defaulted into.
 
 ### Schema
 

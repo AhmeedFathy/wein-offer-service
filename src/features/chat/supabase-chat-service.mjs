@@ -72,6 +72,18 @@ function messageFromRow(row) {
   };
 }
 
+function pinnedMessageFromRow(row) {
+  return {
+    id: row.id,
+    conversation_id: row.conversation_id,
+    message_id: row.message_id,
+    pinned_by: row.pinned_by,
+    pinned_at: row.pinned_at,
+    pinner: profileFromRow(row.pinner),
+    message: messageFromRow(row.message),
+  };
+}
+
 function conversationFromRow(row, currentUserId) {
   const members = (row.members || row.wein_chat_members || []).map(memberFromRow);
   const lastMessageRows = row.last_message || row.wein_chat_messages || [];
@@ -386,6 +398,41 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
         .single();
       if (result.error) throw new Error(`delete message: ${result.error.message || result.error}`);
       return messageFromRow(result.data);
+    },
+
+    async listPinnedMessages(conversationId) {
+      const result = await supabase
+        .from("wein_chat_pinned_messages")
+        .select(`
+          id, conversation_id, message_id, pinned_by, pinned_at,
+          pinner:profiles!pinned_by(id, full_name, role, email),
+          message:wein_chat_messages(
+            id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
+            sender:profiles(id, full_name, role, email)
+          )
+        `)
+        .eq("conversation_id", conversationId)
+        .order("pinned_at", { ascending: false });
+      // Deleted messages disappear from the pinned panel by filtering here,
+      // the same way conversationFromRow() already filters last_message --
+      // not via a trigger racing the soft delete (see 063's own comment).
+      return requireRows(result, "list pinned messages")
+        .filter((row) => row.message?.deleted_at == null)
+        .map(pinnedMessageFromRow);
+    },
+
+    async pinMessage(conversationId, messageId) {
+      return requireRpc(
+        await supabase.rpc("wein_chat_pin_message", { p_conversation_id: conversationId, p_message_id: messageId }),
+        "pin message",
+      );
+    },
+
+    async unpinMessage(conversationId, messageId) {
+      requireRpc(
+        await supabase.rpc("wein_chat_unpin_message", { p_conversation_id: conversationId, p_message_id: messageId }),
+        "unpin message",
+      );
     },
 
     async markRead(conversationId, lastReadSeq) {

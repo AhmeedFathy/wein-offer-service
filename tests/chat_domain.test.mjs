@@ -97,6 +97,26 @@ function testMapChatActionError() {
     mapChatActionError(new Error("update channel details: channel description must be 1000 characters or fewer")),
     "Description must be 1000 characters or fewer.",
   );
+  assert.equal(
+    mapChatActionError(new Error("pin message: active membership required to pin a message")),
+    "You need to be a member of this conversation to pin a message.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("unpin message: active membership required to unpin a message")),
+    "You need to be a member of this conversation to unpin a message.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("pin message: this message is already pinned")),
+    "That message is already pinned.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("pin message: message does not belong to this conversation")),
+    "That message can't be pinned here.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("pin message: message not found")),
+    "This message no longer exists.",
+  );
   // Case-insensitive: Postgres/Supabase don't guarantee a fixed case, and
   // matching is meant to be resilient to that.
   assert.equal(

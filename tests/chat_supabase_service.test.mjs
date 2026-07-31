@@ -139,6 +139,8 @@ class FakeSupabase {
     if (name === "wein_chat_add_member") return makeResult(null);
     if (name === "wein_chat_remove_member") return makeResult(null);
     if (name === "wein_chat_update_channel_details") return makeResult(null);
+    if (name === "wein_chat_pin_message") return makeResult("pin-1");
+    if (name === "wein_chat_unpin_message") return makeResult(null);
     return makeResult(null);
   }
 
@@ -215,6 +217,52 @@ class FakeSupabase {
         sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
       };
       return query.singleRow ? row : [row];
+    }
+    if (query.table === "wein_chat_pinned_messages") {
+      return [
+        {
+          id: "pin-1",
+          conversation_id: "group-1",
+          message_id: "m-1",
+          pinned_by: "u-1",
+          pinned_at: "2026-07-27T00:00:00Z",
+          pinner: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          message: {
+            id: "m-1",
+            conversation_id: "group-1",
+            message_seq: 1,
+            sender_id: "u-1",
+            body: "hello",
+            reply_to_id: null,
+            client_nonce: "n-1",
+            created_at: "2026-07-26T00:00:01Z",
+            edited_at: null,
+            deleted_at: null,
+            sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          },
+        },
+        {
+          id: "pin-2",
+          conversation_id: "group-1",
+          message_id: "m-2",
+          pinned_by: "u-1",
+          pinned_at: "2026-07-27T00:00:01Z",
+          pinner: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          message: {
+            id: "m-2",
+            conversation_id: "group-1",
+            message_seq: 2,
+            sender_id: "u-1",
+            body: "deleted latest",
+            reply_to_id: null,
+            client_nonce: "n-2",
+            created_at: "2026-07-26T00:00:02Z",
+            edited_at: null,
+            deleted_at: "2026-07-26T00:00:03Z",
+            sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          },
+        },
+      ];
     }
     return [];
   }
@@ -312,6 +360,25 @@ async function testSupabaseAdapterContract() {
   // whatever id happened to be passed to an earlier removeMember() call --
   // it is not just an alias, it fixes the target to the caller's own id.
   assert.deepEqual(leaveChannelCall.args, { p_conversation_id: "channel-1", p_user_id: "u-1" });
+
+  const pinId = await service.pinMessage("group-1", "m-1");
+  assert.equal(pinId, "pin-1");
+  const pinCall = fake.calls.find((call) => call.name === "wein_chat_pin_message");
+  assert.deepEqual(pinCall.args, { p_conversation_id: "group-1", p_message_id: "m-1" });
+
+  await service.unpinMessage("group-1", "m-1");
+  const unpinCall = fake.calls.find((call) => call.name === "wein_chat_unpin_message");
+  assert.deepEqual(unpinCall.args, { p_conversation_id: "group-1", p_message_id: "m-1" });
+
+  const pins = await service.listPinnedMessages("group-1");
+  // pin-2's message has deleted_at set -- it must be filtered out client-side
+  // (the read-time filter 063's own comment specifies), not returned for the
+  // UI to accidentally render.
+  assert.equal(pins.length, 1);
+  assert.equal(pins[0].id, "pin-1");
+  assert.equal(pins[0].message.id, "m-1");
+  assert.equal(pins[0].pinner.full_name, "Ahmed");
+  assert.deepEqual(Object.keys(pins[0]).sort(), ["conversation_id", "id", "message", "message_id", "pinned_at", "pinned_by", "pinner"]);
 
   // Mentions must ride along on the message INSERT itself -- the AFTER INSERT
   // notify trigger cannot see rows written in a later round trip.
