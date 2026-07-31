@@ -176,7 +176,7 @@ Slice 0 is a hard prerequisite for the rest; Slices 2–5 could reorder if prior
 | 0 | Fix + paste 060/061 (§1) | edits to 061 | Everything else assumes channels work | ✅ done, verified live |
 | 1 | Reliability / async-action state | none | Front-loaded — see below | ✅ done, verified live |
 | 2 | Channel metadata + directory | `062` | Highest user-visible value | ⚠️ code done; 062 not yet pasted |
-| 3 | Sidebar sections | none | Client-only; independent | pending |
+| 3 | Sidebar sections | none | Client-only; independent | ✅ done, verified live |
 | 4 | Pinned messages | `063` | Self-contained | pending |
 | 5 | Advanced search | `064` | Replaces a working feature — go last | pending |
 
@@ -400,7 +400,16 @@ Ownership transfer remains out of scope.
 
 ---
 
-## Slice 3 — Sidebar sections
+## Slice 3 — Sidebar sections — ✅ SHIPPED (2026-07-31)
+
+**Status: done.** No migration needed, so this shipped and was verified live the same day it
+was built — unlike Slice 2, nothing here was blocked on a paste. 44/44 unit tests (2 new
+pure functions in `chat-domain.mjs`, both directly tested), 43/43 Playwright smoke (1 new:
+section collapse/expand round-trips correctly), `npm run typecheck` clean, and confirmed
+against the real account's live data in the browser: two sections rendered ("Private
+groups", "Direct messages" — this account has no channels, so no empty "Channels" section
+was shown, matching the design), and clicking the "Private groups" header correctly dropped
+the visible conversation count from 2 to 1 and back.
 
 No migration, no service change. Genuinely new work: `sortConversations()`
 (`chat-domain.mjs:15`) is a flat recency sort today with no grouping of any kind.

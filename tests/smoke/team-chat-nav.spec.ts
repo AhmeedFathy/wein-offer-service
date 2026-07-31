@@ -975,6 +975,24 @@ test('archiving a group removes it from the conversation list', async ({ page })
   await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(0);
 });
 
+test('sidebar section header collapses and re-expands its conversations', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  const sectionHeader = page.locator('[data-chat-sidebar-section-toggle="group"]');
+  await expect(sectionHeader).toContainText('Private groups');
+  await expect(sectionHeader).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(1);
+
+  await sectionHeader.click();
+  await expect(sectionHeader).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(0);
+
+  await sectionHeader.click();
+  await expect(sectionHeader).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.chat-conversation-list .chat-conversation')).toHaveCount(1);
+});
+
 test('admin can archive a DM conversation', async ({ page }) => {
   await login(page, { initialConversations: true, chatKind: 'dm', currentRole: 'admin' });
   await openTeamChat(page);

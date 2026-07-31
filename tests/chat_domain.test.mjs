@@ -4,9 +4,11 @@ import {
   chatActionError,
   clearChatAction,
   failChatAction,
+  groupConversationsIntoSections,
   isChatActionPending,
   mapChatActionError,
   resolveChatAction,
+  sortConversationsForSidebar,
   startChatAction,
 } from "../src/features/chat/chat-domain.mjs";
 
@@ -79,6 +81,22 @@ function testMapChatActionError() {
     mapChatActionError(new Error("rename conversation: only group or channel conversations can be renamed")),
     "Direct messages can't be renamed.",
   );
+  assert.equal(
+    mapChatActionError(new Error("update channel details: only channel details can be edited this way")),
+    "That change isn't allowed here.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("update channel details: only the channel owner, an admin, or a manager may edit channel details")),
+    "Only the channel owner, an admin, or a manager can edit channel details.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("update channel details: channel topic must be 160 characters or fewer")),
+    "Topic must be 160 characters or fewer.",
+  );
+  assert.equal(
+    mapChatActionError(new Error("update channel details: channel description must be 1000 characters or fewer")),
+    "Description must be 1000 characters or fewer.",
+  );
   // Case-insensitive: Postgres/Supabase don't guarantee a fixed case, and
   // matching is meant to be resilient to that.
   assert.equal(
@@ -95,8 +113,66 @@ function testMapChatActionError() {
   assert.equal(mapChatActionError(undefined), "Something went wrong. Please try again.");
 }
 
+function conversation(overrides) {
+  return {
+    id: "c1",
+    kind: "dm",
+    created_at: "2026-01-01T00:00:00Z",
+    unread_count: 0,
+    last_message: null,
+    ...overrides,
+  };
+}
+
+function testSortConversationsForSidebar() {
+  const read = conversation({ id: "read", unread_count: 0, created_at: "2026-01-03T00:00:00Z" });
+  const unreadOlder = conversation({ id: "unread-older", unread_count: 2, created_at: "2026-01-01T00:00:00Z" });
+  const unreadNewer = conversation({ id: "unread-newer", unread_count: 1, created_at: "2026-01-02T00:00:00Z" });
+  const sorted = sortConversationsForSidebar([read, unreadOlder, unreadNewer]);
+  // Unread beats read regardless of recency -- unreadOlder is chronologically
+  // the oldest of the three but must still rank above the read conversation.
+  assert.deepEqual(sorted.map((row) => row.id), ["unread-newer", "unread-older", "read"]);
+
+  // A muted-but-unread conversation still sorts to the top of its bucket --
+  // muting is a styling concern (subdued badge), never a sort demotion. The
+  // mock/real member shape isn't needed here since sortConversationsForSidebar
+  // only reads unread_count, already computed upstream.
+  const mutedUnread = conversation({ id: "muted-unread", unread_count: 3, created_at: "2026-01-01T00:00:00Z" });
+  const sortedWithMuted = sortConversationsForSidebar([read, mutedUnread]);
+  assert.equal(sortedWithMuted[0].id, "muted-unread");
+}
+
+function testGroupConversationsIntoSections() {
+  const channel = conversation({ id: "ch1", kind: "channel" });
+  const group = conversation({ id: "gr1", kind: "group" });
+  const dm = conversation({ id: "dm1", kind: "dm" });
+  const sections = groupConversationsIntoSections([dm, group, channel]);
+
+  // Fixed display order -- Channels, Private groups, Direct messages --
+  // regardless of the input array's order.
+  assert.deepEqual(sections.map((section) => section.kind), ["channel", "group", "dm"]);
+  assert.deepEqual(sections[0].conversations.map((row) => row.id), ["ch1"]);
+  assert.deepEqual(sections[1].conversations.map((row) => row.id), ["gr1"]);
+  assert.deepEqual(sections[2].conversations.map((row) => row.id), ["dm1"]);
+
+  // Every bucket is present even when empty, so the view can decide whether
+  // to render an empty section without re-deriving the kind list itself.
+  const onlyDm = groupConversationsIntoSections([dm]);
+  assert.deepEqual(onlyDm.map((section) => section.kind), ["channel", "group", "dm"]);
+  assert.deepEqual(onlyDm[0].conversations, []);
+  assert.deepEqual(onlyDm[1].conversations, []);
+
+  // Sections are sorted internally by the same unread-first rule.
+  const readChannel = conversation({ id: "ch-read", kind: "channel", unread_count: 0, created_at: "2026-01-02T00:00:00Z" });
+  const unreadChannel = conversation({ id: "ch-unread", kind: "channel", unread_count: 5, created_at: "2026-01-01T00:00:00Z" });
+  const mixed = groupConversationsIntoSections([readChannel, unreadChannel]);
+  assert.deepEqual(mixed[0].conversations.map((row) => row.id), ["ch-unread", "ch-read"]);
+}
+
 testActionStateTransitions();
 testActionStateDefaults();
 testMapChatActionError();
+testSortConversationsForSidebar();
+testGroupConversationsIntoSections();
 
 console.log("chat domain action-state tests passed");

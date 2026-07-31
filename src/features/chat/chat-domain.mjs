@@ -26,6 +26,41 @@ export function unreadCount(conversation, currentUserId) {
   return Math.max(0, lastSeq - (self?.last_read_seq || 0));
 }
 
+// Sidebar-specific ordering: unread conversations first (muted or not --
+// muting only affects visual weight, never sort position, so a muted
+// channel with new messages doesn't silently sink below read ones), then by
+// latest activity within each bucket. Distinct from sortConversations()
+// above, which is the flat, unread-agnostic recency sort used before the
+// sidebar had sections at all.
+export function sortConversationsForSidebar(conversations) {
+  return [...conversations].sort((a, b) => {
+    const aUnread = (a.unread_count || 0) > 0;
+    const bUnread = (b.unread_count || 0) > 0;
+    if (aUnread !== bUnread) return aUnread ? -1 : 1;
+    const aTime = a.last_message?.created_at || a.created_at;
+    const bTime = b.last_message?.created_at || b.created_at;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+}
+
+// Fixed display order matching how the three conversation kinds already
+// read in the sidebar marker scheme (# / lock / avatar): Channels, Private
+// groups, Direct messages. Always returns all three buckets, even empty
+// ones, so the view can decide whether to render an empty section at all
+// without re-deriving the kind list itself.
+const SIDEBAR_SECTION_ORDER = ["channel", "group", "dm"];
+
+export function groupConversationsIntoSections(conversations) {
+  const buckets = { channel: [], group: [], dm: [] };
+  for (const conversation of conversations) {
+    (buckets[conversation.kind] || buckets.dm).push(conversation);
+  }
+  return SIDEBAR_SECTION_ORDER.map((kind) => ({
+    kind,
+    conversations: sortConversationsForSidebar(buckets[kind]),
+  }));
+}
+
 // Shared shape for a Browse Channels directory row -- both services build
 // their raw row differently (real: a widened wein_chat_conversations select
 // with computed columns from 062; mock: an in-memory object) and normalize
@@ -104,6 +139,10 @@ const KNOWN_CHAT_ERRORS = [
   ["conversation not found", "This conversation no longer exists."],
   ["chat conversation immutable columns cannot be updated", "That change isn't allowed."],
   ["only group or channel conversations can be renamed", "Direct messages can't be renamed."],
+  ["only channel details can be edited this way", "That change isn't allowed here."],
+  ["only the channel owner, an admin, or a manager may edit channel details", "Only the channel owner, an admin, or a manager can edit channel details."],
+  ["channel topic must be 160 characters or fewer", "Topic must be 160 characters or fewer."],
+  ["channel description must be 1000 characters or fewer", "Description must be 1000 characters or fewer."],
 ];
 
 export function mapChatActionError(error) {

@@ -2,6 +2,7 @@ import {
   chatActionError,
   conversationDisplayTitle,
   failChatAction,
+  groupConversationsIntoSections,
   isChatActionPending,
   makeClientNonce,
   mapChatActionError,
@@ -10,7 +11,10 @@ import {
   sortConversations,
   startChatAction,
 } from "./chat-domain.mjs";
+import { totalUnreadCount } from "./chat-unread-badge.mjs";
 import { activeMentionToken, mentionedNames, parseMentions } from "../mentions.mjs";
+
+const SIDEBAR_SECTION_LABELS = { channel: "Channels", group: "Private groups", dm: "Direct messages" };
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -95,6 +99,11 @@ export function createChatViewModule() {
         composeGroupTitle: "",
         composeChannelTitle: "",
         composeSelectedMemberIds: new Set(),
+        // Which sidebar sections (channel/group/dm) are collapsed. In-memory
+        // only, matching every other UI-only flag in this file -- a reload
+        // starts a fresh session, and the plan only asks for state to hold
+        // "during the current session," not across one.
+        sidebarSectionsCollapsed: {},
         browseChannelsOpen: false,
         browseChannelsList: [],
         browseChannelsLoading: false,
@@ -929,9 +938,17 @@ export function createChatViewModule() {
         refresh();
       }
 
+      function isConversationMuted(conversation) {
+        const self = conversation.members?.find((member) => member.user_id === context.currentUser.id);
+        return self?.notification_level === "muted";
+      }
+
       function conversationItem(conversation) {
         const selected = conversation.id === state.selectedConversationId ? " selected" : "";
-        const unread = conversation.unread_count ? `<span class="chat-count">${conversation.unread_count}</span>` : "";
+        const muted = isConversationMuted(conversation) ? " muted" : "";
+        const unread = conversation.unread_count
+          ? `<span class="chat-count${muted ? " muted" : ""}">${conversation.unread_count}</span>`
+          : "";
         const title = conversationDisplayTitle(conversation, context.currentUser.id);
         // Slack-style markers: a real channel (browsable, self-join) gets "#",
         // a group (invite-only, closer to Slack's private channel) gets a lock,
@@ -944,11 +961,35 @@ export function createChatViewModule() {
             ? `<span class="chat-conversation-hash" aria-hidden="true"><i class="ti ti-lock"></i></span>`
             : `<span class="chat-conversation-avatar" aria-hidden="true">${escapeHtml((title || "?").slice(0, 1).toUpperCase())}</span>`;
         return `
-          <button type="button" class="chat-conversation${selected}" data-chat-select="${escapeHtml(conversation.id)}">
+          <button type="button" class="chat-conversation${selected}${muted}" data-chat-select="${escapeHtml(conversation.id)}">
             ${marker}
             <span class="chat-conversation-title">${escapeHtml(title)}</span>
             ${unread}
           </button>
+        `;
+      }
+
+      function toggleSidebarSection(kind) {
+        state.sidebarSectionsCollapsed = {
+          ...state.sidebarSectionsCollapsed,
+          [kind]: !state.sidebarSectionsCollapsed[kind],
+        };
+        render();
+      }
+
+      function sidebarSectionHtml(section) {
+        if (!section.conversations.length) return "";
+        const collapsed = Boolean(state.sidebarSectionsCollapsed[section.kind]);
+        const unread = totalUnreadCount(section.conversations);
+        return `
+          <div class="chat-sidebar-section">
+            <button type="button" class="chat-sidebar-section-head" data-chat-sidebar-section-toggle="${section.kind}" aria-expanded="${!collapsed}">
+              <i class="ti ${collapsed ? "ti-chevron-right" : "ti-chevron-down"}"></i>
+              <span class="chat-sidebar-section-label">${escapeHtml(SIDEBAR_SECTION_LABELS[section.kind])}</span>
+              ${unread ? `<span class="chat-count">${unread}</span>` : ""}
+            </button>
+            ${collapsed ? "" : section.conversations.map(conversationItem).join("")}
+          </div>
         `;
       }
 
@@ -1432,7 +1473,7 @@ export function createChatViewModule() {
                 ${composePopover(selectableProfiles)}
                 <div class="chat-conversation-list">
                   ${state.loading ? `<div class="chat-muted">Loading...</div>` : ""}
-                  ${state.conversations.map(conversationItem).join("")}
+                  ${groupConversationsIntoSections(state.conversations).map(sidebarSectionHtml).join("")}
                   ${!state.loading && !state.conversations.length ? `<div class="chat-muted">No conversations yet.</div>` : ""}
                 </div>
               `}
@@ -1538,6 +1579,9 @@ export function createChatViewModule() {
         `;
         root.querySelectorAll("[data-chat-select]").forEach((button) => {
           button.addEventListener("click", () => selectConversation(button.dataset.chatSelect));
+        });
+        root.querySelectorAll("[data-chat-sidebar-section-toggle]").forEach((button) => {
+          button.addEventListener("click", () => toggleSidebarSection(button.dataset.chatSidebarSectionToggle));
         });
         root.querySelector("[data-chat-back]")?.addEventListener("click", () => clearMobileSelection());
         root.querySelector("[data-chat-toggle-mute]")?.addEventListener("click", () => {

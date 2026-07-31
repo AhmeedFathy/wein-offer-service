@@ -534,6 +534,57 @@
   padding: 0 5px;
 }
 
+/* Muted conversations stay visible (unread sort position is unaffected --
+   see sortConversationsForSidebar) but read as quieter: the badge drops to
+   a neutral tone instead of the attention-grabbing blue. */
+.chat-count.muted {
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+
+.chat-conversation.muted .chat-conversation-title {
+  color: var(--text-tertiary);
+}
+
+.chat-sidebar-section + .chat-sidebar-section {
+  margin-top: 4px;
+}
+
+.chat-sidebar-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 6px 8px 2px;
+  text-align: left;
+}
+
+.chat-sidebar-section-head i {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.chat-sidebar-section-head:hover {
+  color: var(--text-secondary);
+}
+
+.chat-sidebar-section-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chat-sidebar-section-head .chat-count {
+  flex-shrink: 0;
+}
+
 .chat-thread {
   display: grid;
   grid-template-rows: auto 1fr auto;
