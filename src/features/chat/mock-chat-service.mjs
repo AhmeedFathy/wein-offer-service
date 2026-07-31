@@ -1,4 +1,4 @@
-import { unreadCount } from "./chat-domain.mjs";
+import { normalizeChannelDirectoryRow, unreadCount } from "./chat-domain.mjs";
 
 function id(prefix) {
   return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now().toString(36)}`;
@@ -129,6 +129,8 @@ export function createMockChatService(currentUserId, sharedStore = null) {
       id: id("channel"),
       kind: "channel",
       title: title.trim(),
+      topic: null,
+      description: null,
       created_by: actorId,
       created_at: iso(),
       archived_at: null,
@@ -152,15 +154,54 @@ export function createMockChatService(currentUserId, sharedStore = null) {
     addMemberRow(conversation, actorId, existing?.membership_role === "owner" ? "owner" : "member");
   }
 
+  // member_count/joined_by_current_user mirror what the real 062 computed
+  // columns return -- a count and a boolean, never the underlying member
+  // rows -- even though the mock has no RLS to actually enforce that.
+  function channelMemberCount(conversation) {
+    return conversation.members.filter((member) => !member.left_at).length;
+  }
+
+  function channelJoinedByActor(conversation) {
+    return conversation.members.some((member) => member.user_id === actorId && !member.left_at);
+  }
+
   async function listChannels() {
     return clone(
       [...conversations.values()]
         .filter((conversation) => conversation.kind === "channel" && !conversation.archived_at)
-        .map(({ id: channelId, kind, title, created_by, created_at, archived_at }) => (
-          { id: channelId, kind, title, created_by, created_at, archived_at }
-        ))
+        .map((conversation) => normalizeChannelDirectoryRow({
+          ...conversation,
+          creator_name: profileById.get(conversation.created_by)?.full_name || null,
+          member_count: channelMemberCount(conversation),
+          joined_by_current_user: channelJoinedByActor(conversation),
+        }))
         .sort((a, b) => (a.title || "").localeCompare(b.title || "")),
     );
+  }
+
+  async function updateChannelDetails(conversationId, { title, topic, description }) {
+    const conversation = requireConversation(conversationId);
+    if (conversation.kind !== "channel") throw new Error("only channel details can be edited this way");
+    if (conversation.archived_at) throw new Error("this channel has been archived");
+    if (!canManageMembers(conversation)) {
+      throw new Error("only the channel owner, an admin, or a manager may edit channel details");
+    }
+    const trimmedTitle = (title || "").trim();
+    if (!trimmedTitle) throw new Error("channel name is required");
+    const trimmedTopic = (topic || "").trim();
+    if (trimmedTopic.length > 160) throw new Error("channel topic must be 160 characters or fewer");
+    const trimmedDescription = (description || "").trim();
+    if (trimmedDescription.length > 1000) throw new Error("channel description must be 1000 characters or fewer");
+    conversation.title = trimmedTitle;
+    conversation.topic = trimmedTopic || null;
+    conversation.description = trimmedDescription || null;
+  }
+
+  async function leaveChannel(conversationId) {
+    // Reuses the same self-removal path a channel/group member already has
+    // -- an explicit method exists so the view's intent stays clear, not
+    // because the underlying operation differs from removeMember(self).
+    await service.removeMember(conversationId, actorId);
   }
 
   async function getOrCreateDm(otherUserId) {
@@ -236,6 +277,10 @@ export function createMockChatService(currentUserId, sharedStore = null) {
     joinChannel,
 
     listChannels,
+
+    updateChannelDetails,
+
+    leaveChannel,
 
     getOrCreateDm,
 

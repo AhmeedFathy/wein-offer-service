@@ -138,6 +138,7 @@ class FakeSupabase {
     if (name === "wein_chat_get_or_create_dm") return makeResult("dm-1");
     if (name === "wein_chat_add_member") return makeResult(null);
     if (name === "wein_chat_remove_member") return makeResult(null);
+    if (name === "wein_chat_update_channel_details") return makeResult(null);
     return makeResult(null);
   }
 
@@ -273,13 +274,44 @@ async function testSupabaseAdapterContract() {
   const joinChannelCall = fake.calls.find((call) => call.name === "wein_chat_join_channel");
   assert.deepEqual(joinChannelCall.args, { p_conversation_id: "channel-1" });
 
-  await service.listChannels();
+  const channels = await service.listChannels();
   const listChannelsCall = fake.calls.find((call) => (
     call.table === "wein_chat_conversations"
     && call.filters.some((filter) => filter[0] === "eq" && filter[1] === "kind" && filter[2] === "channel")
   ));
   assert.ok(listChannelsCall, "listChannels() should query wein_chat_conversations filtered to kind=channel");
   assert.ok(listChannelsCall.filters.some((filter) => filter[0] === "is" && filter[1] === "archived_at" && filter[2] === null));
+  // 062's computed columns must actually be requested, not just documented --
+  // a widened select string is the only thing that makes member_count/
+  // joined_by_current_user/creator_name come back at all.
+  for (const column of ["topic", "description", "creator_name", "member_count", "joined_by_current_user"]) {
+    assert.ok(listChannelsCall.select.includes(column), `listChannels() select clause missing ${column}`);
+  }
+  // And the response must be normalized through normalizeChannelDirectoryRow,
+  // not returned as a raw row -- every directory field present with the
+  // right defaulted types even against a fixture that only has group fields.
+  assert.deepEqual(Object.keys(channels[0]).sort(), [
+    "archived_at", "created_at", "created_by", "creator_name", "description",
+    "id", "joined_by_current_user", "kind", "member_count", "title", "topic",
+  ]);
+  assert.equal(typeof channels[0].member_count, "number");
+  assert.equal(typeof channels[0].joined_by_current_user, "boolean");
+
+  await service.updateChannelDetails("channel-1", { title: "Announcements", topic: "News", description: "Team news" });
+  const updateDetailsCall = fake.calls.find((call) => call.name === "wein_chat_update_channel_details");
+  assert.deepEqual(updateDetailsCall.args, {
+    p_conversation_id: "channel-1",
+    p_title: "Announcements",
+    p_topic: "News",
+    p_description: "Team news",
+  });
+
+  await service.leaveChannel("channel-1");
+  const leaveChannelCall = fake.calls.filter((call) => call.name === "wein_chat_remove_member").pop();
+  // leaveChannel always removes the CURRENT user (u-1 in this fixture), not
+  // whatever id happened to be passed to an earlier removeMember() call --
+  // it is not just an alias, it fixes the target to the caller's own id.
+  assert.deepEqual(leaveChannelCall.args, { p_conversation_id: "channel-1", p_user_id: "u-1" });
 
   // Mentions must ride along on the message INSERT itself -- the AFTER INSERT
   // notify trigger cannot see rows written in a later round trip.

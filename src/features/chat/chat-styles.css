@@ -1027,6 +1027,109 @@
   padding: 7px 9px;
 }
 
+/* Channel topic line, shown under the h2 title in the thread header when
+   present -- kept quiet (secondary color, small) so it reads as context, not
+   a second heading. */
+.chat-channel-topic {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+
+/* Channel-only "edit details" popover: title + topic + description together,
+   replacing the group's single-line rename form for this one conversation
+   kind (see chat-view.mjs's channelDetailsForm()). */
+.chat-channel-details-form {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.chat-channel-details-form input,
+.chat-channel-details-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: .5px solid var(--border-blue-strong);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  resize: vertical;
+}
+
+.chat-channel-details-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.chat-channel-details-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: .5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.chat-channel-details-actions button:hover {
+  border-color: var(--border-blue-strong);
+  color: var(--blue);
+}
+
+/* Browse Channels directory row -- name/topic/member-count/creator on the
+   left, a state control (Current/Open/Join) on the right. */
+.chat-channel-directory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  border: .5px solid var(--border);
+  border-radius: 8px;
+}
+
+.chat-channel-directory-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-channel-directory-topic {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-channel-directory-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chat-channel-directory-current {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
 .chat-composer {
   display: grid;
   grid-template-columns: auto 1fr auto;

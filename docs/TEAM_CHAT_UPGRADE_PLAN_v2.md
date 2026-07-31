@@ -171,14 +171,14 @@ Five slices, each with its own commit, its own full-suite run, and its own live
 verification — the same discipline every shipped Team Chat feature has followed. Only
 Slice 0 is a hard prerequisite for the rest; Slices 2–5 could reorder if priorities change.
 
-| # | Slice | Migration | Rationale for position |
-|---|---|---|---|
-| 0 | Fix + paste 060/061 (§1) | edits to 061 | Everything else assumes channels work |
-| 1 | Reliability / async-action state | none | Front-loaded — see below |
-| 2 | Channel metadata + directory | `062` | Highest user-visible value |
-| 3 | Sidebar sections | none | Client-only; independent |
-| 4 | Pinned messages | `063` | Self-contained |
-| 5 | Advanced search | `064` | Replaces a working feature — go last |
+| # | Slice | Migration | Rationale for position | Status |
+|---|---|---|---|---|
+| 0 | Fix + paste 060/061 (§1) | edits to 061 | Everything else assumes channels work | ✅ done, verified live |
+| 1 | Reliability / async-action state | none | Front-loaded — see below | ✅ done, verified live |
+| 2 | Channel metadata + directory | `062` | Highest user-visible value | ⚠️ code done; 062 not yet pasted |
+| 3 | Sidebar sections | none | Client-only; independent | pending |
+| 4 | Pinned messages | `063` | Self-contained | pending |
+| 5 | Advanced search | `064` | Replaces a working feature — go last | pending |
 
 **Why the reliability refactor moves to the front.** v1 put it last (§7), applied to every
 action including the nine already shipped and tested. Retrofitting a state machine onto
@@ -259,7 +259,57 @@ network mid-call) shows a mapped message and leaves prior state intact.
 
 ---
 
-## Slice 2 — Channel metadata and directory (`062_chat_channel_metadata.sql`)
+## Slice 2 — Channel metadata and directory (`062_chat_channel_metadata.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+
+**Status:** `062_chat_channel_metadata.sql` is written and SQL-contract-tested (41/41 SQL
+contract tests, 4 new). Every application-layer piece — both services, the UI, unit tests —
+is built and passing (44/44 unit tests, 42/42 Playwright smoke, `npm run typecheck` clean).
+**The migration itself has not been pasted into Supabase yet**, so the directory's new
+columns don't exist live. Confirmed this fails safely rather than breaking the view: opening
+Browse Channels against the current (pre-062) schema shows the generic mapped error from
+Slice 1's `mapChatActionError()` — proof that a real, unrecognized backend failure degrades
+to a readable message instead of a crash or a raw Postgres error, exactly what Slice 1 was
+built for. Normal chat (everything not touching the directory) is unaffected, since only
+`listChannels()`'s select string changed. Live directory verification (member_count,
+joined_by_current_user, the update-details RPC) is pending 062 landing.
+
+**Two implementation decisions that diverge from the original v2 text below, discovered
+while writing the migration — corrected here rather than silently:**
+
+1. **`wein_chat_update_channel_details` uses `wein_chat_can_manage_members`, not
+   `created_by`.** The original plan (§1a) said permission should key on `created_by`
+   because `membership_role` was unreliable — a channel owner who left and rejoined got
+   demoted to `'member'`. That was true when it was written, but Slice 0 already fixed
+   exactly that bug (061's `ON CONFLICT` now preserves `'owner'` across rejoin). With the
+   bug fixed, `membership_role` is reliable again — and it's what the *existing* rename/
+   archive RLS policy (`chat_conversations_update_manager`, 057) already uses. Introducing
+   a second, `created_by`-based permission concept for the same channel header would have
+   been a real inconsistency: rename gated one way, edit-details gated another, on the same
+   conversation, from the same menu. `wein_chat_update_channel_details` reuses
+   `wein_chat_can_manage_members(p_conversation_id, auth.uid())` instead.
+2. **No separate directory RPC — PostgREST computed columns instead.** `member_count`,
+   `joined_by_current_user`, and `creator_name` are STABLE SQL functions taking the row's
+   own composite type (`member_count(c public.wein_chat_conversations)`), which PostgREST
+   exposes automatically as selectable columns. `listChannels()` stays what it already was —
+   a plain widened `.select()` — instead of gaining a parallel RPC-based query path for what
+   is fundamentally the same list with two more fields. `member_count`/`joined_by_current_user`
+   are still `SECURITY DEFINER` (bypassing `wein_chat_members` RLS deliberately, returning
+   only a scalar each); `creator_name` is not, since `profiles_read_all` already makes every
+   profile readable to any authenticated user.
+
+**One scope trim, noted rather than silently dropped:** the Browse Channels directory does
+not duplicate a "create channel" form inline (v1's "Allow admins/managers to create a
+channel from the directory"). The existing create-channel field in the compose popover
+(shipped in the original channels feature) is one click away and already tested; adding a
+second entry point for the same action was judged not worth the additional UI surface for
+this release.
+
+Also merged into this slice, not originally called out as a UI decision but necessary once
+building it: **channels get a unified "Edit channel details" popover** (title + topic +
+description together, matching the RPC's single-call shape) **replacing the plain rename
+form for channels only** — groups keep the existing title-only rename flow untouched, since
+groups have no topic/description in this release and two different ways to rename the same
+channel (old rename form + new details form) would have been worse than one unified action.
 
 ### Schema
 
@@ -281,55 +331,65 @@ alone are not a constraint.
 
 ### `wein_chat_update_channel_details(p_conversation_id, p_title, p_topic, p_description)`
 
-`SECURITY DEFINER`. Permission: `created_by = auth.uid()` **or**
-`wein_chat_is_admin_or_manager(auth.uid())`. Keyed on `created_by`, not `membership_role`
-— see §1a. Rejects non-channel kinds, rejects archived channels, trims and length-checks
-inputs, and raises named exceptions that Slice 1's mapper already knows how to render.
+`SECURITY DEFINER`. Permission: **`wein_chat_can_manage_members(p_conversation_id, auth.uid())`**
+— reused from 055/057, the same gate rename/archive already use — not `created_by` (see the
+correction above: the `created_by` plan was written against the pre-fix owner-demotion bug,
+which Slice 0 already closed). Rejects non-channel kinds, rejects archived channels, trims
+and length-checks inputs, and raises named exceptions that Slice 1's mapper already knows
+how to render.
 
-### Directory RPC
+### Directory columns (PostgREST computed columns, not a separate RPC)
 
-`SECURITY DEFINER` — required, not a convenience. A plain table select **cannot** return
-`member_count` for a channel the caller has not joined, because `wein_chat_members` RLS is
-unchanged by 061; this is exactly why the current `listChannels()` returns only bare
-conversation rows and documents that limitation at `supabase-chat-service.mjs:212-218`.
+`member_count`/`joined_by_current_user` are `SECURITY DEFINER` — required, not a
+convenience. A plain table select **cannot** return `member_count` for a channel the caller
+has not joined, because `wein_chat_members` RLS is unchanged by 061; this is exactly why the
+pre-062 `listChannels()` returned only bare conversation rows and documented that limitation
+at `supabase-chat-service.mjs:212-218`. `creator_name` needs no elevated privilege —
+`profiles_read_all` (046) already makes every profile readable to any authenticated user.
 
-Returns per row: `id, title, topic, description, created_by, creator_name, created_at,
-member_count, joined_by_current_user, archived_at`.
+`listChannels()`'s select widens to: `id, title, topic, description, created_by,
+creator_name, created_at, archived_at, member_count, joined_by_current_user`.
 
-Two hard rules on the implementation:
+Two hard rules on the implementation, both true of the shipped `062_chat_channel_metadata.sql`:
 
-1. `member_count` is computed as an explicit server-side `COUNT(*) FILTER (WHERE left_at IS
-   NULL)`. Never `SELECT *` from `wein_chat_members` and count client-side — that ships
-   member identities to a non-member over the wire even if the UI never renders them.
+1. `member_count` is computed as an explicit server-side `COUNT(*) WHERE left_at IS NULL`.
+   Never `SELECT *` from `wein_chat_members` and count client-side — that ships member
+   identities to a non-member over the wire even if the UI never renders them.
 2. The aggregate is computed **identically** whether or not the caller has joined. Do not
    embed real member rows for joined channels and aggregate only for the rest; uniform is
-   simpler to reason about and simpler to test.
+   simpler to reason about and simpler to test. Confirmed in the mock service and in
+   `testChannelMetadataAndDirectoryContract` across a real two-user shared store.
 
 Archived channels are excluded from the directory.
 
-### Service contracts
+### Service contracts — ✅ built
 
-`listChannels()` already exists in both services — this slice **changes its implementation**
-from a table select to the directory RPC and widens its return shape. Add
-`updateChannelDetails(conversationId, details)` and an explicit
-`leaveChannel(conversationId)`; the latter may internally call
-`removeMember(conversationId, currentUserId)`, but the view calls the explicit method so
-intent and error messages stay clear. Mock service keeps behavioral parity, including the
-new directory fields.
+`listChannels()` already existed in both services — this slice **changed its
+implementation** from a bare table select to the widened select with computed columns, and
+normalizes through the new `normalizeChannelDirectoryRow()` (`chat-domain.mjs`) so both
+services return an identical shape. Added `updateChannelDetails(conversationId, details)`
+and an explicit `leaveChannel(conversationId)` to both services; the mock's `leaveChannel`
+internally calls its own `removeMember(conversationId, actorId)` (the real service's
+`leaveChannel` calls the RPC directly with the caller's own id rather than delegating to its
+`removeMember`, since both ultimately hit the same `wein_chat_remove_member` RPC either way)
+— the view always calls the explicit method so intent and error messages stay clear.
 
-### UI
+### UI — ✅ built
 
-Replace the minimal join list with a real directory: search by title and topic; all active
-public channels; joined first then alphabetical; name, topic, member count, creator per row;
-`Current` / `Open` / `Join` per state; create-channel entry point for admins/managers;
-refresh after create/join/leave/rename/archive; directory state preserved on failure
-(Slice 1 handles the last two).
+Replaced the minimal join list with a real directory (`browseChannelsPanel()`): search by
+title and topic (client-side, over the already-fetched list — channel counts are small
+enough that server-side search isn't warranted yet); every active channel, joined or not,
+sorted joined-first then alphabetical; name, topic, member count, and creator per row;
+`Current` (viewing it now) / `Open` (joined, not current) / `Join` (not joined) per row.
+Directory state is preserved on a failed join via Slice 1's per-row `chatActionError`; the
+whole-directory fetch failure (e.g. 062 not yet live, confirmed live — see status note above)
+shows the generic mapped error without crashing the view.
 
-Channel header gains: name, topic underneath when present, member count, search, notification
-control, and an actions menu (view details · edit details for creator/admin/manager · leave ·
-archive for creator/admin/manager). Leaving requires confirmation, explains rejoining via
-Browse Channels, then removes the channel from the sidebar, closes its message view, selects
-the next conversation, and leaves it visible in the directory.
+Channel header gains: the topic shown under the title when present, a unified "Edit channel
+details" popover (title + topic + description, creator/admin/manager only, replacing the
+plain rename form for channels specifically), and a dedicated "Leave channel" action with its
+own confirm step. Leaving removes the channel from the sidebar, closes its message view,
+selects the next available conversation, and leaves it visible (as "Join") in the directory.
 
 **Leave-flow asymmetry, resolved deliberately:** channels get a prominent header Leave
 action; groups keep self-leave in the members panel. This is intentional — channel

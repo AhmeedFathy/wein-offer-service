@@ -26,6 +26,26 @@ export function unreadCount(conversation, currentUserId) {
   return Math.max(0, lastSeq - (self?.last_read_seq || 0));
 }
 
+// Shared shape for a Browse Channels directory row -- both services build
+// their raw row differently (real: a widened wein_chat_conversations select
+// with computed columns from 062; mock: an in-memory object) and normalize
+// through this so the UI never has to branch on which one it's talking to.
+export function normalizeChannelDirectoryRow(row) {
+  return {
+    id: row.id,
+    kind: "channel",
+    title: row.title ?? null,
+    topic: row.topic ?? null,
+    description: row.description ?? null,
+    created_by: row.created_by,
+    creator_name: row.creator_name ?? null,
+    created_at: row.created_at,
+    archived_at: row.archived_at ?? null,
+    member_count: Number(row.member_count) || 0,
+    joined_by_current_user: Boolean(row.joined_by_current_user),
+  };
+}
+
 export function activeMemberIds(conversation) {
   return (conversation.members || [])
     .filter((member) => !member.left_at)

@@ -1,4 +1,4 @@
-import { unreadCount } from "./chat-domain.mjs";
+import { normalizeChannelDirectoryRow, unreadCount } from "./chat-domain.mjs";
 
 // Private bucket; object access is enforced by storage.objects RLS keyed off
 // the object path's first folder segment (see 059_chat_attachments.sql).
@@ -215,14 +215,45 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       // exactly what "browse channels I haven't joined" needs -- but members/
       // last_message still come back empty for a channel you're not in
       // (wein_chat_members / wein_chat_messages RLS is unchanged), so there's
-      // nothing useful to embed here beyond the bare conversation row.
+      // nothing useful to embed from those tables directly. member_count and
+      // joined_by_current_user (062) are PostgREST computed columns backed by
+      // SECURITY DEFINER functions that return only a scalar each -- never
+      // the underlying member rows -- so a non-member gets a count without
+      // ever seeing who is actually in the channel. creator_name is a plain
+      // computed column with no elevated privilege, since profiles are
+      // already globally readable (profiles_read_all, 046).
       const result = await supabase
         .from("wein_chat_conversations")
-        .select("id, kind, title, created_by, created_at, archived_at")
+        .select("id, kind, title, topic, description, created_by, creator_name, created_at, archived_at, member_count, joined_by_current_user")
         .eq("kind", "channel")
         .is("archived_at", null)
         .order("title", { ascending: true });
-      return requireRows(result, "list channels");
+      return requireRows(result, "list channels").map(normalizeChannelDirectoryRow);
+    },
+
+    async updateChannelDetails(conversationId, { title, topic, description }) {
+      requireRpc(
+        await supabase.rpc("wein_chat_update_channel_details", {
+          p_conversation_id: conversationId,
+          p_title: title,
+          p_topic: topic ?? null,
+          p_description: description ?? null,
+        }),
+        "update channel details",
+      );
+    },
+
+    async leaveChannel(conversationId) {
+      // Reuses wein_chat_remove_member(conversation_id, self) unchanged from
+      // 055/061 -- an explicit method exists so the view's intent and error
+      // messages stay clear, not because the RPC itself is different.
+      requireRpc(
+        await supabase.rpc("wein_chat_remove_member", {
+          p_conversation_id: conversationId,
+          p_user_id: currentUserId,
+        }),
+        "leave channel",
+      );
     },
 
     async getOrCreateDm(otherUserId) {

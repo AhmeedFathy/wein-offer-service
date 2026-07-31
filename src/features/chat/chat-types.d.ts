@@ -1,4 +1,4 @@
-export type ChatConversationKind = "dm" | "group";
+export type ChatConversationKind = "dm" | "group" | "channel";
 export type ChatMembershipRole = "owner" | "member";
 export type ChatNotificationLevel = "all" | "mentions" | "muted";
 
@@ -13,12 +13,33 @@ export interface ChatConversation {
   id: string;
   kind: ChatConversationKind;
   title: string | null;
+  // topic/description only ever populated for kind: "channel" (062).
+  topic?: string | null;
+  description?: string | null;
   created_by: string;
   created_at: string;
   archived_at?: string | null;
   members: ChatMember[];
   last_message?: ChatMessage | null;
   unread_count: number;
+}
+
+// A Browse Channels directory row -- distinct from ChatConversation because
+// members/last_message are never populated for a channel the caller hasn't
+// joined (see listChannels()). member_count/joined_by_current_user/
+// creator_name are the fields the directory needs instead.
+export interface ChatChannelDirectoryEntry {
+  id: string;
+  kind: "channel";
+  title: string | null;
+  topic: string | null;
+  description: string | null;
+  created_by: string;
+  creator_name: string | null;
+  created_at: string;
+  archived_at: string | null;
+  member_count: number;
+  joined_by_current_user: boolean;
 }
 
 export interface ChatMember {
@@ -60,6 +81,14 @@ export interface ChatService {
   listConversations(): Promise<ChatConversation[]>;
   listMessages(conversationId: string): Promise<ChatMessage[]>;
   createGroup(title: string, memberIds: string[]): Promise<string>;
+  createChannel(title: string): Promise<string>;
+  joinChannel(conversationId: string): Promise<void>;
+  leaveChannel(conversationId: string): Promise<void>;
+  listChannels(): Promise<ChatChannelDirectoryEntry[]>;
+  updateChannelDetails(
+    conversationId: string,
+    details: { title: string; topic?: string | null; description?: string | null },
+  ): Promise<void>;
   getOrCreateDm(otherUserId: string): Promise<string>;
   addMember(conversationId: string, userId: string): Promise<void>;
   removeMember(conversationId: string, userId: string): Promise<void>;
@@ -79,6 +108,7 @@ export interface ChatService {
   updateMessage(messageId: string, body: string, mentionedUserIds?: string[]): Promise<ChatMessage>;
   deleteMessage(messageId: string): Promise<ChatMessage>;
   markRead(conversationId: string, lastReadSeq: number): Promise<void>;
+  searchMessages(query: string): Promise<ChatMessage[]>;
   setNotificationLevel(conversationId: string, level: ChatNotificationLevel): Promise<void>;
   subscribeToConversationEvents?(onEvent: () => void): () => void;
 }

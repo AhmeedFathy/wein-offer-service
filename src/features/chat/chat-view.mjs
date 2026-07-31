@@ -99,6 +99,7 @@ export function createChatViewModule() {
         browseChannelsList: [],
         browseChannelsLoading: false,
         browseChannelsError: null,
+        browseChannelsSearch: "",
         membersOpen: false,
         memberAddOpen: false,
         memberSearch: "",
@@ -106,6 +107,15 @@ export function createChatViewModule() {
         renameOpen: false,
         renameDraft: "",
         archiveConfirmOpen: false,
+        // Channel-only "edit details" popover (title + topic + description
+        // together, via wein_chat_update_channel_details). Groups keep the
+        // simpler title-only renameOpen/renameDraft flow above, untouched --
+        // DMs and groups do not have topic/description in this release.
+        channelDetailsOpen: false,
+        channelDetailsTitleDraft: "",
+        channelDetailsTopicDraft: "",
+        channelDetailsDescriptionDraft: "",
+        leaveChannelConfirmOpen: false,
         // Mention typeahead. Lives on state (not the DOM) because render()
         // rewrites root.innerHTML wholesale on every poll.
         mentionQuery: null,
@@ -745,6 +755,66 @@ export function createChatViewModule() {
         await refresh();
       }
 
+      // Channels get a unified "edit details" popover (title + topic +
+      // description together, matching wein_chat_update_channel_details's
+      // single-RPC shape) instead of the group's title-only inline rename --
+      // two separate ways to change a channel's name would be a real UX
+      // inconsistency, not just a missing feature.
+      function openChannelDetails(conversation) {
+        state.channelDetailsOpen = true;
+        state.channelDetailsTitleDraft = conversation.title || "";
+        state.channelDetailsTopicDraft = conversation.topic || "";
+        state.channelDetailsDescriptionDraft = conversation.description || "";
+        state.membersOpen = false;
+        render();
+        root.querySelector("[data-chat-channel-details-title]")?.focus();
+      }
+
+      function closeChannelDetails() {
+        state.channelDetailsOpen = false;
+        render();
+      }
+
+      async function submitChannelDetails(conversation) {
+        const title = state.channelDetailsTitleDraft;
+        const topic = state.channelDetailsTopicDraft;
+        const description = state.channelDetailsDescriptionDraft;
+        await context.service.updateChannelDetails(conversation.id, { title, topic, description });
+        state.conversations = state.conversations.map((row) => (
+          row.id === conversation.id
+            ? { ...row, title: title.trim(), topic: topic.trim() || null, description: description.trim() || null }
+            : row
+        ));
+        state.channelDetailsOpen = false;
+        if (!disposed) render();
+        await refresh();
+      }
+
+      function openLeaveChannelConfirm() {
+        state.leaveChannelConfirmOpen = true;
+        render();
+      }
+
+      function closeLeaveChannelConfirm() {
+        state.leaveChannelConfirmOpen = false;
+        render();
+      }
+
+      async function leaveChannel(conversation) {
+        await context.service.leaveChannel(conversation.id);
+        state.leaveChannelConfirmOpen = false;
+        state.conversations = state.conversations.filter((row) => row.id !== conversation.id);
+        if (state.selectedConversationId === conversation.id) {
+          // Select the next available conversation, matching the plan's
+          // "select the next conversation" requirement -- not just clearing
+          // the view to empty when one exists to fall back to.
+          state.selectedConversationId = state.conversations[0]?.id || null;
+          clearMobileSelection();
+        }
+        if (!disposed) render();
+        await refresh();
+      }
+
       async function setMemberRole(conversationId, userId, role) {
         if (!conversationId || !userId) return;
         await context.service.setMembershipRole(conversationId, userId, role);
@@ -791,37 +861,67 @@ export function createChatViewModule() {
         await selectConversation(conversationId);
       }
 
-      async function openBrowseChannels() {
-        state.browseChannelsOpen = true;
-        state.composeOpen = false;
-        state.searchOpen = false;
+      // A real directory now (062): every active channel, joined or not,
+      // sorted joined-first-then-alphabetical -- not just "channels I could
+      // join" like the pre-062 version. member_count/joined_by_current_user/
+      // creator_name ride along on every row uniformly (see
+      // normalizeChannelDirectoryRow), so there is nothing left to compute
+      // client-side beyond sort order and the text search below.
+      async function refreshBrowseChannels() {
         state.browseChannelsError = null;
         state.browseChannelsLoading = true;
         render();
         try {
-          const allChannels = await context.service.listChannels();
-          const joinedIds = new Set(state.conversations.map((conversation) => conversation.id));
-          state.browseChannelsList = allChannels.filter((channel) => !joinedIds.has(channel.id));
+          const channels = await context.service.listChannels();
+          state.browseChannelsList = [...channels].sort((a, b) => {
+            if (a.joined_by_current_user !== b.joined_by_current_user) {
+              return a.joined_by_current_user ? -1 : 1;
+            }
+            return (a.title || "").localeCompare(b.title || "");
+          });
           state.browseChannelsLoading = false;
           if (!disposed) render();
         } catch (error) {
-          state.browseChannelsError = error instanceof Error ? error.message : String(error);
+          state.browseChannelsError = mapChatActionError(error);
           state.browseChannelsLoading = false;
           if (!disposed) render();
         }
+      }
+
+      async function openBrowseChannels() {
+        state.browseChannelsOpen = true;
+        state.composeOpen = false;
+        state.searchOpen = false;
+        state.browseChannelsSearch = "";
+        await refreshBrowseChannels();
       }
 
       function closeBrowseChannels() {
         state.browseChannelsOpen = false;
         state.browseChannelsList = [];
         state.browseChannelsError = null;
+        state.browseChannelsSearch = "";
         render();
+      }
+
+      function matchingBrowseChannels() {
+        const query = state.browseChannelsSearch.trim().toLowerCase();
+        if (!query) return state.browseChannelsList;
+        return state.browseChannelsList.filter((channel) => (
+          (channel.title || "").toLowerCase().includes(query)
+          || (channel.topic || "").toLowerCase().includes(query)
+        ));
       }
 
       async function joinChannel(conversationId) {
         await context.service.joinChannel(conversationId);
         closeBrowseChannels();
         await selectConversation(conversationId);
+      }
+
+      function openChannelFromDirectory(conversationId) {
+        closeBrowseChannels();
+        selectConversation(conversationId);
       }
 
       function scheduleRefresh() {
@@ -945,25 +1045,44 @@ export function createChatViewModule() {
       }
 
       function browseChannelsPanel() {
+        const results = matchingBrowseChannels();
         return `
-          <div class="chat-search-panel">
+          <div class="chat-search-panel chat-channel-directory">
             <div class="chat-compose-popover-head">
               <strong>Browse channels</strong>
               <button type="button" class="chat-icon-btn" data-chat-browse-channels-close aria-label="Close browse channels"><i class="ti ti-x"></i></button>
             </div>
+            <div class="chat-search-input-row">
+              <i class="ti ti-search"></i>
+              <input data-chat-browse-channels-search type="search" placeholder="Search channels..." value="${escapeHtml(state.browseChannelsSearch)}" autocomplete="off">
+            </div>
             <div class="chat-search-results">
               ${state.browseChannelsLoading ? `<div class="chat-muted">Loading...</div>` : ""}
               ${state.browseChannelsError ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.browseChannelsError)}</span></div>` : ""}
-              ${!state.browseChannelsLoading && !state.browseChannelsError && !state.browseChannelsList.length ? `<div class="chat-muted">No channels to join -- you're already in every one that exists.</div>` : ""}
-              ${state.browseChannelsList.map((channel) => `
-                <div class="chat-search-result">
-                  <span class="chat-search-result-row">
-                    <span class="chat-search-result-title">#${escapeHtml(channel.title || "Untitled channel")}</span>
-                    <button type="button" class="chat-member-add-toggle" data-chat-join-channel="${escapeHtml(channel.id)}"${isChatActionPending(state.actionState, `join-channel:${channel.id}`) ? " disabled" : ""}><i class="ti ti-plus"></i><span>Join</span></button>
-                  </span>
-                  ${chatActionError(state.actionState, `join-channel:${channel.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `join-channel:${channel.id}`))}</span>` : ""}
-                </div>
-              `).join("")}
+              ${!state.browseChannelsLoading && !state.browseChannelsError && !results.length ? `<div class="chat-muted">${state.browseChannelsSearch.trim() ? "No channels match your search." : "No channels exist yet."}</div>` : ""}
+              ${results.map((channel) => {
+                const isCurrent = channel.id === state.selectedConversationId;
+                const joinPending = isChatActionPending(state.actionState, `join-channel:${channel.id}`);
+                const joinError = chatActionError(state.actionState, `join-channel:${channel.id}`);
+                return `
+                  <div class="chat-channel-directory-row">
+                    <div class="chat-channel-directory-info">
+                      <span class="chat-search-result-title">#${escapeHtml(channel.title || "Untitled channel")}</span>
+                      ${channel.topic ? `<span class="chat-channel-directory-topic">${escapeHtml(channel.topic)}</span>` : ""}
+                      <span class="chat-channel-directory-meta">
+                        <i class="ti ti-users"></i> ${channel.member_count}
+                        ${channel.creator_name ? ` &middot; created by ${escapeHtml(channel.creator_name)}` : ""}
+                      </span>
+                    </div>
+                    ${isCurrent
+                      ? `<span class="chat-channel-directory-current">Current</span>`
+                      : channel.joined_by_current_user
+                        ? `<button type="button" class="chat-member-add-toggle" data-chat-open-channel="${escapeHtml(channel.id)}">Open</button>`
+                        : `<button type="button" class="chat-member-add-toggle" data-chat-join-channel="${escapeHtml(channel.id)}"${joinPending ? " disabled" : ""}><i class="ti ti-plus"></i><span>Join</span></button>`}
+                    ${joinError ? `<span class="chat-action-error">${escapeHtml(joinError)}</span>` : ""}
+                  </div>
+                `;
+              }).join("")}
             </div>
           </div>
         `;
@@ -1181,6 +1300,24 @@ export function createChatViewModule() {
         if (fetchedAny && !disposed) render();
       }
 
+      function channelDetailsForm(conversation) {
+        const actionId = `edit-channel-details:${conversation.id}`;
+        const pending = isChatActionPending(state.actionState, actionId);
+        const error = chatActionError(state.actionState, actionId);
+        return `
+          <form class="chat-channel-details-form" data-chat-channel-details-form>
+            <input data-chat-channel-details-title type="text" value="${escapeHtml(state.channelDetailsTitleDraft)}" placeholder="Channel name" maxlength="160"${pending ? " disabled" : ""}>
+            <input data-chat-channel-details-topic type="text" value="${escapeHtml(state.channelDetailsTopicDraft)}" placeholder="Topic (optional, shown under the name)" maxlength="160"${pending ? " disabled" : ""}>
+            <textarea data-chat-channel-details-description placeholder="Description (optional)" maxlength="1000" rows="2"${pending ? " disabled" : ""}>${escapeHtml(state.channelDetailsDescriptionDraft)}</textarea>
+            <div class="chat-channel-details-actions">
+              <button type="submit" aria-label="Save channel details"${pending ? " disabled" : ""}><i class="ti ti-check"></i><span>Save</span></button>
+              <button type="button" data-chat-channel-details-cancel aria-label="Cancel"><i class="ti ti-x"></i></button>
+            </div>
+            ${error ? `<span class="chat-action-error">${escapeHtml(error)}</span>` : ""}
+          </form>
+        `;
+      }
+
       function editForm(message) {
         const pending = isChatActionPending(state.actionState, `edit-message:${message.id}`);
         const error = chatActionError(state.actionState, `edit-message:${message.id}`);
@@ -1307,14 +1444,17 @@ export function createChatViewModule() {
                   <button type="button" class="chat-back-btn" data-chat-back aria-label="Back to conversations"><i class="ti ti-arrow-left"></i></button>
                   <div>
                     <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : selected.kind === "channel" ? "Channel" : "Group"}</div>
-                    ${state.renameOpen ? `
+                    ${selected.kind === "channel" && state.channelDetailsOpen ? channelDetailsForm(selected) : selected.kind !== "channel" && state.renameOpen ? `
                       <form class="chat-rename-form" data-chat-rename-form>
-                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="${selected.kind === "channel" ? "Channel name" : "Group name"}"${isChatActionPending(state.actionState, `rename:${selected.id}`) ? " disabled" : ""}>
+                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="Group name"${isChatActionPending(state.actionState, `rename:${selected.id}`) ? " disabled" : ""}>
                         <button type="submit" aria-label="Save name"${isChatActionPending(state.actionState, `rename:${selected.id}`) ? " disabled" : ""}><i class="ti ti-check"></i></button>
                         <button type="button" data-chat-rename-cancel aria-label="Cancel rename"><i class="ti ti-x"></i></button>
                         ${chatActionError(state.actionState, `rename:${selected.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `rename:${selected.id}`))}</span>` : ""}
                       </form>
-                    ` : `<h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>`}
+                    ` : `
+                      <h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>
+                      ${selected.kind === "channel" && selected.topic ? `<p class="chat-channel-topic">${escapeHtml(selected.topic)}</p>` : ""}
+                    `}
                   </div>
                   <div class="chat-thread-tools">
                     ${["group", "channel"].includes(selected.kind) ? `
@@ -1329,8 +1469,13 @@ export function createChatViewModule() {
                       <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
                     </button>
                     ${["group", "channel"].includes(selected.kind) && manager ? `
-                      <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="Rename ${selected.kind === "channel" ? "channel" : "group"}" title="Rename ${selected.kind === "channel" ? "channel" : "group"}">
+                      <button type="button" class="chat-icon-btn" data-chat-rename-toggle aria-label="${selected.kind === "channel" ? "Edit channel details" : "Rename group"}" title="${selected.kind === "channel" ? "Edit channel details" : "Rename group"}">
                         <i class="ti ti-edit"></i>
+                      </button>
+                    ` : ""}
+                    ${selected.kind === "channel" ? `
+                      <button type="button" class="chat-icon-btn" data-chat-leave-channel-toggle aria-label="Leave channel" title="Leave channel">
+                        <i class="ti ti-logout"></i>
                       </button>
                     ` : ""}
                     ${canArchive ? `
@@ -1346,6 +1491,14 @@ export function createChatViewModule() {
                       <button type="button" data-chat-confirm-archive${isChatActionPending(state.actionState, `archive:${selected.id}`) ? " disabled" : ""}>Confirm</button>
                       <button type="button" data-chat-cancel-archive>Cancel</button>
                       ${chatActionError(state.actionState, `archive:${selected.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `archive:${selected.id}`))}</span>` : ""}
+                    </div>
+                  ` : ""}
+                  ${state.leaveChannelConfirmOpen ? `
+                    <div class="chat-delete-confirm chat-archive-confirm">
+                      <span>Leave #${escapeHtml(selected.title || "this channel")}? You can rejoin any time from Browse Channels.</span>
+                      <button type="button" data-chat-confirm-leave-channel${isChatActionPending(state.actionState, `leave-channel:${selected.id}`) ? " disabled" : ""}>Confirm</button>
+                      <button type="button" data-chat-cancel-leave-channel>Cancel</button>
+                      ${chatActionError(state.actionState, `leave-channel:${selected.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `leave-channel:${selected.id}`))}</span>` : ""}
                     </div>
                   ` : ""}
                 </header>
@@ -1397,13 +1550,34 @@ export function createChatViewModule() {
         });
         root.querySelector("[data-chat-members-close]")?.addEventListener("click", () => closeMembers({ reset: true }));
         root.querySelector("[data-chat-rename-toggle]")?.addEventListener("click", () => {
-          if (selected) openRename(selected);
+          if (!selected) return;
+          if (selected.kind === "channel") openChannelDetails(selected);
+          else openRename(selected);
         });
         root.querySelector("[data-chat-rename-cancel]")?.addEventListener("click", () => closeRename());
         root.querySelector("[data-chat-rename-form]")?.addEventListener("submit", (event) => {
           event.preventDefault();
           if (selected) runChatAction(`rename:${selected.id}`, () => renameConversation(selected, state.renameDraft));
         });
+        root.querySelector("[data-chat-channel-details-title]")?.addEventListener("input", (event) => {
+          state.channelDetailsTitleDraft = event.currentTarget.value;
+        });
+        root.querySelector("[data-chat-channel-details-topic]")?.addEventListener("input", (event) => {
+          state.channelDetailsTopicDraft = event.currentTarget.value;
+        });
+        root.querySelector("[data-chat-channel-details-description]")?.addEventListener("input", (event) => {
+          state.channelDetailsDescriptionDraft = event.currentTarget.value;
+        });
+        root.querySelector("[data-chat-channel-details-cancel]")?.addEventListener("click", () => closeChannelDetails());
+        root.querySelector("[data-chat-channel-details-form]")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          if (selected) runChatAction(`edit-channel-details:${selected.id}`, () => submitChannelDetails(selected));
+        });
+        root.querySelector("[data-chat-leave-channel-toggle]")?.addEventListener("click", () => openLeaveChannelConfirm());
+        root.querySelector("[data-chat-confirm-leave-channel]")?.addEventListener("click", () => {
+          if (selected) runChatAction(`leave-channel:${selected.id}`, () => leaveChannel(selected));
+        });
+        root.querySelector("[data-chat-cancel-leave-channel]")?.addEventListener("click", () => closeLeaveChannelConfirm());
         root.querySelector("[data-chat-rename-input]")?.addEventListener("input", (event) => {
           state.renameDraft = event.currentTarget.value;
         });
@@ -1464,11 +1638,21 @@ export function createChatViewModule() {
           else openBrowseChannels();
         });
         root.querySelector("[data-chat-browse-channels-close]")?.addEventListener("click", () => closeBrowseChannels());
+        root.querySelector("[data-chat-browse-channels-search]")?.addEventListener("input", (event) => {
+          state.browseChannelsSearch = event.currentTarget.value;
+          render();
+          const input = root.querySelector("[data-chat-browse-channels-search]");
+          input?.focus();
+          input?.setSelectionRange?.(input.value.length, input.value.length);
+        });
         root.querySelectorAll("[data-chat-join-channel]").forEach((button) => {
           button.addEventListener("click", () => {
             const conversationId = button.dataset.chatJoinChannel;
             runChatAction(`join-channel:${conversationId}`, () => joinChannel(conversationId));
           });
+        });
+        root.querySelectorAll("[data-chat-open-channel]").forEach((button) => {
+          button.addEventListener("click", () => openChannelFromDirectory(button.dataset.chatOpenChannel));
         });
         root.querySelector("[data-chat-channel-title]")?.addEventListener("input", (event) => {
           state.composeChannelTitle = event.currentTarget.value;

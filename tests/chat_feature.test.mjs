@@ -277,6 +277,93 @@ async function testAttachmentContract() {
   );
 }
 
+async function testChannelMetadataAndDirectoryContract() {
+  const store = createSharedChatStore();
+  const adminService = createMockChatService("u-ahmed", store);
+  const teamService = createMockChatService("u-team", store);
+
+  const channelId = await adminService.createChannel("announcements");
+
+  // member_count/joined_by_current_user must be computed identically
+  // regardless of whether the caller has joined -- a non-member sees the
+  // same shape as a member, just joined_by_current_user: false. This is the
+  // uniformity 062's comment requires: never embed real rows for joined
+  // channels and aggregate only for the rest.
+  let adminDirectory = await adminService.listChannels();
+  let teamDirectory = await teamService.listChannels();
+  const adminEntry = adminDirectory.find((channel) => channel.id === channelId);
+  const teamEntry = teamDirectory.find((channel) => channel.id === channelId);
+  assert.equal(adminEntry.member_count, 1);
+  assert.equal(adminEntry.joined_by_current_user, true);
+  assert.equal(adminEntry.creator_name, "Ahmed Fathy");
+  assert.equal(teamEntry.member_count, 1);
+  assert.equal(teamEntry.joined_by_current_user, false);
+  assert.equal(teamEntry.creator_name, "Ahmed Fathy");
+  assert.equal(teamEntry.topic, null);
+  assert.equal(teamEntry.description, null);
+
+  await teamService.joinChannel(channelId);
+  teamDirectory = await teamService.listChannels();
+  assert.equal(teamDirectory.find((channel) => channel.id === channelId).member_count, 2);
+
+  // A plain member (not owner, not admin/manager) cannot edit channel
+  // details -- only the mismatch here is membership_role, u-team has none of
+  // owner/admin/manager.
+  await assert.rejects(
+    () => teamService.updateChannelDetails(channelId, { title: "Announcements", topic: "News", description: "d" }),
+    /only the channel owner, an admin, or a manager may edit channel details/,
+  );
+
+  // The creator/owner can.
+  await adminService.updateChannelDetails(channelId, {
+    title: "Announcements",
+    topic: "Company news",
+    description: "Official updates only",
+  });
+  adminDirectory = await adminService.listChannels();
+  const updated = adminDirectory.find((channel) => channel.id === channelId);
+  assert.equal(updated.title, "Announcements");
+  assert.equal(updated.topic, "Company news");
+  assert.equal(updated.description, "Official updates only");
+
+  // Server-side length limits, not just a UI hint -- 160 / 1000 chars.
+  await assert.rejects(
+    () => adminService.updateChannelDetails(channelId, { title: "Announcements", topic: "x".repeat(161), description: "" }),
+    /channel topic must be 160 characters or fewer/,
+  );
+  await assert.rejects(
+    () => adminService.updateChannelDetails(channelId, { title: "Announcements", topic: "", description: "x".repeat(1001) }),
+    /channel description must be 1000 characters or fewer/,
+  );
+  await assert.rejects(
+    () => adminService.updateChannelDetails(channelId, { title: "   ", topic: "", description: "" }),
+    /channel name is required/,
+  );
+
+  // Not a backdoor into editing a group's title/whatever via this method.
+  const groupId = await adminService.createGroup("Private ops", []);
+  await assert.rejects(
+    () => adminService.updateChannelDetails(groupId, { title: "x", topic: "", description: "" }),
+    /only channel details can be edited this way/,
+  );
+
+  // An archived channel's details cannot be edited.
+  await adminService.setConversationArchived(channelId, true);
+  await assert.rejects(
+    () => adminService.updateChannelDetails(channelId, { title: "Announcements", topic: "", description: "" }),
+    /this channel has been archived/,
+  );
+  await adminService.setConversationArchived(channelId, false);
+
+  // leaveChannel is the explicit method the view calls -- it must actually
+  // remove the CALLER, and the channel must become joinable again afterward.
+  await teamService.leaveChannel(channelId);
+  teamDirectory = await teamService.listChannels();
+  const afterLeave = teamDirectory.find((channel) => channel.id === channelId);
+  assert.equal(afterLeave.joined_by_current_user, false);
+  assert.equal(afterLeave.member_count, 1);
+}
+
 function testDomainFormatting() {
   const conversations = [
     { id: "older", created_at: "2026-01-01T00:00:00Z", members: [], last_message: null },
@@ -294,6 +381,7 @@ await testUnreadAndReadState();
 await testGroupOwnerManagementContract();
 await testDmArchiveContract();
 await testChannelContract();
+await testChannelMetadataAndDirectoryContract();
 await testMessageSearchContract();
 await testAttachmentContract();
 testDomainFormatting();
