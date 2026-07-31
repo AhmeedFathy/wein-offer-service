@@ -19,10 +19,9 @@ are **not** a second source of truth — `conversation.unread_count` is set by t
 
 **Overall status (2026-07-31): all five slices are code-complete.** Slices 0, 1, and 3 needed
 no pending migration and are fully verified against live Supabase. Slices 2 (`062`), 4
-(`063`), and 5 (`064`) are built, unit-tested, smoke-tested, and confirmed to degrade
-gracefully against the still-current schema — each is waiting on its migration file being
-pasted into Supabase before live directory/pin/search verification can run. See tasks
-"Verify 062/063/064 live" for the remaining work once those are pasted.
+(`063`), and 5 (`064`) are pasted, live, and fully verified as of 2026-07-31 — both
+structurally and behaviorally, via a rolled-back-transaction test impersonating real users.
+All five slices of this plan are complete.
 
 ---
 
@@ -34,7 +33,7 @@ pasted into Supabase before live directory/pin/search verification can run. See 
 | `061_chat_channels.sql` written, **not pasted** into Supabase | confirmed (`MASTER_CONTEXT.md:271`) |
 | Messages are **soft**-deleted (`deleted_at` UPDATE, row never removed) | confirmed (`supabase-chat-service.mjs:349`) |
 | `attachments` is `jsonb NOT NULL DEFAULT '[]'`, filename key is `name` | confirmed (`059:19`, `supabase-chat-service.mjs:291`) |
-| `wein_chat_is_active_member` already requires `c.archived_at IS NULL` | confirmed (`047:93`) |
+| `wein_chat_is_active_member` already requires `c.archived_at IS NULL` | **WRONG, see 2026-07-31 correction below** — `047:93` is inside `wein_chat_can_manage_members`, a different function; `wein_chat_is_active_member` (`047:70-79`) never checks `archived_at` |
 | `chat_messages_select_member` already scopes messages to active membership | confirmed (`047:205`) |
 | `listChannels()` already exists in both real and mock services | confirmed (`supabase-chat-service.mjs:211`, `mock-chat-service.mjs:149`) |
 | Sidebar is a **flat** recency sort, no sections | confirmed (`chat-domain.mjs:15`) |
@@ -266,19 +265,18 @@ network mid-call) shows a mapped message and leaves prior state intact.
 
 ---
 
-## Slice 2 — Channel metadata and directory (`062_chat_channel_metadata.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+## Slice 2 — Channel metadata and directory (`062_chat_channel_metadata.sql`) — ✅ LIVE AND VERIFIED
 
 **Status:** `062_chat_channel_metadata.sql` is written and SQL-contract-tested (41/41 SQL
 contract tests, 4 new). Every application-layer piece — both services, the UI, unit tests —
 is built and passing (44/44 unit tests, 42/42 Playwright smoke, `npm run typecheck` clean).
-**The migration itself has not been pasted into Supabase yet**, so the directory's new
-columns don't exist live. Confirmed this fails safely rather than breaking the view: opening
-Browse Channels against the current (pre-062) schema shows the generic mapped error from
-Slice 1's `mapChatActionError()` — proof that a real, unrecognized backend failure degrades
-to a readable message instead of a crash or a raw Postgres error, exactly what Slice 1 was
-built for. Normal chat (everything not touching the directory) is unaffected, since only
-`listChannels()`'s select string changed. Live directory verification (member_count,
-joined_by_current_user, the update-details RPC) is pending 062 landing.
+**Pasted into Supabase and verified live 2026-07-31**, both structurally (constraints,
+function security modes, permission model) and behaviorally, via a rolled-back-transaction
+test impersonating real users: fresh channel shows `member_count=1, joined=true` for its
+owner immediately after creation; a non-member sees the same `member_count` but
+`joined_by_current_user=false` and cannot read the underlying member rows directly;
+non-manager edit attempts are rejected; the owner's edit persists; topic length is enforced
+server-side; an archived channel's details cannot be edited. All checks passed.
 
 **Two implementation decisions that diverge from the original v2 text below, discovered
 while writing the migration — corrected here rather than silently:**
@@ -436,16 +434,20 @@ Grouping and sorting go in `chat-domain.mjs` as pure functions so they get direc
 
 ---
 
-## Slice 4 — Pinned messages (`063_chat_pinned_messages.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+## Slice 4 — Pinned messages (`063_chat_pinned_messages.sql`) — ✅ LIVE AND VERIFIED
 
 **Status:** `063_chat_pinned_messages.sql` is written and SQL-contract-tested (45/45, 4 new).
 Every application-layer piece is built and passing (44/44 unit tests including a full
 two-user pin/unpin/duplicate/cross-conversation/deleted-message contract in the mock, 44/44
 Playwright smoke — 1 new: pin → strip → panel → unpin, exercised through the real optimistic
-client-side state update, not the mock Supabase harness), `npm run typecheck` clean. **063
-has not been pasted into Supabase yet** — confirmed the same graceful-degradation property as
-Slice 2: opening the Pinned Messages panel against the pre-063 schema shows the generic
-mapped error, not a crash or a raw Postgres error.
+client-side state update, not the mock Supabase harness), `npm run typecheck` clean. **Pasted
+into Supabase and verified live 2026-07-31** via a rolled-back-transaction test impersonating
+real users: direct INSERT into the table is rejected by RLS (no INSERT policy exists);
+non-members cannot pin; the owner can pin and gets an id back; duplicate pins and
+cross-conversation mismatches are rejected with clean errors; a member who joins after the
+pin was made can still see it; any active member (not just the original pinner) can unpin;
+and a pin on a since-deleted message is correctly filtered out by the read-time
+`deleted_at IS NULL` join. All checks passed.
 
 **One access-control decision worth recording explicitly, since it wasn't spelled out this
 precisely in the original plan text:** pinned messages get **no** table-level INSERT/DELETE
@@ -456,8 +458,19 @@ directly, `renameConversation()`/`setConversationArchived()` update directly), s
 real enforcement layer for them. Pins have no such call site — every pin/unpin goes through
 `wein_chat_pin_message`/`wein_chat_unpin_message`, which are `SECURITY DEFINER` and need no
 table grant to succeed. Granting INSERT/DELETE anyway would only widen the attack surface for
-no client benefit, so this is the tighter of the two established access patterns in this
-schema, chosen deliberately rather than defaulted into.
+no client benefit, so omitting the grant is still the right call — deliberate, not defaulted
+into.
+
+**Correction, 2026-07-31 live verification:** omitting the grant does *not* actually narrow
+`authenticated`'s effective privileges the way "tighter of the two access patterns" implied.
+`information_schema.role_table_grants` shows `authenticated` holds the same broad grant set
+on `wein_chat_pinned_messages` as on every other table in `public`, including ones that also
+never explicitly granted INSERT/DELETE (e.g. `wein_chat_dm_pairs` from migration `048`) —
+this comes from a database-wide Supabase default privilege (`pg_default_acl`) applied
+schema-wide, independent of any single migration's `GRANT` statements. RLS (the single
+SELECT-only policy, no INSERT/UPDATE/DELETE policy at all) is the actual and only real
+enforcement layer here, exactly as it is for every other chat table — the omitted GRANT was
+still the right call to make, just not for the reason originally stated.
 
 ### Schema
 
@@ -486,9 +499,14 @@ normal case.
 
 ### Security
 
-RLS: read requires `wein_chat_is_active_member(conversation_id, auth.uid())` — which also
-means pins in an archived conversation become unreadable, consistent with messages
-(`047:93`). Direct table INSERT/DELETE is not granted; pin and unpin go through RPCs. Any
+RLS: read requires `wein_chat_is_active_member(conversation_id, auth.uid())`. **Correction,
+2026-07-31 live verification:** this does *not* make pins in an archived conversation
+unreadable — `wein_chat_is_active_member` (`047:70-79`) checks only membership + `left_at IS
+NULL`; `047:93`'s `archived_at IS NULL` check belongs to the different function
+`wein_chat_can_manage_members`, not this one. Per `060_chat_dm_archive.sql`'s own design
+comment, `archived_at` is "a generic hide-from-listConversations() flag," not an
+access-revocation flag, so an active member's pins in an archived conversation stay fully
+readable — intended behavior, not a gap. Direct table INSERT/DELETE is not granted; pin and unpin go through RPCs. Any
 active member may pin or unpin — deliberately not gated to admin/manager, since gating
 defeats the purpose of a "flag this" affordance. Members who left lose access. The pin RPC
 validates that the message actually belongs to the named conversation.
@@ -505,15 +523,19 @@ before unpinning someone else's pin; empty/loading/failure states via Slice 1.
 
 ---
 
-## Slice 5 — Advanced message search (`064_chat_search.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+## Slice 5 — Advanced message search (`064_chat_search.sql`) — ✅ LIVE AND VERIFIED
 
 **Status:** `064_chat_search.sql` is written and SQL-contract-tested (50/50, 5 new). Every
 application-layer piece is built and passing (44/44 unit tests, 45/45 Playwright smoke — 2
 new: sender/attachments-only filtering with a blank query, and the existing search/jump test
-still passing against the new RPC-based call shape), `npm run typecheck` clean. **064 has not
-been pasted into Supabase yet** — confirmed the same graceful-degradation property as Slices
-2 and 4: searching against the pre-064 schema shows the generic mapped error, not a crash or
-a raw Postgres error.
+still passing against the new RPC-based call shape), `npm run typecheck` clean. **Pasted into
+Supabase and verified live 2026-07-31** via a rolled-back-transaction test impersonating real
+users: a member's search finds their own message; `SECURITY INVOKER` actually enforces
+membership scoping (a non-member of the conversation gets zero hits, not just a documented
+claim); an active member's archived conversation stays searchable (see correction below —
+this is intended, not a gap); deleted messages are excluded; the 50-row limit cannot be
+bypassed by requesting more; attachment filenames are searchable; and a blank query combined
+with the attachments-only filter still returns results. All checks passed.
 
 `searchMessages(filters)` replaces the old single-string `searchMessages(query)` in both
 services — a plain string argument still works (wrapped internally as `{ query }`), so no
@@ -546,11 +568,21 @@ wein_chat_search_messages(
 
 **`SECURITY INVOKER` is the specification, not an implementation detail** — v1 left it
 unstated, and it is the one place where a wrong default silently exposes every user's DMs to
-every other user. Under INVOKER, existing RLS delivers two of the six rules for free:
-`chat_messages_select_member` (`047:205`) scopes results to active memberships, and
-`wein_chat_is_active_member` itself requires `archived_at IS NULL` (`047:93`), so archived
-conversations are already excluded. Under `SECURITY DEFINER` both would have to be
-hand-reimplemented correctly inside the function, with nothing behind them if they are not.
+every other user. Under INVOKER, existing RLS delivers the membership-scoping rule for free:
+`chat_messages_select_member` (`047:205`) scopes results to active memberships. Under
+`SECURITY DEFINER` this would have to be hand-reimplemented correctly inside the function,
+with nothing behind it if done wrong.
+
+**Correction, 2026-07-31 live verification:** the original text here also claimed archived
+conversations are excluded from search via `wein_chat_is_active_member` requiring
+`archived_at IS NULL`. That was wrong — the `archived_at` check at `047:93` belongs to
+`wein_chat_can_manage_members`, a different function; `wein_chat_is_active_member`
+(`047:70-79`) never references `archived_at`. Confirmed live: searching from an active member
+of a now-archived conversation still returns hits. This matches `060_chat_dm_archive.sql`'s
+own stated design — `archived_at` is a sidebar-hide flag ("hide from listConversations()"),
+not an access-revocation flag — so this is correct, intended behavior (archive ≠ leave, same
+as Gmail archive), not a security gap. No code change needed; only this document's rationale
+was wrong.
 
 If a future full-text index makes DEFINER unavoidable, the membership predicate must be
 re-added explicitly and covered by its own negative test before the change ships.
