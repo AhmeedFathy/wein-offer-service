@@ -152,6 +152,14 @@ export function createChatViewModule() {
         searchResults: [],
         searchLoading: false,
         searchError: null,
+        // Advanced search filters (064): scope defaults to every joined
+        // conversation, matching the pre-064 behavior exactly when no other
+        // filter is touched.
+        searchScope: "all",
+        searchSenderId: "",
+        searchFrom: "",
+        searchTo: "",
+        searchAttachmentsOnly: false,
         loading: true,
         error: null,
         // Shared pending/error state for every write action that isn't
@@ -615,13 +623,38 @@ export function createChatViewModule() {
         state.searchResults = [];
         state.searchLoading = false;
         state.searchError = null;
+        state.searchScope = "all";
+        state.searchSenderId = "";
+        state.searchFrom = "";
+        state.searchTo = "";
+        state.searchAttachmentsOnly = false;
         if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
         render();
       }
 
+      function currentSearchFilters(query) {
+        return {
+          query,
+          conversationId: state.searchScope === "current" ? state.selectedConversationId : null,
+          senderId: state.searchSenderId || null,
+          from: state.searchFrom ? new Date(state.searchFrom).toISOString() : null,
+          // End-of-day so a "to" date is inclusive of that whole day.
+          to: state.searchTo ? new Date(`${state.searchTo}T23:59:59.999`).toISOString() : null,
+          hasAttachments: state.searchAttachmentsOnly ? true : null,
+        };
+      }
+
       async function runSearch(query) {
-        const trimmed = query.trim();
-        if (!trimmed) {
+        const filters = currentSearchFilters(query);
+        const trimmed = (query || "").trim();
+        // Blank text is fine when another filter narrows the set (e.g.
+        // "everyone's attachments from last week" is a valid search with no
+        // text at all) -- but if every filter is empty, don't run an
+        // unfiltered "return everything" query.
+        const hasOtherFilter = Boolean(
+          filters.conversationId || filters.senderId || filters.from || filters.to || filters.hasAttachments,
+        );
+        if (!trimmed && !hasOtherFilter) {
           state.searchResults = [];
           state.searchLoading = false;
           state.searchError = null;
@@ -633,14 +666,14 @@ export function createChatViewModule() {
         state.searchError = null;
         if (!disposed) render();
         try {
-          const results = await context.service.searchMessages(trimmed);
+          const results = await context.service.searchMessages(filters);
           if (disposed || requestId !== searchRequestId) return;
           state.searchResults = results;
           state.searchLoading = false;
           render();
         } catch (error) {
           if (disposed || requestId !== searchRequestId) return;
-          state.searchError = error instanceof Error ? error.message : String(error);
+          state.searchError = mapChatActionError(error);
           state.searchLoading = false;
           render();
         }
@@ -650,6 +683,13 @@ export function createChatViewModule() {
         state.searchQuery = query;
         if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
         searchDebounceTimer = setTimeout(() => runSearch(query), 300);
+      }
+
+      // Filter dropdowns/checkboxes/date pickers change infrequently
+      // compared to keystrokes -- no debounce needed, unlike the text input.
+      function rerunSearchNow() {
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+        runSearch(state.searchQuery);
       }
 
       async function jumpToSearchResult(conversationId, messageId) {
@@ -1096,24 +1136,50 @@ export function createChatViewModule() {
         `;
       }
 
+      // Escapes FIRST, then wraps matches in <mark> against the ALREADY-
+      // escaped text -- the same order messageBodyHtml() uses for mention
+      // highlighting, so a search query containing HTML-significant
+      // characters can never reopen an XSS path.
+      function highlightSearchTerm(text, query) {
+        const escapedText = escapeHtml(text);
+        const trimmed = (query || "").trim();
+        if (!trimmed) return escapedText;
+        const escapedQuery = escapeHtml(trimmed).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (!escapedQuery) return escapedText;
+        return escapedText.replace(new RegExp(`(${escapedQuery})`, "gi"), "<mark>$1</mark>");
+      }
+
       function searchResultItem(message) {
         const conversation = state.conversations.find((row) => row.id === message.conversation_id);
         const title = conversation ? conversationDisplayTitle(conversation, context.currentUser.id) : "Archived conversation";
         const timestamp = shortChatTime(message.created_at);
         const senderName = message.sender?.full_name || "Unknown";
+        const attachments = message.attachments || [];
         return `
           <button type="button" class="chat-search-result" data-chat-search-result="${escapeHtml(message.conversation_id)}" data-chat-search-message="${escapeHtml(message.id)}">
             <span class="chat-search-result-row">
               <span class="chat-search-result-title">${escapeHtml(title)}</span>
               ${timestamp ? `<span class="chat-search-result-time">${escapeHtml(timestamp)}</span>` : ""}
             </span>
-            <span class="chat-search-result-snippet"><strong>${escapeHtml(senderName)}:</strong> ${escapeHtml(messagePreview(message))}</span>
+            <span class="chat-search-result-snippet"><strong>${escapeHtml(senderName)}:</strong> ${highlightSearchTerm(messagePreview(message), state.searchQuery)}</span>
+            ${attachments.length ? `
+              <span class="chat-channel-directory-meta"><i class="ti ti-paperclip"></i> ${attachments.map((attachment) => highlightSearchTerm(attachment.name, state.searchQuery)).join(", ")}</span>
+            ` : ""}
           </button>
         `;
       }
 
       function searchPanel() {
         const trimmed = state.searchQuery.trim();
+        const hasOtherFilter = Boolean(
+          (state.searchScope === "current" && state.selectedConversationId)
+          || state.searchSenderId || state.searchFrom || state.searchTo || state.searchAttachmentsOnly,
+        );
+        // Unlike the compose/mention pickers (which exclude the current user
+        // because "start a DM with yourself" makes no sense), a sender
+        // filter legitimately includes yourself -- "find my own messages
+        // about X" is a real search.
+        const senderOptions = state.profiles;
         return `
           <div class="chat-search-panel">
             <div class="chat-search-input-row">
@@ -1121,11 +1187,29 @@ export function createChatViewModule() {
               <input data-chat-search-input type="search" placeholder="Search messages..." value="${escapeHtml(state.searchQuery)}" autocomplete="off">
               <button type="button" data-chat-search-close aria-label="Close search"><i class="ti ti-x"></i></button>
             </div>
+            <div class="chat-search-filters">
+              <select data-chat-search-scope${state.selectedConversationId ? "" : " disabled"} aria-label="Search scope">
+                <option value="all"${state.searchScope === "all" ? " selected" : ""}>All conversations</option>
+                <option value="current"${state.searchScope === "current" ? " selected" : ""}>This conversation</option>
+              </select>
+              <select data-chat-search-sender aria-label="Filter by sender">
+                <option value="">Anyone</option>
+                ${senderOptions.map((profile) => `
+                  <option value="${escapeHtml(profile.id)}"${state.searchSenderId === profile.id ? " selected" : ""}>${escapeHtml(profile.id === context.currentUser.id ? "You" : profile.full_name || "Unknown")}</option>
+                `).join("")}
+              </select>
+              <input data-chat-search-from type="date" aria-label="From date" value="${escapeHtml(state.searchFrom)}">
+              <input data-chat-search-to type="date" aria-label="To date" value="${escapeHtml(state.searchTo)}">
+              <label class="chat-search-attachments-only">
+                <input type="checkbox" data-chat-search-attachments-only${state.searchAttachmentsOnly ? " checked" : ""}>
+                <span>Has attachments</span>
+              </label>
+            </div>
             <div class="chat-search-results">
               ${state.searchLoading ? `<div class="chat-muted">Searching...</div>` : ""}
               ${state.searchError ? `<div class="chat-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(state.searchError)}</span></div>` : ""}
-              ${!state.searchLoading && !state.searchError && trimmed && !state.searchResults.length ? `<div class="chat-muted">No messages found.</div>` : ""}
-              ${!state.searchLoading && !trimmed ? `<div class="chat-muted">Type to search across every conversation you're in.</div>` : ""}
+              ${!state.searchLoading && !state.searchError && (trimmed || hasOtherFilter) && !state.searchResults.length ? `<div class="chat-muted">No messages found.</div>` : ""}
+              ${!state.searchLoading && !trimmed && !hasOtherFilter ? `<div class="chat-muted">Type or choose a filter to search across every conversation you're in.</div>` : ""}
               ${!state.searchLoading ? state.searchResults.map(searchResultItem).join("") : ""}
             </div>
           </div>
@@ -1849,6 +1933,26 @@ export function createChatViewModule() {
           button.addEventListener("click", () => {
             jumpToSearchResult(button.dataset.chatSearchResult, button.dataset.chatSearchMessage);
           });
+        });
+        root.querySelector("[data-chat-search-scope]")?.addEventListener("change", (event) => {
+          state.searchScope = event.currentTarget.value;
+          rerunSearchNow();
+        });
+        root.querySelector("[data-chat-search-sender]")?.addEventListener("change", (event) => {
+          state.searchSenderId = event.currentTarget.value;
+          rerunSearchNow();
+        });
+        root.querySelector("[data-chat-search-from]")?.addEventListener("change", (event) => {
+          state.searchFrom = event.currentTarget.value;
+          rerunSearchNow();
+        });
+        root.querySelector("[data-chat-search-to]")?.addEventListener("change", (event) => {
+          state.searchTo = event.currentTarget.value;
+          rerunSearchNow();
+        });
+        root.querySelector("[data-chat-search-attachments-only]")?.addEventListener("change", (event) => {
+          state.searchAttachmentsOnly = event.currentTarget.checked;
+          rerunSearchNow();
         });
         root.querySelector("[data-chat-browse-channels-toggle]")?.addEventListener("click", () => {
           if (state.browseChannelsOpen) closeBrowseChannels();

@@ -177,21 +177,34 @@ export function createSupabaseChatService({ supabase, currentUserId }) {
       return requireRows(result, "list messages").map(messageFromRow);
     },
 
-    async searchMessages(query) {
+    async searchMessages(filters = {}) {
+      const {
+        query = "", conversationId = null, senderId = null, from = null, to = null, hasAttachments = null,
+      } = typeof filters === "string" ? { query: filters } : filters;
       const trimmed = (query || "").trim();
-      if (!trimmed) return [];
+      // Blank text is allowed when another filter narrows the set (e.g.
+      // "everyone's attachments from last week" has no text at all) -- but
+      // if EVERY filter is empty, don't run an unfiltered "return
+      // everything" query, matching the original single-field search's
+      // short-circuit.
+      if (!trimmed && !conversationId && !senderId && !from && !to && hasAttachments == null) return [];
       const result = await supabase
-        .from("wein_chat_messages")
+        .rpc("wein_chat_search_messages", {
+          p_query: trimmed ? escapeIlikePattern(trimmed) : null,
+          p_conversation_id: conversationId,
+          p_sender_id: senderId,
+          p_from: from,
+          p_to: to,
+          p_has_attachments: hasAttachments,
+        })
         .select(`
           id, conversation_id, message_seq, sender_id, body, reply_to_id, client_nonce, created_at, edited_at, deleted_at, mentioned_user_ids, attachments,
           sender:profiles(id, full_name, role, email)
-        `)
-        .is("deleted_at", null)
-        .ilike("body", `%${escapeIlikePattern(trimmed)}%`)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      // RLS (chat_messages_select_member) already scopes rows to conversations
-      // the current user is an active member of -- no extra filtering needed.
+        `);
+      // wein_chat_search_messages (064) is SECURITY INVOKER -- membership
+      // scoping and archived-conversation exclusion come from the caller's
+      // own RLS (chat_messages_select_member), not anything this client
+      // adds. No extra filtering needed here, deliberately.
       return requireRows(result, "search messages").map(messageFromRow);
     },
 

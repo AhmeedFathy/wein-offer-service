@@ -17,6 +17,13 @@ Corrections to the review that produced this revision: `npm run typecheck` **doe
 are **not** a second source of truth — `conversation.unread_count` is set by the same
 `unreadCount()` in `chat-domain.mjs:23` that the global sidebar badge already sums.
 
+**Overall status (2026-07-31): all five slices are code-complete.** Slices 0, 1, and 3 needed
+no pending migration and are fully verified against live Supabase. Slices 2 (`062`), 4
+(`063`), and 5 (`064`) are built, unit-tested, smoke-tested, and confirmed to degrade
+gracefully against the still-current schema — each is waiting on its migration file being
+pasted into Supabase before live directory/pin/search verification can run. See tasks
+"Verify 062/063/064 live" for the remaining work once those are pasted.
+
 ---
 
 ## 0. Ground truth (verified, not assumed)
@@ -178,7 +185,7 @@ Slice 0 is a hard prerequisite for the rest; Slices 2–5 could reorder if prior
 | 2 | Channel metadata + directory | `062` | Highest user-visible value | ⚠️ code done; 062 not yet pasted |
 | 3 | Sidebar sections | none | Client-only; independent | ✅ done, verified live |
 | 4 | Pinned messages | `063` | Self-contained | ⚠️ code done; 063 not yet pasted |
-| 5 | Advanced search | `064` | Replaces a working feature — go last | pending |
+| 5 | Advanced search | `064` | Replaces a working feature — go last | ⚠️ code done; 064 not yet pasted |
 
 **Why the reliability refactor moves to the front.** v1 put it last (§7), applied to every
 action including the nine already shipped and tested. Retrofitting a state machine onto
@@ -498,7 +505,28 @@ before unpinning someone else's pin; empty/loading/failure states via Slice 1.
 
 ---
 
-## Slice 5 — Advanced message search (`064_chat_search.sql`)
+## Slice 5 — Advanced message search (`064_chat_search.sql`) — ⚠️ CODE DONE, MIGRATION NOT YET PASTED
+
+**Status:** `064_chat_search.sql` is written and SQL-contract-tested (50/50, 5 new). Every
+application-layer piece is built and passing (44/44 unit tests, 45/45 Playwright smoke — 2
+new: sender/attachments-only filtering with a blank query, and the existing search/jump test
+still passing against the new RPC-based call shape), `npm run typecheck` clean. **064 has not
+been pasted into Supabase yet** — confirmed the same graceful-degradation property as Slices
+2 and 4: searching against the pre-064 schema shows the generic mapped error, not a crash or
+a raw Postgres error.
+
+`searchMessages(filters)` replaces the old single-string `searchMessages(query)` in both
+services — a plain string argument still works (wrapped internally as `{ query }`), so no
+other call site needed updating. `chat-view.mjs`'s search panel gained a scope toggle (all
+joined conversations / this conversation, matching the plan), a sender dropdown (labeled
+"You" for the current user's own option rather than their name, the same way the
+compose/mention pickers never show your own name back to you), two date inputs, and an
+attachments-only checkbox — all wired through the same debounced-on-text,
+immediate-on-filter-change `runSearch()` path. Search-term and attachment-filename
+highlighting (`<mark>`) was added as new work — the pre-064 search had no highlighting at
+all — following the same escape-first-then-match-on-escaped-text discipline
+`messageBodyHtml()` already established for mention highlighting, so a query containing
+HTML-significant characters can never reopen an XSS path.
 
 Replaces the working global body search at `supabase-chat-service.mjs:168`.
 

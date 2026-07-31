@@ -221,6 +221,34 @@ async function testMessageSearchContract() {
   assert.deepEqual(outsiderResults.map((message) => message.conversation_id), []);
 
   assert.deepEqual(await service.searchMessages("   "), []);
+  assert.deepEqual(await service.searchMessages({}), []);
+
+  // Scope: a conversation filter narrows the same search to just that
+  // conversation, even though the searching user belongs to both.
+  const scoped = await service.searchMessages({ query: "", conversationId: groupAId });
+  assert.deepEqual(scoped.map((message) => message.conversation_id), [groupAId]);
+
+  // Sender filter.
+  await service.sendMessage({ conversationId: groupAId, body: "second voice", clientNonce: "n-a2" });
+  const fadyService = createMockChatService("u-fady", store);
+  await fadyService.sendMessage({ conversationId: groupAId, body: "from fady", clientNonce: "n-a3" });
+  const bySender = await service.searchMessages({ query: "", conversationId: groupAId, senderId: "u-fady" });
+  assert.deepEqual(bySender.map((message) => message.body), ["from fady"]);
+
+  // Attachments-only.
+  const uploaded = await service.uploadAttachment(groupAId, { name: "menu.pdf", type: "application/pdf", size: 1024 });
+  await service.sendMessage({ conversationId: groupAId, body: "", clientNonce: "n-a4", attachments: [uploaded] });
+  const withAttachments = await service.searchMessages({ query: "", conversationId: groupAId, hasAttachments: true });
+  assert.ok(withAttachments.length >= 1);
+  assert.ok(withAttachments.every((message) => message.attachments.length > 0));
+
+  // Attachment filenames are searchable, not just message bodies.
+  const byFilename = await service.searchMessages({ query: "menu.pdf" });
+  assert.ok(byFilename.some((message) => message.attachments.some((attachment) => attachment.name === "menu.pdf")));
+
+  // Date range.
+  const inFuture = await service.searchMessages({ query: "", conversationId: groupAId, from: "2099-01-01T00:00:00Z" });
+  assert.deepEqual(inFuture, []);
 }
 
 async function testDmArchiveContract() {

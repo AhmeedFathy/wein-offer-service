@@ -370,44 +370,72 @@ async function installPortalMocks(page: Page, options: PortalMockOptions = {}) {
               },
               from: query,
               rpc(fnName, args) {
-                if (fnName === 'wein_chat_get_or_create_dm') {
-                  dmCreated = true;
-                  conversations = [dmConversation];
-                  return Promise.resolve({ data: 'dm-1', error: null });
-                }
-                if (fnName === 'wein_chat_add_member') {
-                  window.__WEIN_CHAT_ADD_MEMBER_CALLS__.push(args);
-                  const profile = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}].find((row) => row.id === args.p_user_id);
-                  const existing = groupConversation.members.find((member) => member.user_id === args.p_user_id);
-                  if (existing) existing.left_at = null;
-                  else groupConversation.members.push({
-                    conversation_id: args.p_conversation_id,
-                    user_id: args.p_user_id,
-                    membership_role: 'member',
-                    joined_at: new Date().toISOString(),
-                    left_at: null,
-                    last_read_seq: 0,
-                    notification_level: 'all',
-                    profile
-                  });
-                  conversations = [groupConversation];
-                  return Promise.resolve({ data: null, error: null });
-                }
-                if (fnName === 'wein_chat_remove_member') {
-                  window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__.push(args);
-                  const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
-                  if (member) member.left_at = new Date().toISOString();
-                  conversations = [groupConversation];
-                  return Promise.resolve({ data: null, error: null });
-                }
-                if (fnName === 'wein_chat_set_membership_role') {
-                  window.__WEIN_CHAT_ROLE_CALLS__.push(args);
-                  const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
-                  if (member) member.membership_role = args.p_role;
-                  conversations = [groupConversation];
-                  return Promise.resolve({ data: null, error: null });
-                }
-                return Promise.resolve({ data: 'mock-id', error: null });
+                const respond = () => {
+                  if (fnName === 'wein_chat_get_or_create_dm') {
+                    dmCreated = true;
+                    conversations = [dmConversation];
+                    return { data: 'dm-1', error: null };
+                  }
+                  if (fnName === 'wein_chat_add_member') {
+                    window.__WEIN_CHAT_ADD_MEMBER_CALLS__.push(args);
+                    const profile = [currentProfile, ${JSON.stringify(otherProfile)}, ${JSON.stringify(extraProfile)}].find((row) => row.id === args.p_user_id);
+                    const existing = groupConversation.members.find((member) => member.user_id === args.p_user_id);
+                    if (existing) existing.left_at = null;
+                    else groupConversation.members.push({
+                      conversation_id: args.p_conversation_id,
+                      user_id: args.p_user_id,
+                      membership_role: 'member',
+                      joined_at: new Date().toISOString(),
+                      left_at: null,
+                      last_read_seq: 0,
+                      notification_level: 'all',
+                      profile
+                    });
+                    conversations = [groupConversation];
+                    return { data: null, error: null };
+                  }
+                  if (fnName === 'wein_chat_remove_member') {
+                    window.__WEIN_CHAT_REMOVE_MEMBER_CALLS__.push(args);
+                    const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
+                    if (member) member.left_at = new Date().toISOString();
+                    conversations = [groupConversation];
+                    return { data: null, error: null };
+                  }
+                  if (fnName === 'wein_chat_set_membership_role') {
+                    window.__WEIN_CHAT_ROLE_CALLS__.push(args);
+                    const member = groupConversation.members.find((row) => row.user_id === args.p_user_id);
+                    if (member) member.membership_role = args.p_role;
+                    conversations = [groupConversation];
+                    return { data: null, error: null };
+                  }
+                  if (fnName === 'wein_chat_search_messages') {
+                    const needle = (args.p_query || '').toLowerCase();
+                    let rows = sentMessages.filter((message) => !message.deleted_at);
+                    if (args.p_conversation_id) rows = rows.filter((message) => message.conversation_id === args.p_conversation_id);
+                    if (args.p_sender_id) rows = rows.filter((message) => message.sender_id === args.p_sender_id);
+                    if (args.p_from) rows = rows.filter((message) => new Date(message.created_at) >= new Date(args.p_from));
+                    if (args.p_to) rows = rows.filter((message) => new Date(message.created_at) <= new Date(args.p_to));
+                    if (args.p_has_attachments != null) rows = rows.filter((message) => Boolean((message.attachments || []).length) === args.p_has_attachments);
+                    if (needle) {
+                      rows = rows.filter((message) => (
+                        (message.body || '').toLowerCase().includes(needle)
+                        || (message.attachments || []).some((attachment) => (attachment.name || '').toLowerCase().includes(needle))
+                      ));
+                    }
+                    rows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    return { data: rows.slice(0, Math.min(args.p_limit || 50, 50)), error: null };
+                  }
+                  return { data: 'mock-id', error: null };
+                };
+                // Real supabase-js supports .rpc(name, args).select(...) for
+                // RPCs returning SETOF <table> -- wein_chat_search_messages
+                // (064) relies on that to shape/embed its response, so this
+                // fake must be chainable the same way, not just awaitable.
+                const builder = {
+                  select() { return builder; },
+                  then(resolve, reject) { return Promise.resolve(respond()).then(resolve, reject); }
+                };
+                return builder;
               },
               channel() {
                 return {
@@ -1077,6 +1105,46 @@ test('searching finds a message and jumps to it, replacing the conversation list
   await result.click();
   await expect(page.locator('.chat-search-panel')).toHaveCount(0);
   await expect(page.locator('.chat-message-jumped')).toContainText('discussing the ottoman menu deal');
+});
+
+test('search filters by sender and attachments-only, and clears when the query is blank', async ({ page }) => {
+  await login(page, { initialConversations: true, chatKind: 'group' });
+  await openTeamChat(page);
+
+  const composer = page.locator('[data-chat-composer]');
+  await composer.fill('a plain text message');
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-body').last()).toHaveText('a plain text message');
+
+  await page.locator('[data-chat-file-input]').setInputFiles({
+    name: 'menu.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('fake-pdf-bytes'),
+  });
+  await expect(page.locator('[data-chat-pending-attachment]')).toHaveCount(1);
+  await page.locator('[data-chat-send-form] button[type="submit"]').click();
+  await expect(page.locator('.chat-message-attachments')).toHaveCount(1);
+
+  await page.getByLabel('Search messages').click();
+
+  // Blank query with the attachments-only filter is a valid search on its
+  // own -- must return the attachment message without any text typed.
+  await page.locator('[data-chat-search-attachments-only]').check();
+  await expect(page.locator('[data-chat-search-result]')).toHaveCount(1);
+  await expect(page.locator('[data-chat-search-result]')).toContainText('menu.pdf');
+
+  await page.locator('[data-chat-search-attachments-only]').uncheck();
+  await expect(page.locator('.chat-muted')).toContainText("Type or choose a filter");
+
+  // Sender filter alone (still no text) narrows to that sender's messages --
+  // both messages here are from the current user, so both come back. The
+  // current user's own option is deliberately labeled "You" rather than
+  // their real name, matching how the compose/mention pickers never show
+  // your own name back to you either.
+  const senderSelect = page.locator('[data-chat-search-sender]');
+  await expect(senderSelect.locator('option', { hasText: 'You' })).toHaveCount(1);
+  await senderSelect.selectOption(mockUser.id);
+  await expect(page.locator('[data-chat-search-result]')).toHaveCount(2);
 });
 
 test('search shows no results for a query that matches nothing', async ({ page }) => {

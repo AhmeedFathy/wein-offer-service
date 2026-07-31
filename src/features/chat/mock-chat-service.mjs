@@ -262,17 +262,30 @@ export function createMockChatService(currentUserId, sharedStore = null) {
       })));
     },
 
-    async searchMessages(query) {
+    async searchMessages(filters = {}) {
+      const {
+        query = "", conversationId = null, senderId = null, from = null, to = null, hasAttachments = null,
+      } = typeof filters === "string" ? { query: filters } : filters;
       const trimmed = (query || "").trim();
-      if (!trimmed) return [];
+      if (!trimmed && !conversationId && !senderId && !from && !to && hasAttachments == null) return [];
       const needle = trimmed.toLowerCase();
       const hits = [];
       for (const conversation of conversations.values()) {
+        if (conversationId && conversation.id !== conversationId) continue;
         const isActiveMember = conversation.members.some((row) => row.user_id === actorId && !row.left_at);
         if (!isActiveMember) continue;
         for (const message of messages.get(conversation.id) || []) {
           if (message.deleted_at) continue;
-          if (!message.body?.toLowerCase().includes(needle)) continue;
+          if (senderId && message.sender_id !== senderId) continue;
+          if (from && new Date(message.created_at) < new Date(from)) continue;
+          if (to && new Date(message.created_at) > new Date(to)) continue;
+          const attachmentCount = message.attachments?.length || 0;
+          if (hasAttachments != null && Boolean(attachmentCount) !== hasAttachments) continue;
+          if (needle) {
+            const bodyMatch = message.body?.toLowerCase().includes(needle);
+            const attachmentMatch = (message.attachments || []).some((attachment) => (attachment.name || "").toLowerCase().includes(needle));
+            if (!bodyMatch && !attachmentMatch) continue;
+          }
           hits.push({ ...message, sender: profileById.get(message.sender_id) || null });
         }
       }

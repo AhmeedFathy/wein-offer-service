@@ -130,18 +130,52 @@ class FakeSupabase {
     };
   }
 
-  async rpc(name, args) {
-    this.calls.push({ kind: "rpc", name, args });
-    if (name === "wein_chat_create_group") return makeResult("group-1");
-    if (name === "wein_chat_create_channel") return makeResult("channel-1");
-    if (name === "wein_chat_join_channel") return makeResult(null);
-    if (name === "wein_chat_get_or_create_dm") return makeResult("dm-1");
-    if (name === "wein_chat_add_member") return makeResult(null);
-    if (name === "wein_chat_remove_member") return makeResult(null);
-    if (name === "wein_chat_update_channel_details") return makeResult(null);
-    if (name === "wein_chat_pin_message") return makeResult("pin-1");
-    if (name === "wein_chat_unpin_message") return makeResult(null);
-    return makeResult(null);
+  rpc(name, args) {
+    const call = { kind: "rpc", name, args };
+    this.calls.push(call);
+    const respond = () => {
+      if (name === "wein_chat_create_group") return makeResult("group-1");
+      if (name === "wein_chat_create_channel") return makeResult("channel-1");
+      if (name === "wein_chat_join_channel") return makeResult(null);
+      if (name === "wein_chat_get_or_create_dm") return makeResult("dm-1");
+      if (name === "wein_chat_add_member") return makeResult(null);
+      if (name === "wein_chat_remove_member") return makeResult(null);
+      if (name === "wein_chat_update_channel_details") return makeResult(null);
+      if (name === "wein_chat_pin_message") return makeResult("pin-1");
+      if (name === "wein_chat_unpin_message") return makeResult(null);
+      if (name === "wein_chat_search_messages") {
+        return makeResult([
+          {
+            id: "m-1",
+            conversation_id: "group-1",
+            message_seq: 1,
+            sender_id: "u-1",
+            body: "hello",
+            reply_to_id: null,
+            client_nonce: "n-1",
+            created_at: "2026-07-26T00:00:01Z",
+            edited_at: null,
+            deleted_at: null,
+            sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
+          },
+        ]);
+      }
+      return makeResult(null);
+    };
+    // Real supabase-js supports .rpc(name, args).select(...) for RPCs
+    // returning SETOF <table> -- this fake must be chainable the same way,
+    // not just awaitable directly, since wein_chat_search_messages (064)
+    // relies on that to shape/embed its response.
+    const builder = {
+      select(clause) {
+        call.select = clause;
+        return builder;
+      },
+      then(resolve, reject) {
+        return Promise.resolve(respond()).then(resolve, reject);
+      },
+    };
+    return builder;
   }
 
   responseFor(query) {
@@ -433,16 +467,36 @@ async function testSupabaseAdapterContract() {
       sender: { id: "u-1", full_name: "Ahmed", role: "admin", email: "a@example.com" },
     },
   ]);
-  const searchCall = fake.calls.find((call) => call.table === "wein_chat_messages" && call.filters.some((filter) => filter[0] === "ilike"));
-  const ilikeFilter = searchCall.filters.find((filter) => filter[0] === "ilike");
+  const searchCall = fake.calls.find((call) => call.name === "wein_chat_search_messages");
   // "%" and other ILIKE wildcard chars in the raw query must be escaped so a
-  // literal search for e.g. "50% off" doesn't get reinterpreted as a pattern.
-  assert.deepEqual(ilikeFilter, ["ilike", "body", "%50\\% off%"]);
-  assert.ok(searchCall.filters.some((filter) => filter[0] === "is" && filter[1] === "deleted_at" && filter[2] === null));
-  assert.ok(searchCall.filters.some((filter) => filter[0] === "order" && filter[1] === "created_at" && filter[2]?.ascending === false));
-  assert.ok(searchCall.filters.some((filter) => filter[0] === "limit" && filter[1] === 50));
+  // literal search for e.g. "50% off" doesn't get reinterpreted as a pattern
+  // by the RPC's own ILIKE clause.
+  assert.equal(searchCall.args.p_query, "50\\% off");
+  // A plain string call (the pre-064 call shape) must still work -- only
+  // p_query is set, every other filter stays null.
+  assert.deepEqual(searchCall.args, {
+    p_query: "50\\% off",
+    p_conversation_id: null,
+    p_sender_id: null,
+    p_from: null,
+    p_to: null,
+    p_has_attachments: null,
+  });
+  assert.ok(searchCall.select.includes("sender:profiles"));
+
+  await service.searchMessages({ query: "", conversationId: "group-1", senderId: "u-2", from: "2026-07-01T00:00:00Z", to: "2026-07-31T00:00:00Z", hasAttachments: true });
+  const filteredCall = fake.calls.filter((call) => call.name === "wein_chat_search_messages").pop();
+  assert.deepEqual(filteredCall.args, {
+    p_query: null,
+    p_conversation_id: "group-1",
+    p_sender_id: "u-2",
+    p_from: "2026-07-01T00:00:00Z",
+    p_to: "2026-07-31T00:00:00Z",
+    p_has_attachments: true,
+  });
 
   assert.deepEqual(await service.searchMessages("   "), []);
+  assert.deepEqual(await service.searchMessages({}), []);
 
   await service.sendMessage({
     conversationId: "group-1",

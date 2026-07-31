@@ -149,6 +149,41 @@
   gap: 10px;
 }
 
+.chat-search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-search-filters select,
+.chat-search-filters input[type="date"] {
+  border: .5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 6px;
+}
+
+.chat-search-attachments-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.chat-search-result mark,
+.chat-pinned-strip mark {
+  background: var(--blue-tint);
+  color: var(--blue);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .chat-search-input-row {
   display: flex;
   align-items: center;
