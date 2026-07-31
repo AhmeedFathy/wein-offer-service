@@ -194,9 +194,38 @@ flight and a revert is a single clean commit.
 
 ---
 
-## Slice 1 — Reliability and feedback substrate
+## Slice 1 — Reliability and feedback substrate — ✅ SHIPPED (2026-07-31)
 
 No migration. Pure refactor: no new user-visible capability, no behavior change.
+
+**Status: done.** Every existing test passes unchanged (44/44 unit — 1 new file,
+`chat_domain.test.mjs` — the other 43 untouched; 42/42 Playwright smoke, zero test-file
+edits), `npm run typecheck` clean, and the shared substrate is live end-to-end against real
+Supabase (mute toggle proven: pending disables the control synchronously, the underlying RPC
+call resolves, and the DOM re-enables with the new state — verified by monkey-patching
+`Element.prototype.innerHTML`'s setter to catch the render() call in real time, not just by
+reading the eventual result).
+
+**Process gap found and closed while verifying this slice — matters beyond Slice 1.** The
+portal serves a **pre-built bundle** at `/portal-dist/assets/main.js` (`vite.config.ts`:
+`outDir: 'portal/dist'`), not the raw `src/` files. `npm run test:smoke` was just
+`playwright test` with no build step before it. Editing `chat-view.mjs`, running the smoke
+suite, and seeing it pass proves nothing if the bundle wasn't rebuilt first — the suite is
+silently testing whatever code happened to be in `portal/dist` already. This was caught only
+because a live browser check (monkey-patching `innerHTML` to detect synchronous renders)
+showed the pending-disable behavior wasn't happening — the running bundle predated this
+slice's edits entirely, despite Playwright reporting 42/42 green against it.
+
+**Fixed durably, not just noted:** added `"pretest:smoke": "npm run build"` to
+`package.json` — npm's lifecycle convention runs `pre<script>` automatically before
+`<script>`, so `npm run test:smoke` now always rebuilds first. Verified by deleting
+`portal/dist/assets/main.js` and confirming `npm run test:smoke` regenerated it before
+Playwright launched. From here on, **`npm run build` must run before any Playwright or live
+browser check** — either via `npm run test:smoke` (now automatic) or manually before a raw
+`npx playwright test` invocation or before opening the browser preview.
+
+Replace the ad hoc per-action flags in `chat-view.mjs` with one shared async-action state
+keyed by action id. Cover the nine operations that exist **today**:
 
 Replace the ad hoc per-action flags in `chat-view.mjs` with one shared async-action state
 keyed by action id. Cover the nine operations that exist **today**:
@@ -451,14 +480,17 @@ it.
 npm run typecheck
 ```
 ```bash
-npm run build
-```
-```bash
 node --test tests/
 ```
 ```bash
-npx playwright test tests/smoke/team-chat-nav.spec.ts
+npm run test:smoke
 ```
+
+`npm run test:smoke` rebuilds automatically via `pretest:smoke` (added in Slice 1 — see
+above) before Playwright runs, so the suite is always exercising the current source. Run
+`npm run build` manually only when checking the app in a live browser outside this command
+— that step is easy to forget and was in fact forgotten once during Slice 1, silently
+testing a stale bundle for a full round of "verification" until a live DOM check caught it.
 
 Plus desktop and mobile screenshot review for overflow, overlapping controls, empty panels,
 and sidebar stability.

@@ -1096,6 +1096,21 @@
   margin-bottom: 10px;
 }
 
+/* Inline error for a single pending action (rename, archive, add member,
+   join channel, etc.) -- smaller and un-boxed since it sits directly under
+   the control it belongs to, unlike the page-level .chat-error banner. */
+.chat-action-error {
+  display: block;
+  width: 100%;
+  color: var(--red);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.chat-send-error {
+  margin: 0 16px 8px;
+}
+
 @media (max-width: 760px) {
   .chat-shell {
     display: block;

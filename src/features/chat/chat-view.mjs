@@ -1,8 +1,14 @@
 import {
+  chatActionError,
   conversationDisplayTitle,
+  failChatAction,
+  isChatActionPending,
   makeClientNonce,
+  mapChatActionError,
   messagePreview,
+  resolveChatAction,
   sortConversations,
+  startChatAction,
 } from "./chat-domain.mjs";
 import { activeMentionToken, mentionedNames, parseMentions } from "../mentions.mjs";
 
@@ -118,6 +124,13 @@ export function createChatViewModule() {
         searchError: null,
         loading: true,
         error: null,
+        // Shared pending/error state for every write action that isn't
+        // search or browse-channels (both predate this and keep their own
+        // pair) or attachment upload (already tracked per-item on
+        // pendingAttachments[].status/error). Keyed by an action id so two
+        // unrelated actions -- e.g. removing member A while renaming --
+        // never share one flag. See chat-domain.mjs for the transitions.
+        actionState: {},
       };
       // Signed URLs for attachments already sent, keyed by storage path.
       // Lives outside state (not serializable, and losing it on render is fine
@@ -126,6 +139,30 @@ export function createChatViewModule() {
       const signedUrlFetching = new Set();
       let disposed = false;
       let initialConversationPending = context.initialConversationId || null;
+
+      // Runs fn under a shared pending/error lifecycle keyed by actionId:
+      // guards against a second submission while the first is in flight,
+      // clears any previous error before starting, and on failure maps the
+      // raw error to a readable message instead of letting a raw Supabase/
+      // Postgres string reach the UI. fn is responsible for its own success
+      // side effects (updating state.conversations, closing a popover,
+      // calling refresh()) -- this only owns the pending/error envelope
+      // around it, matching how the rest of this file already updates state
+      // and calls render() itself rather than through a central dispatcher.
+      async function runChatAction(actionId, fn) {
+        if (isChatActionPending(state.actionState, actionId)) return;
+        state.actionState = startChatAction(state.actionState, actionId);
+        render();
+        try {
+          await fn();
+          if (disposed) return;
+          state.actionState = resolveChatAction(state.actionState, actionId);
+        } catch (error) {
+          if (disposed) return;
+          state.actionState = failChatAction(state.actionState, actionId, mapChatActionError(error));
+        }
+        render();
+      }
       let refreshTimer = null;
       let unsubscribeRealtime = null;
       let forceScrollBottom = false;
@@ -888,15 +925,18 @@ export function createChatViewModule() {
               ${!filteredProfiles.length ? `<div class="chat-muted">No matching people.</div>` : ""}
             </div>
             <div class="chat-compose-actions">
-              <button type="button" data-chat-start-dm="${escapeHtml(oneSelectedId)}"${selectedCount === 1 ? "" : " disabled"}><i class="ti ti-message"></i><span>Start DM</span></button>
+              <button type="button" data-chat-start-dm="${escapeHtml(oneSelectedId)}"${selectedCount === 1 && !isChatActionPending(state.actionState, `start-dm:${oneSelectedId}`) ? "" : " disabled"}><i class="ti ti-message"></i><span>Start DM</span></button>
+              ${chatActionError(state.actionState, `start-dm:${oneSelectedId}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `start-dm:${oneSelectedId}`))}</span>` : ""}
               <div class="chat-compose-group">
                 <input data-chat-group-title type="text" placeholder="Group name" value="${escapeHtml(state.composeGroupTitle)}">
-                <button type="button" data-chat-create-group${state.composeGroupTitle.trim() ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Create group</span></button>
+                <button type="button" data-chat-create-group${state.composeGroupTitle.trim() && !isChatActionPending(state.actionState, "create-group") ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Create group</span></button>
+                ${chatActionError(state.actionState, "create-group") ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, "create-group"))}</span>` : ""}
               </div>
               ${canModerateDelete() ? `
                 <div class="chat-compose-group">
                   <input data-chat-channel-title type="text" placeholder="Channel name" value="${escapeHtml(state.composeChannelTitle)}">
-                  <button type="button" data-chat-create-channel${state.composeChannelTitle.trim() ? "" : " disabled"}><i class="ti ti-hash"></i><span>Create channel</span></button>
+                  <button type="button" data-chat-create-channel${state.composeChannelTitle.trim() && !isChatActionPending(state.actionState, "create-channel") ? "" : " disabled"}><i class="ti ti-hash"></i><span>Create channel</span></button>
+                  ${chatActionError(state.actionState, "create-channel") ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, "create-channel"))}</span>` : ""}
                 </div>
               ` : ""}
             </div>
@@ -919,8 +959,9 @@ export function createChatViewModule() {
                 <div class="chat-search-result">
                   <span class="chat-search-result-row">
                     <span class="chat-search-result-title">#${escapeHtml(channel.title || "Untitled channel")}</span>
-                    <button type="button" class="chat-member-add-toggle" data-chat-join-channel="${escapeHtml(channel.id)}"><i class="ti ti-plus"></i><span>Join</span></button>
+                    <button type="button" class="chat-member-add-toggle" data-chat-join-channel="${escapeHtml(channel.id)}"${isChatActionPending(state.actionState, `join-channel:${channel.id}`) ? " disabled" : ""}><i class="ti ti-plus"></i><span>Join</span></button>
                   </span>
+                  ${chatActionError(state.actionState, `join-channel:${channel.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `join-channel:${channel.id}`))}</span>` : ""}
                 </div>
               `).join("")}
             </div>
@@ -986,14 +1027,17 @@ export function createChatViewModule() {
                     </span>
                     ${member.membership_role === "owner" ? `<span class="chat-owner-badge">Owner</span>` : ""}
                     ${manager ? `
-                      <button type="button" class="chat-member-promote" data-chat-promote-member="${escapeHtml(member.user_id)}" data-chat-role="${member.membership_role === "owner" ? "member" : "owner"}">
+                      <button type="button" class="chat-member-promote" data-chat-promote-member="${escapeHtml(member.user_id)}" data-chat-role="${member.membership_role === "owner" ? "member" : "owner"}"${isChatActionPending(state.actionState, `set-role:${conversation.id}:${member.user_id}`) ? " disabled" : ""}>
                         <i class="ti ${member.membership_role === "owner" ? "ti-user-minus" : "ti-shield-plus"}"></i><span>${member.membership_role === "owner" ? "Remove owner" : "Make owner"}</span>
                       </button>
                     ` : ""}
                     ${canRemove ? `
-                      <button type="button" class="chat-member-remove" data-chat-remove-member="${escapeHtml(member.user_id)}">
+                      <button type="button" class="chat-member-remove" data-chat-remove-member="${escapeHtml(member.user_id)}"${isChatActionPending(state.actionState, `remove-member:${conversation.id}:${member.user_id}`) ? " disabled" : ""}>
                         <i class="ti ${isSelf ? "ti-logout" : "ti-user-minus"}"></i><span>${isSelf ? "Leave" : "Remove"}</span>
                       </button>
+                    ` : ""}
+                    ${chatActionError(state.actionState, `set-role:${conversation.id}:${member.user_id}`) || chatActionError(state.actionState, `remove-member:${conversation.id}:${member.user_id}`) ? `
+                      <span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `set-role:${conversation.id}:${member.user_id}`) || chatActionError(state.actionState, `remove-member:${conversation.id}:${member.user_id}`))}</span>
                     ` : ""}
                   </div>
                 `;
@@ -1024,7 +1068,8 @@ export function createChatViewModule() {
                     ${!selectableProfiles.length ? `<div class="chat-muted">No matching people.</div>` : ""}
                   </div>
                   <div class="chat-compose-actions">
-                    <button type="button" data-chat-add-members="${escapeHtml(conversation.id)}"${selectedCount ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Add selected</span></button>
+                    <button type="button" data-chat-add-members="${escapeHtml(conversation.id)}"${selectedCount && !isChatActionPending(state.actionState, `add-members:${conversation.id}`) ? "" : " disabled"}><i class="ti ti-users-plus"></i><span>Add selected</span></button>
+                    ${chatActionError(state.actionState, `add-members:${conversation.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `add-members:${conversation.id}`))}</span>` : ""}
                   </div>
                 ` : ""}
               </div>
@@ -1137,11 +1182,14 @@ export function createChatViewModule() {
       }
 
       function editForm(message) {
+        const pending = isChatActionPending(state.actionState, `edit-message:${message.id}`);
+        const error = chatActionError(state.actionState, `edit-message:${message.id}`);
         return `
           <form class="chat-edit-form" data-chat-edit-form="${escapeHtml(message.id)}">
-            <input data-chat-edit-input="${escapeHtml(message.id)}" type="text" value="${escapeHtml(state.editDraft)}">
-            <button type="submit" aria-label="Save edit"><i class="ti ti-check"></i></button>
+            <input data-chat-edit-input="${escapeHtml(message.id)}" type="text" value="${escapeHtml(state.editDraft)}"${pending ? " disabled" : ""}>
+            <button type="submit" aria-label="Save edit"${pending ? " disabled" : ""}><i class="ti ti-check"></i></button>
             <button type="button" data-chat-cancel-edit aria-label="Cancel edit"><i class="ti ti-x"></i></button>
+            ${error ? `<span class="chat-action-error">${escapeHtml(error)}</span>` : ""}
           </form>
         `;
       }
@@ -1195,8 +1243,9 @@ export function createChatViewModule() {
           ${state.confirmingDeleteMessageId === message.id ? `
             <div class="chat-delete-confirm">
               <span>Delete message?</span>
-              <button type="button" data-chat-confirm-delete="${escapeHtml(message.id)}">Confirm</button>
+              <button type="button" data-chat-confirm-delete="${escapeHtml(message.id)}"${isChatActionPending(state.actionState, `delete-message:${message.id}`) ? " disabled" : ""}>Confirm</button>
               <button type="button" data-chat-cancel-delete="${escapeHtml(message.id)}">Cancel</button>
+              ${chatActionError(state.actionState, `delete-message:${message.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `delete-message:${message.id}`))}</span>` : ""}
             </div>
           ` : ""}
         ` : "";
@@ -1260,9 +1309,10 @@ export function createChatViewModule() {
                     <div class="chat-eyebrow">${selected.kind === "dm" ? "Direct message" : selected.kind === "channel" ? "Channel" : "Group"}</div>
                     ${state.renameOpen ? `
                       <form class="chat-rename-form" data-chat-rename-form>
-                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="${selected.kind === "channel" ? "Channel name" : "Group name"}">
-                        <button type="submit" aria-label="Save name"><i class="ti ti-check"></i></button>
+                        <input data-chat-rename-input type="text" value="${escapeHtml(state.renameDraft)}" placeholder="${selected.kind === "channel" ? "Channel name" : "Group name"}"${isChatActionPending(state.actionState, `rename:${selected.id}`) ? " disabled" : ""}>
+                        <button type="submit" aria-label="Save name"${isChatActionPending(state.actionState, `rename:${selected.id}`) ? " disabled" : ""}><i class="ti ti-check"></i></button>
                         <button type="button" data-chat-rename-cancel aria-label="Cancel rename"><i class="ti ti-x"></i></button>
+                        ${chatActionError(state.actionState, `rename:${selected.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `rename:${selected.id}`))}</span>` : ""}
                       </form>
                     ` : `<h2>${escapeHtml(conversationDisplayTitle(selected, context.currentUser.id))}</h2>`}
                   </div>
@@ -1275,7 +1325,7 @@ export function createChatViewModule() {
                     <button type="button" class="chat-icon-btn${state.searchOpen ? " active" : ""}" data-chat-search-toggle aria-label="Search messages" title="Search messages">
                       <i class="ti ti-search"></i>
                     </button>
-                    <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}">
+                    <button type="button" class="chat-icon-btn${muted ? " active" : ""}" data-chat-toggle-mute aria-label="${muted ? "Unmute conversation" : "Mute conversation"}" title="${muted ? "Unmute conversation" : "Mute conversation"}"${isChatActionPending(state.actionState, `toggle-mute:${selected.id}`) ? " disabled" : ""}>
                       <i class="ti ${muted ? "ti-bell-off" : "ti-bell"}"></i>
                     </button>
                     ${["group", "channel"].includes(selected.kind) && manager ? `
@@ -1293,8 +1343,9 @@ export function createChatViewModule() {
                   ${state.archiveConfirmOpen ? `
                     <div class="chat-delete-confirm chat-archive-confirm">
                       <span>Archive this ${selected.kind === "channel" ? "channel" : selected.kind === "group" ? "group" : "conversation"}?</span>
-                      <button type="button" data-chat-confirm-archive>Confirm</button>
+                      <button type="button" data-chat-confirm-archive${isChatActionPending(state.actionState, `archive:${selected.id}`) ? " disabled" : ""}>Confirm</button>
                       <button type="button" data-chat-cancel-archive>Cancel</button>
+                      ${chatActionError(state.actionState, `archive:${selected.id}`) ? `<span class="chat-action-error">${escapeHtml(chatActionError(state.actionState, `archive:${selected.id}`))}</span>` : ""}
                     </div>
                   ` : ""}
                 </header>
@@ -1302,6 +1353,7 @@ export function createChatViewModule() {
                   ${state.messages.map((message, index) => messageRow(message, shouldShowMessageHeader(message, state.messages[index - 1]))).join("")}
                   ${!state.messages.length ? `<div class="chat-muted">No messages yet.</div>` : ""}
                 </div>
+                ${chatActionError(state.actionState, `send-message:${selected.id}`) ? `<div class="chat-action-error chat-send-error"><i class="ti ti-alert-triangle"></i><span>${escapeHtml(chatActionError(state.actionState, `send-message:${selected.id}`))}</span></div>` : ""}
                 <form class="chat-composer" data-chat-send-form>
                   ${replyStrip()}
                   ${pendingAttachmentsStrip()}
@@ -1311,7 +1363,7 @@ export function createChatViewModule() {
                     <i class="ti ti-paperclip"></i>
                   </button>
                   <textarea data-chat-composer rows="1" placeholder="Write a message..."></textarea>
-                  <button type="submit"><i class="ti ti-send"></i><span>Send</span></button>
+                  <button type="submit"${isChatActionPending(state.actionState, `send-message:${selected.id}`) ? " disabled" : ""}><i class="ti ti-send"></i><span>Send</span></button>
                 </form>
               ` : `
                 <header class="chat-thread-head chat-thread-head-empty">
@@ -1336,7 +1388,7 @@ export function createChatViewModule() {
         });
         root.querySelector("[data-chat-back]")?.addEventListener("click", () => clearMobileSelection());
         root.querySelector("[data-chat-toggle-mute]")?.addEventListener("click", () => {
-          if (selected) toggleMute(selected);
+          if (selected) runChatAction(`toggle-mute:${selected.id}`, () => toggleMute(selected));
         });
         root.querySelector("[data-chat-members-toggle]")?.addEventListener("click", () => {
           if (!selected) return;
@@ -1350,14 +1402,14 @@ export function createChatViewModule() {
         root.querySelector("[data-chat-rename-cancel]")?.addEventListener("click", () => closeRename());
         root.querySelector("[data-chat-rename-form]")?.addEventListener("submit", (event) => {
           event.preventDefault();
-          if (selected) renameConversation(selected, state.renameDraft);
+          if (selected) runChatAction(`rename:${selected.id}`, () => renameConversation(selected, state.renameDraft));
         });
         root.querySelector("[data-chat-rename-input]")?.addEventListener("input", (event) => {
           state.renameDraft = event.currentTarget.value;
         });
         root.querySelector("[data-chat-archive-toggle]")?.addEventListener("click", () => openArchiveConfirm());
         root.querySelector("[data-chat-confirm-archive]")?.addEventListener("click", () => {
-          if (selected) setConversationArchived(selected, true);
+          if (selected) runChatAction(`archive:${selected.id}`, () => setConversationArchived(selected, true));
         });
         root.querySelector("[data-chat-cancel-archive]")?.addEventListener("click", () => closeArchiveConfirm());
         root.querySelector("[data-chat-member-add-toggle]")?.addEventListener("click", () => toggleMemberAdd());
@@ -1372,16 +1424,22 @@ export function createChatViewModule() {
           checkbox.addEventListener("change", () => toggleMemberPicker(checkbox.dataset.chatMemberPick, checkbox.checked));
         });
         root.querySelector("[data-chat-add-members]")?.addEventListener("click", (event) => {
-          addSelectedMembers(event.currentTarget.dataset.chatAddMembers);
+          const conversationId = event.currentTarget.dataset.chatAddMembers;
+          runChatAction(`add-members:${conversationId}`, () => addSelectedMembers(conversationId));
         });
         root.querySelectorAll("[data-chat-remove-member]").forEach((button) => {
           button.addEventListener("click", () => {
-            if (selected) removeMember(selected.id, button.dataset.chatRemoveMember);
+            if (!selected) return;
+            const userId = button.dataset.chatRemoveMember;
+            runChatAction(`remove-member:${selected.id}:${userId}`, () => removeMember(selected.id, userId));
           });
         });
         root.querySelectorAll("[data-chat-promote-member]").forEach((button) => {
           button.addEventListener("click", () => {
-            if (selected) setMemberRole(selected.id, button.dataset.chatPromoteMember, button.dataset.chatRole);
+            if (!selected) return;
+            const userId = button.dataset.chatPromoteMember;
+            const role = button.dataset.chatRole;
+            runChatAction(`set-role:${selected.id}:${userId}`, () => setMemberRole(selected.id, userId, role));
           });
         });
         root.querySelector("[data-chat-search-toggle]")?.addEventListener("click", () => {
@@ -1407,7 +1465,10 @@ export function createChatViewModule() {
         });
         root.querySelector("[data-chat-browse-channels-close]")?.addEventListener("click", () => closeBrowseChannels());
         root.querySelectorAll("[data-chat-join-channel]").forEach((button) => {
-          button.addEventListener("click", () => joinChannel(button.dataset.chatJoinChannel));
+          button.addEventListener("click", () => {
+            const conversationId = button.dataset.chatJoinChannel;
+            runChatAction(`join-channel:${conversationId}`, () => joinChannel(conversationId));
+          });
         });
         root.querySelector("[data-chat-channel-title]")?.addEventListener("input", (event) => {
           state.composeChannelTitle = event.currentTarget.value;
@@ -1417,7 +1478,7 @@ export function createChatViewModule() {
           input?.setSelectionRange?.(input.value.length, input.value.length);
         });
         root.querySelector("[data-chat-create-channel]")?.addEventListener("click", () => {
-          createChannel(state.composeChannelTitle);
+          runChatAction("create-channel", () => createChannel(state.composeChannelTitle));
         });
         root.querySelector("[data-chat-compose-toggle]")?.addEventListener("click", () => {
           if (state.composeOpen) closeCompose();
@@ -1442,15 +1503,23 @@ export function createChatViewModule() {
           input?.setSelectionRange?.(input.value.length, input.value.length);
         });
         root.querySelector("[data-chat-start-dm]")?.addEventListener("click", (event) => {
-          startDm(event.currentTarget.dataset.chatStartDm);
+          const otherUserId = event.currentTarget.dataset.chatStartDm;
+          runChatAction(`start-dm:${otherUserId}`, () => startDm(otherUserId));
         });
         root.querySelector("[data-chat-create-group]")?.addEventListener("click", () => {
-          createGroup(state.composeGroupTitle, [...state.composeSelectedMemberIds]);
+          runChatAction("create-group", () => createGroup(state.composeGroupTitle, [...state.composeSelectedMemberIds]));
         });
         const sendForm = root.querySelector("[data-chat-send-form]");
         sendForm?.addEventListener("submit", (event) => {
           event.preventDefault();
-          sendMessage(event.currentTarget);
+          const conversationId = state.selectedConversationId;
+          const form = event.currentTarget;
+          // sendMessage() already guards its own duplicate-submission case by
+          // clearing the composer synchronously before its first await, so
+          // this wrapper's only job here is surfacing a mapped error if the
+          // network call itself fails -- not an additional pending gate that
+          // would fight the optimistic UI already in place.
+          runChatAction(`send-message:${conversationId}`, () => sendMessage(form));
         });
         const composerTextarea = root.querySelector("[data-chat-composer]");
         composerTextarea?.addEventListener("input", () => {
@@ -1516,7 +1585,10 @@ export function createChatViewModule() {
           });
         });
         root.querySelectorAll("[data-chat-confirm-delete]").forEach((button) => {
-          button.addEventListener("click", () => deleteMessage(button.dataset.chatConfirmDelete));
+          button.addEventListener("click", () => {
+            const messageId = button.dataset.chatConfirmDelete;
+            runChatAction(`delete-message:${messageId}`, () => deleteMessage(messageId));
+          });
         });
         root.querySelectorAll("[data-chat-cancel-delete]").forEach((button) => {
           button.addEventListener("click", () => {
@@ -1527,7 +1599,9 @@ export function createChatViewModule() {
         root.querySelectorAll("[data-chat-edit-form]").forEach((form) => {
           form.addEventListener("submit", (event) => {
             event.preventDefault();
-            submitEdit(event.currentTarget);
+            const target = event.currentTarget;
+            const messageId = target.dataset.chatEditForm;
+            runChatAction(`edit-message:${messageId}`, () => submitEdit(target));
           });
         });
         root.querySelectorAll("[data-chat-cancel-edit]").forEach((button) => {

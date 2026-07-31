@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "vite build",
+    "pretest:smoke": "npm run build",
     "test:smoke": "playwright test"
   },
   "devDependencies": {
